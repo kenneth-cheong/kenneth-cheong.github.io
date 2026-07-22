@@ -1,0 +1,487 @@
+import json
+import requests
+
+# ── LLM usage metering (CloudWatch EMF) — Digimetrics/LLM ─────────────────────
+# Meters every Claude/DeepSeek/OpenAI call by transparently wrapping
+# requests.post ONCE — all call sites report RAW token buckets (input, output,
+# cache read/write, web-search requests) into Digimetrics/LLM (dims Provider,
+# Provider+Model). Cost is derived at READ time from one central table, so no
+# rates live here (nothing to go stale). Mirrors saas/backend/src/lib/
+# llm-metric.mjs. Logs only; safe by construction — the real call runs first and
+# is returned regardless of metering.
+import json as _mllm_json
+import time as _mllm_time
+_LLM_FN = 'geoOnPageAnalysis'
+
+
+def _llm_provider(model, url=''):
+    m = (model or '').lower()
+    u = url or ''
+    if 'deepseek' in m or 'deepseek' in u:
+        return 'deepseek'
+    if 'openai' in u or m.startswith('gpt') or m.startswith('o1') or m.startswith('o3'):
+        return 'openai'
+    if 'claude' in m or 'anthropic' in u:
+        return 'claude'
+    return 'other'
+
+
+def _llm_buckets(body, url=''):
+    """(provider, model, {in,out,cr,cw,ws}) from an Anthropic/OpenAI/DeepSeek body."""
+    u = (body.get('usage') or {}) if isinstance(body, dict) else {}
+    model = body.get('model') if isinstance(body, dict) else None
+    prov = _llm_provider(model, url)
+    if 'input_tokens' in u or 'output_tokens' in u:            # Anthropic shape
+        stu = u.get('server_tool_use') or {}
+        return prov, model, {'in': u.get('input_tokens', 0), 'out': u.get('output_tokens', 0),
+                             'cr': u.get('cache_read_input_tokens', 0),
+                             'cw': u.get('cache_creation_input_tokens', 0),
+                             'ws': stu.get('web_search_requests', 0)}
+    out = u.get('completion_tokens', 0)                        # OpenAI / DeepSeek
+    if 'prompt_cache_hit_tokens' in u or 'prompt_cache_miss_tokens' in u:   # DeepSeek
+        cr = u.get('prompt_cache_hit_tokens', 0)
+        inp = u.get('prompt_cache_miss_tokens', (u.get('prompt_tokens', 0) - cr))
+    else:                                                      # OpenAI
+        cr = (u.get('prompt_tokens_details') or {}).get('cached_tokens', 0)
+        inp = u.get('prompt_tokens', 0) - cr
+    return prov, model, {'in': max(0, inp), 'out': out, 'cr': cr, 'cw': 0, 'ws': 0}
+
+
+def _emit_llm_metric(provider, model, b, fn=None):
+    try:
+        print(_mllm_json.dumps({'_aws': {'Timestamp': int(_mllm_time.time() * 1000), 'CloudWatchMetrics': [{'Namespace': 'Digimetrics/LLM', 'Dimensions': [['Provider'], ['Provider', 'Model']], 'Metrics': [{'Name': 'Calls', 'Unit': 'Count'}, {'Name': 'InputTokens', 'Unit': 'Count'}, {'Name': 'OutputTokens', 'Unit': 'Count'}, {'Name': 'CacheReadTokens', 'Unit': 'Count'}, {'Name': 'CacheWriteTokens', 'Unit': 'Count'}, {'Name': 'WebSearchRequests', 'Unit': 'Count'}]}]}, 'Provider': provider, 'Model': model or 'unknown', 'fn': fn or _LLM_FN, 'Calls': 1, 'InputTokens': int(b.get('in', 0) or 0), 'OutputTokens': int(b.get('out', 0) or 0), 'CacheReadTokens': int(b.get('cr', 0) or 0), 'CacheWriteTokens': int(b.get('cw', 0) or 0), 'WebSearchRequests': int(b.get('ws', 0) or 0)}))
+    except Exception:
+        pass
+
+
+def _emit_llm_from_body(provider, body):
+    try:
+        if not isinstance(body, dict):
+            return
+        prov, model, b = _llm_buckets(body)
+        if any(b.values()):
+            _emit_llm_metric(provider or prov, model, b)
+    except Exception:
+        pass
+
+
+_LLM_HOSTS = ('api.anthropic.com', 'api.deepseek.com', 'api.openai.com')
+try:
+    _orig_requests_post = requests.post
+
+    def _metered_requests_post(*a, **kw):
+        resp = _orig_requests_post(*a, **kw)
+        try:
+            url = a[0] if a else kw.get('url', '')
+            if isinstance(url, str) and any(h in url for h in _LLM_HOSTS) and not kw.get('stream'):
+                try:
+                    _body = resp.json()
+                except Exception:
+                    _body = None
+                if isinstance(_body, dict):
+                    _prov, _model, _b = _llm_buckets(_body, url)
+                    if any(_b.values()):
+                        _emit_llm_metric(_prov, _model, _b)
+        except Exception:
+            pass
+        return resp
+
+    requests.post = _metered_requests_post
+except Exception:
+    pass
+# ── end LLM usage metering ────────────────────────────────────────────────────
+
+import os
+import re
+import ipaddress, socket
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
+
+def _host_blocked(host):
+    # True if host resolves to a private/loopback/link-local/reserved/multicast IP
+    # (SSRF). Fails CLOSED on resolution error.
+    try:
+        infos = socket.getaddrinfo(host, None)
+        if not infos:
+            return True
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return True
+        return False
+    except Exception:
+        return True
+
+def lambda_handler(event, context):
+    try:
+        body = event.get('body', event)
+        if isinstance(body, str):
+            body = json.loads(body)
+            
+        url = body.get('url')
+        target_prompts = body.get('prompts', '')
+        brand = body.get('brand', 'The Brand')
+        industry = body.get('industry', 'N/A')
+        audience = body.get('audience', 'General')
+        market = body.get('market', 'Singapore')
+
+        if not url:
+            return error_response("Missing URL")
+
+        # 1. Scrape the page
+        page_data = scrape_page(url)
+        if "error" in page_data:
+            return error_response(f"Scraping failed: {page_data['error']}")
+
+        # Extract logical text chunks for side-by-side comparison
+        text_chunks = extract_text_chunks(page_data['html'])
+
+        # 2. Prepare AI Analysis
+        openai_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not openai_key:
+            return error_response("Anthropic API key not configured")
+
+        analysis_prompt = f"""
+Perform a comprehensive GEO (Generative Engine Optimisation) On-Page Analysis for the following landing page.
+
+URL: {url}
+BRAND: {brand}
+INDUSTRY: {industry}
+TARGET AUDIENCE: {audience}
+TARGET MARKET: {market}
+TARGET PROMPTS (How users might ask an AI about this):
+{target_prompts}
+
+HEADINGS FOUND ON PAGE (extracted via parser, authoritative):
+{json.dumps(page_data['headings'], indent=2)}
+
+ORIGINAL TEXT CHUNKS (split by headings/paragraphs for comparison):
+{json.dumps(text_chunks, indent=2)}
+
+PAGE METADATA:
+{json.dumps(page_data.get('metadata', {}), indent=2)}
+
+PAGE IMAGES:
+{json.dumps(page_data.get('images', []), indent=2)}
+
+PAGE CONTENT EXCERPT (HTML):
+---
+{page_data['html'][:18000]}
+---
+
+Your analysis must focus on how to make this page more visible in AI-generated responses (Perplexity, ChatGPT Search, Gemini, etc.).
+
+Be EXTREMELY SPECIFIC and ACTIONABLE. Provide exact phrases, exact terms, exact URLs, exact anchor text. Do NOT give generic advice. Every recommendation must be something the user can directly copy-paste or implement.
+
+CRITICAL: For internal linking suggestions, strictly PRIORITIZE using existing URLs found on the website. Only suggest new URLs if absolutely necessary for the user's goals.
+
+SCHEMA MAXIMIZATION: You must suggest EVERY relevant schema type possible for this page. 
+- Identify existing schema from PAGE METADATA. 
+- Suggest 'improved' versions of existing schema if they lack detail.
+- Suggest 'new' schema for any entity or content type found on the page.
+- Consider this checklist: Organization, Product, Service, FAQPage, HowTo, LocalBusiness, BreadcrumbList, Article, VideoObject, ImageObject, Review, AggregateRating, SoftwareApplication, Event, Person, JobPosting.
+- Use nested relationships (e.g., 'mainEntity', 'itemListElement', 'hasPart') where appropriate to create a rich semantic graph.
+
+IMPORTANT — keep the response COMPACT so it is complete, valid JSON (never truncated):
+- Include at most 6 items in any array (recommended_terms, topic_clusters, entities, faq_suggestions, linking_table, quotable_statements, etc.).
+- Keep each optimized chunk rewrite under 120 words.
+- Be terse in all "text" insight fields (one sentence each).
+
+Output your analysis in strictly JSON format:
+{{
+  "page_metadata": {{
+    "existing_canonical_url": "URL from PAGE METADATA",
+    "existing_meta_title": "Title from PAGE METADATA",
+    "existing_meta_description": "Description from PAGE METADATA",
+    "existing_schema_types": "List of EXISTING SCHEMA TYPES from PAGE METADATA"
+  }},
+  "proposed_meta_title": "An SEO-optimized title (max 60 chars)",
+  "proposed_meta_description": "An SEO-optimized description including target keywords (max 160 chars)",
+  "image_optimization": [
+    {{"src": "exact src from PAGE IMAGES", "existing_alt": "exact alt from PAGE IMAGES", "suggested_alt": "Optimized alt text incorporating keywords"}}
+  ],
+  "overall_score": integer (0-100),
+  "vector_embedding": {{
+    "score": integer,
+    "semantic_coverage": integer (0-100, how well current content matches target prompts semantically),
+    "recommended_terms": ["exact phrase 1 to add to content", "exact phrase 2", ...],
+    "topic_clusters": ["specific topic cluster phrase 1", "specific topic cluster phrase 2", ...],
+    "missing_elements": [{{"text": "specific missing element or gap", "positive": false}}],
+    "strengths": [{{"text": "specific strength found on page", "positive": true}}]
+  }},
+  "entity_optimization": {{
+    "score": integer,
+    "entities": [{{"name": "exact entity name found or needed", "type": "Organization|Product|Service|Place|Person|Event|SoftwareApplication", "status": "found|missing"}}],
+    "eeat_signals": [{{"signal": "Author credentials", "present": true}}, {{"signal": "Publication dates", "present": true}}, {{"signal": "Source citations", "present": true}}, {{"signal": "Expert quotes", "present": true}}, {{"signal": "Trust badges or awards", "present": true}}],
+    "insights": [{{"text": "specific actionable recommendation", "positive": true}}]
+  }},
+  "content_structure": {{
+    "score": integer,
+    "heading_hierarchy": "Use the HEADINGS FOUND ON PAGE list above as your source of truth. Include ALL of them with status 'found'. Then add any recommended new headings with status 'recommended'. Format: [{{\"level\": \"H1\", \"text\": \"exact heading text\", \"status\": \"found\"}}, ...]",
+    "faq_suggestions": [{{"question": "exact FAQ question to add", "answer_preview": "brief answer summary"}}],
+    "insights": [{{"text": "specific structural recommendation", "positive": true}}]
+  }},
+  "internal_linking": {{
+    "score": integer,
+    "linking_table": [{{"anchor_text": "exact anchor text to use", "target_url": "suggested target URL path (PRIORITIZE EXISTING)", "context": "brief reason"}}],
+    "insights": [{{"text": "specific linking recommendation", "positive": true}}]
+  }},
+  "citation_worthiness": {{
+    "score": integer,
+    "quotable_statements": [{{"statement": "exact quotable sentence to add to the page that AI would cite", "topic": "what topic this covers"}}],
+    "insights": [{{"text": "specific citation recommendation", "positive": true}}]
+  }},
+  "optimized_chunks": [
+    {{
+      "optimized": "The GEO-optimized, citation-worthy rewrite of this chunk (do NOT echo the original text back)."
+    }}
+  ],
+  "schema_markup": [
+    {{
+       "status": "existing|improved|new",
+       "schema_type": "The @type of the schema (e.g., FAQPage, LocalBusiness, etc.)",
+       "json_ld": {{ "a": "full", "valid": "JSON-LD", "object": "here" }}
+    }}
+  ]
+}}
+"""
+
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": openai_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 12000,
+                "system": "You are a specialized GEO (Generative Engine Optimisation) analyst. You help websites rank in AI-generated search results through semantic, entity, and structural optimization. Return ONLY valid JSON.",
+                "messages": [{"role": "user", "content": analysis_prompt}]
+            },
+            timeout=120  # bound the call so a slow/hung response can't run out the Lambda clock
+        )
+        response.raise_for_status()
+        result = response.json()
+        # Claude sometimes wraps JSON in ```json fences or adds a trailing note.
+        # Find the first '{' and decode just the first JSON object, ignoring any
+        # leading/trailing prose or fence the model adds around it.
+        raw_text = result['content'][0]['text']
+        start = raw_text.find('{')
+        if start == -1:
+            raise ValueError("No JSON object in model response")
+        analysis_data, _ = json.JSONDecoder().raw_decode(raw_text[start:])
+
+        # Verify internal linking URLs. These are sequential, network-bound HEAD/GET
+        # calls; cap how many we check and use a tight timeout so a page with many
+        # suggested links can't run the Lambda out of time (links beyond the cap are
+        # left unverified rather than blocking the whole response).
+        if 'internal_linking' in analysis_data and 'linking_table' in analysis_data['internal_linking']:
+            for link in analysis_data['internal_linking']['linking_table'][:12]:
+                target_url = link.get('target_url')
+                if not target_url:
+                    continue
+                try:
+                    # Make it an absolute URL if it is a relative path
+                    if target_url.startswith('/'):
+                        parsed_base = urlparse(url)
+                        test_url = f"{parsed_base.scheme}://{parsed_base.netloc}{target_url}"
+                    else:
+                        test_url = target_url
+
+                    # Check HTTP status code
+                    res = requests.head(test_url, timeout=2, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
+                    if res.status_code >= 400 and res.status_code != 405:
+                        res = requests.get(test_url, timeout=2, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
+                    
+                    if res.status_code < 400:
+                        link['url_status'] = 'exists'
+                    else:
+                        link['url_status'] = 'missing'
+                except Exception as e:
+                    link['url_status'] = 'missing'
+
+        print(f"[geo] parsed OK — {len(json.dumps(analysis_data))} bytes, keys={list(analysis_data.keys())}")
+        return success_response(analysis_data)
+
+    except Exception as e:
+        print(f"[geo] handler error: {repr(e)}")
+        return error_response(str(e))
+
+def scrape_page(url):
+    """Scraper with DataForSEO fallback when requests fails."""
+    if not url.startswith('http'):
+        url = 'https://' + url
+
+    html = None
+
+    # Attempt 1: Direct requests — only to a public host (SSRF guard). A blocked
+    # or non-http(s) host falls through to the DataForSEO proxy fetch below.
+    _p = urlparse(url)
+    _direct_ok = _p.scheme in ('http', 'https') and _p.hostname and not _host_blocked(_p.hostname)
+    if _direct_ok:
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+            }
+            res = requests.get(url, headers=headers, timeout=10)
+            res.raise_for_status()
+            html = res.text
+        except Exception as e:
+            print(f"[scrape_page] requests failed: {e}, trying DataForSEO fallback...")
+
+    # Attempt 2: DataForSEO crawler Lambda fallback
+    if not html:
+        try:
+            dfs_resp = requests.post(
+                'https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler',
+                json={"action": "pull_content", "url": url},
+                timeout=30
+            )
+            dfs_resp.raise_for_status()
+            dfs_data = dfs_resp.json()
+            body = dfs_data.get('body')
+            if isinstance(body, str):
+                body = json.loads(body)
+            if body and body.get('html'):
+                html = body['html']
+            else:
+                return {"error": "Both requests and DataForSEO fallback returned no content"}
+        except Exception as e2:
+            return {"error": f"Both scrapers failed. requests error, DataForSEO error: {e2}"}
+
+    # Parse with BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Extract page metadata
+    metadata = {
+        "existing_meta_title": "",
+        "existing_meta_description": "",
+        "existing_canonical_url": "",
+        "existing_schema_types": []
+    }
+    if soup.title and soup.title.string:
+        metadata["existing_meta_title"] = soup.title.string.strip()
+        
+    desc_tag = soup.find("meta", attrs={"name": "description"})
+    if desc_tag:
+        metadata["existing_meta_description"] = desc_tag.get("content", "").strip()
+        
+    can_tag = soup.find("link", rel="canonical")
+    if can_tag:
+        metadata["existing_canonical_url"] = can_tag.get("href", "").strip()
+
+    # Extract existing schema types
+    for script in soup.find_all("script", type="application/ld+json"):
+        if script.string:
+            try:
+                schema_data = json.loads(script.string)
+                def find_types(obj):
+                    if isinstance(obj, dict):
+                        tipo = obj.get("@type")
+                        if tipo:
+                            if isinstance(tipo, list):
+                                metadata["existing_schema_types"].extend(tipo)
+                            else:
+                                metadata["existing_schema_types"].append(tipo)
+                        for k, v in obj.items():
+                            find_types(v)
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            find_types(item)
+                find_types(schema_data)
+            except:
+                pass
+    metadata["existing_schema_types"] = sorted(list(set(metadata["existing_schema_types"])))
+
+    # Extract images (cap to 15 to save tokens)
+    images = []
+    for img in soup.find_all('img'):
+        src = img.get('src')
+        if src and not src.startswith('data:'):
+            images.append({
+                "src": src,
+                "alt": img.get('alt', '')
+            })
+            if len(images) >= 15:
+                break
+
+    # Extract all headings BEFORE decomposing elements
+    headings = []
+    for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+        text = tag.get_text(separator=' ', strip=True)
+        if text:
+            headings.append({
+                "level": tag.name.upper(),
+                "text": text
+            })
+
+    # Remove script and style elements
+    for element in soup(["script", "style", "nav", "footer"]):
+        element.decompose()
+
+    return {
+        "html": str(soup),
+        "text": soup.get_text(separator=' ', strip=True),
+        "headings": headings,
+        "metadata": metadata,
+        "images": images
+    }
+
+def extract_text_chunks(html_str):
+    """Split page content into logical text chunks by headings/sections."""
+    soup = BeautifulSoup(html_str, 'html.parser')
+    
+    # Remove script, style, nav, footer for cleaner text
+    for el in soup(['script', 'style', 'nav', 'footer']):
+        el.decompose()
+    
+    chunks = []
+    current_chunk = []
+    
+    for element in soup.body.children if soup.body else soup.children:
+        if hasattr(element, 'name') and element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+            # Flush current chunk
+            text = ' '.join(current_chunk).strip()
+            if text and len(text) > 30:
+                chunks.append(text)
+            current_chunk = [element.get_text(separator=' ', strip=True)]
+        elif hasattr(element, 'get_text'):
+            t = element.get_text(separator=' ', strip=True)
+            if t:
+                current_chunk.append(t)
+        elif isinstance(element, str) and element.strip():
+            current_chunk.append(element.strip())
+    
+    # Flush last chunk
+    text = ' '.join(current_chunk).strip()
+    if text and len(text) > 30:
+        chunks.append(text)
+    
+    # Limit to ~3 chunks. Each chunk costs input tokens AND a full prose rewrite in
+    # the output; this is the single biggest output-size lever, so capping it keeps
+    # the AI response complete (no truncation) and fast.
+    if len(chunks) > 3:
+        chunks = chunks[:3]
+
+    # If no heading-based chunks were found, split by paragraphs
+    if not chunks:
+        full_text = soup.get_text(separator='\n', strip=True)
+        paragraphs = [p.strip() for p in full_text.split('\n\n') if p.strip() and len(p.strip()) > 30]
+        chunks = paragraphs[:3]
+    
+    return chunks
+
+def success_response(data):
+    return {
+        "statusCode": 200,
+        "headers": { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        "body": json.dumps(data)
+    }
+
+def error_response(msg):
+    return {
+        "statusCode": 400,
+        "headers": { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        "body": json.dumps({"error": msg})
+    }
