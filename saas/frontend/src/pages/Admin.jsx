@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw, Info } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw, Info, Plus, Pencil, Trash2, X } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, CURRENCY, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -1582,6 +1582,125 @@ function AdminTickets() {
   );
 }
 
+// Fill placeholder tokens in a canned reply with this ticket's details, so a
+// saved template reads personally. Unknown tokens are left as-is.
+function fillTemplateTokens(text, ticket) {
+  const email = ticket?.userEmail || '';
+  const name = ticket?.userName || (email ? email.split('@')[0] : '') || 'there';
+  return String(text || '')
+    .replace(/\{\{\s*name\s*\}\}/gi, name)
+    .replace(/\{\{\s*email\s*\}\}/gi, email)
+    .replace(/\{\{\s*subject\s*\}\}/gi, ticket?.subject || '')
+    .replace(/\{\{\s*id\s*\}\}/gi, ticket?.id || '');
+}
+
+// Staff-shared canned replies: pick one to drop into the reply box, and
+// create / edit / delete the library inline. Templates live on the platform
+// settings singleton, so every staff member sees the same set.
+function ReplyTemplates({ ticket, onInsert }) {
+  const [open, setOpen] = useState(false);
+  const [templates, setTemplates] = useState(null); // null = not yet loaded
+  const [editing, setEditing] = useState(null);      // null | {} (new) | template (edit)
+  const [form, setForm] = useState({ title: '', body: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const wrapRef = useRef(null);
+
+  const load = () => api.ticketTemplates().then((d) => setTemplates(d.templates || [])).catch(() => setTemplates([]));
+  // Load once the menu is first opened (staff-only endpoint; cheap, rarely changes).
+  useEffect(() => { if (open && templates === null) load(); }, [open]);
+  // Close the menu on an outside click or Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setOpen(false); setEditing(null); } };
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setEditing(null); } };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  function startNew() { setForm({ title: '', body: '' }); setEditing({}); setErr(''); }
+  function startEdit(t) { setForm({ title: t.title, body: t.body }); setEditing(t); setErr(''); }
+
+  async function save(e) {
+    e.preventDefault();
+    if (!form.title.trim() || !form.body.trim()) { setErr('Give the template a name and a message.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const { templates: list } = await api.saveTicketTemplate({ id: editing?.id, title: form.title.trim(), body: form.body.trim() });
+      setTemplates(list); setEditing(null);
+    } catch (e2) { setErr(e2?.payload?.error || 'Could not save the template.'); }
+    finally { setBusy(false); }
+  }
+  async function remove(t) {
+    if (!confirm(`Delete the “${t.title}” template? This affects all staff.`)) return;
+    setBusy(true);
+    try { const { templates: list } = await api.deleteTicketTemplate(t.id); setTemplates(list); }
+    catch { /* leave the list as-is on failure */ } finally { setBusy(false); }
+  }
+  function insert(t) { onInsert(fillTemplateTokens(t.body, ticket)); setOpen(false); }
+
+  return (
+    <div ref={wrapRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1 font-medium text-muted hover:bg-raised hover:text-body"
+      ><FileText size={13} aria-hidden /> Templates</button>
+
+      {open && (
+        <div className="absolute bottom-full left-0 z-30 mb-1.5 w-80 rounded-xl border border-line bg-surface p-2 shadow-xl">
+          {editing ? (
+            <form onSubmit={save} className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-semibold text-body">{editing.id ? 'Edit template' : 'New template'}</span>
+                <button type="button" onClick={() => setEditing(null)} className="text-faint hover:text-body" aria-label="Cancel"><X size={14} /></button>
+              </div>
+              <input
+                value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="Template name (e.g. Billing — how credits work)"
+                className="w-full rounded-lg border border-edge px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none" />
+              <textarea
+                value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+                rows={5} placeholder="Message… use {{name}}, {{email}}, {{subject}} or {{id}} to personalise."
+                className="w-full resize-y rounded-lg border border-edge px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none" />
+              <p className="px-1 text-[11px] text-faint">Tokens: <code>{'{{name}}'}</code> <code>{'{{email}}'}</code> <code>{'{{subject}}'}</code> <code>{'{{id}}'}</code></p>
+              {err && <p className="px-1 text-[11px] text-red-600 dark:text-red-400">{err}</p>}
+              <div className="flex justify-end gap-2 px-1">
+                <button type="button" onClick={() => setEditing(null)} className="rounded-lg px-2.5 py-1 text-xs font-medium text-muted hover:bg-raised">Cancel</button>
+                <button type="submit" disabled={busy} className="btn-primary px-2.5 py-1 text-xs disabled:opacity-50">{busy ? 'Saving…' : 'Save template'}</button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-1 py-0.5">
+                <span className="text-xs font-semibold text-body">Insert a saved reply</span>
+                <button type="button" onClick={startNew} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand-600 dark:text-brand-400 hover:bg-raised"><Plus size={12} /> New</button>
+              </div>
+              <div className="mt-1 max-h-64 space-y-0.5 overflow-y-auto">
+                {templates === null && <div className="px-2 py-3 text-center text-xs text-faint">Loading…</div>}
+                {templates?.length === 0 && <div className="px-2 py-4 text-center text-xs text-faint">No templates yet. Create one to reuse it across the team.</div>}
+                {templates?.map((t) => (
+                  <div key={t.id} className="group flex items-start gap-1 rounded-lg px-1 py-1 hover:bg-raised">
+                    <button type="button" onClick={() => insert(t)} className="min-w-0 flex-1 text-left" title="Insert into reply">
+                      <div className="truncate text-sm font-medium text-body">{t.title}</div>
+                      <div className="truncate text-[11px] text-faint">{t.body}</div>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+                      <button type="button" onClick={() => startEdit(t)} className="rounded p-1 text-faint hover:text-body" aria-label="Edit"><Pencil size={13} /></button>
+                      <button type="button" onClick={() => remove(t)} className="rounded p-1 text-faint hover:text-red-600 dark:hover:text-red-400" aria-label="Delete"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminTicketDetail({ summary, onBack }) {
   const { user: me } = useAuth();
   const [ticket, setTicket] = useState(null);
@@ -1716,7 +1835,7 @@ function AdminTicketDetail({ summary, onBack }) {
           onSubmit={send}
           placeholder={`Reply to the customer as ${asMonty ? 'Monty' : myName}…  (⌘/Ctrl + Enter to send)`}
           header={(
-            /* Choose the identity the customer sees on this reply. */
+            /* Choose the identity the customer sees, and pull in a saved reply. */
             <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
               <span className="text-faint">Reply as</span>
               <div className="inline-flex rounded-lg border border-line p-0.5">
@@ -1731,6 +1850,11 @@ function AdminTicketDetail({ summary, onBack }) {
                   className={`rounded-md px-2.5 py-1 font-medium ${!asMonty ? 'bg-brand-600 text-white' : 'text-muted hover:text-body'}`}
                 >{myName}</button>
               </div>
+              <span className="ml-auto" />
+              <ReplyTemplates
+                ticket={ticket}
+                onInsert={(text) => setReply((r) => (r.trim() ? `${r.replace(/\s*$/, '')}\n\n${text}` : text))}
+              />
             </div>
           )}
         />

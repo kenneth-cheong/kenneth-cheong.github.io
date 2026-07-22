@@ -27,6 +27,9 @@ import {
   addNotification,
   getSettings,
   updateSettings,
+  listTicketTemplates,
+  saveTicketTemplate,
+  deleteTicketTemplate,
   audienceCandidates,
   recordBroadcast,
   listBroadcasts,
@@ -137,6 +140,32 @@ export const handler = async (event) => {
   // Platform-wide settings (e.g. whether email/password sign-in is allowed).
   if (method === 'GET' && path.endsWith('/admin/settings')) {
     return ok({ settings: await getSettings() });
+  }
+
+  // ── Support-ticket reply templates (canned messages) ───────────────────────
+  // Shared across staff: any staff member (already gated above) can list, create,
+  // edit, and delete them, then insert one into a ticket reply. Hosted on AdminFn
+  // rather than AppFn because AppFn's Lambda resource policy is at the 20KB route
+  // ceiling and can't take more routes.
+  if (method === 'GET' && path.endsWith('/admin/ticket-templates')) {
+    return ok({ templates: await listTicketTemplates() });
+  }
+  if (method === 'POST' && path.endsWith('/admin/ticket-templates/delete')) {
+    // `body` (the shared parse) isn't declared until further down — parse locally.
+    const tb = parseBody(event);
+    const id = clampStr(tb.id, 60).trim();
+    if (!id) return badRequest('Template id is required.');
+    return ok(await deleteTicketTemplate({ id, editorEmail: c.email }));
+  }
+  if (method === 'POST' && path.endsWith('/admin/ticket-templates')) {
+    const tb = parseBody(event);
+    const title = clampStr((tb.title || '').trim(), 120);
+    const text = clampStr((tb.body || '').trim(), 10000);
+    if (!title || !text) return badRequest('Template title and message are required.');
+    const id = tb.id ? clampStr(tb.id, 60).trim() : undefined;
+    try {
+      return ok(await saveTicketTemplate({ id, title, body: text, editorEmail: c.email }));
+    } catch (e) { return badRequest(e.message || 'Could not save the template.'); }
   }
 
   // ── Broadcast notifications ────────────────────────────────────────────────

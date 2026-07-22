@@ -315,6 +315,11 @@ export const api = {
   // Re-send the email for a past staff reply (no new message posted).
   adminResendReply: (ownerUserId, ticketId, messageId) =>
     call(`/support/tickets/${encodeURIComponent(ticketId)}/resend`, { method: 'POST', body: { ownerUserId, messageId } }),
+  // Staff-shared canned reply templates: list / create / edit / delete. Hosted on
+  // AdminFn (AppFn's route policy is full), gated to staff by the admin handler.
+  ticketTemplates: () => call('/admin/ticket-templates'),
+  saveTicketTemplate: ({ id, title, body }) => call('/admin/ticket-templates', { method: 'POST', body: { id, title, body } }),
+  deleteTicketTemplate: (id) => call('/admin/ticket-templates/delete', { method: 'POST', body: { id } }),
   // Projects
   projects: () => call('/projects'),
   createProject: (name, domain) => call('/projects', { method: 'POST', body: { name, domain } }),

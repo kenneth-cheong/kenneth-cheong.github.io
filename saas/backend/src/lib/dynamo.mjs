@@ -514,6 +514,55 @@ export async function updateSettings(patch = {}, adminEmail) {
   return viewSettings(next);
 }
 
+// ── Support-ticket reply templates (canned messages) ─────────────────────────
+// A shared library of saved replies stored on the settings singleton so any
+// staff member can create, edit, delete, and use them. Kept OUT of viewSettings
+// (they never reach a customer via /me) and read/written through their own
+// staff-only endpoints. Small library, rare writes → read-modify-write of the
+// whole array is fine.
+const MAX_TEMPLATES = 200;
+function cleanTemplate({ title, body } = {}) {
+  return { title: String(title || '').trim().slice(0, 120), body: String(body || '').trim().slice(0, 10000) };
+}
+
+/** All saved reply templates (staff-shared), newest edits first. */
+export async function listTicketTemplates() {
+  const s = await getUser(SETTINGS_ID);
+  return Array.isArray(s?.ticketTemplates) ? s.ticketTemplates : [];
+}
+
+/** Create (no id) or update (existing id) a reply template; returns the saved
+ *  template plus the full list. Throws on empty title/body or a bad id. */
+export async function saveTicketTemplate({ id, title, body, editorEmail } = {}) {
+  const clean = cleanTemplate({ title, body });
+  if (!clean.title || !clean.body) throw new Error('Template title and body are required.');
+  const current = (await getUser(SETTINGS_ID)) || {};
+  const list = Array.isArray(current.ticketTemplates) ? [...current.ticketTemplates] : [];
+  const now = new Date().toISOString();
+  const idx = id ? list.findIndex((x) => x.id === id) : -1;
+  if (id && idx < 0) throw new Error('Template not found.');
+  let saved;
+  if (idx >= 0) {
+    saved = { ...list[idx], ...clean, updatedAt: now, updatedBy: editorEmail || list[idx].updatedBy || null };
+    list[idx] = saved;
+  } else {
+    if (list.length >= MAX_TEMPLATES) throw new Error(`Template limit reached (${MAX_TEMPLATES}).`);
+    saved = { id: 'tpl_' + rid(), ...clean, createdAt: now, updatedAt: now, createdBy: editorEmail || null, updatedBy: editorEmail || null };
+    list.push(saved);
+  }
+  await updateSettings({ ticketTemplates: list }, editorEmail);
+  return { template: saved, templates: list };
+}
+
+/** Remove a reply template by id; returns the remaining list (idempotent). */
+export async function deleteTicketTemplate({ id, editorEmail } = {}) {
+  const current = (await getUser(SETTINGS_ID)) || {};
+  const list = Array.isArray(current.ticketTemplates) ? current.ticketTemplates : [];
+  const next = list.filter((x) => x.id !== id);
+  await updateSettings({ ticketTemplates: next }, editorEmail);
+  return { templates: next };
+}
+
 /** Free-tier monthly refill — atomic + idempotent per period via a condition on
  * `freeRefillAt` so overlapping daily runs can't double-refill. Returns the new
  * item, or null if it was already refilled for this period. */
