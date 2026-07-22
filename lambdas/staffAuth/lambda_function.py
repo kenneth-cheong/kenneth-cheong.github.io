@@ -485,6 +485,52 @@ def do_usage_status(body: dict) -> dict:
     })
 
 
+# Estimated REAL vendor cost (USD) of one index.html tool run, so index runs can
+# be attributed alongside the SaaS side in the shared Admin → Platform panel. The
+# SaaS backend keeps the authoritative per-class table (VENDOR_COST_USD in
+# saas/shared/catalog.mjs); index.html tool ids differ, so this is a coarse,
+# tunable per-tool override with a modest default. Refine as invoices land.
+INDEX_TOOL_COST_USD = {
+    "forensic-audit": 0.60,
+    "technical-seo": 0.10,
+    "page-analysis": 0.05,
+    "backlinks": 0.05,
+    "keyword-analysis": 0.02,
+    "ai-mentions": 0.15,
+    "geo-onpage": 0.08,
+}
+INDEX_TOOL_COST_DEFAULT = 0.02
+
+
+def emit_usage_metric(tool: str, est_cost_usd: float) -> None:
+    """Emit one CloudWatch EMF metric line tagged Source='index' — the mirror of
+    the SaaS MeteringFn's emitUsageMetric(), landing in the SAME namespace so the
+    Admin panel can read both surfaces back with one query. Dimension on Source
+    only (keeps custom-metric cost minimal); `tool` rides along as a property for
+    Logs Insights. Best-effort: a logging hiccup must never fail the caller's run.
+    """
+    try:
+        print(json.dumps({
+            "_aws": {
+                "Timestamp": int(time.time() * 1000),
+                "CloudWatchMetrics": [{
+                    "Namespace": "Digimetrics/Usage",
+                    "Dimensions": [["Source"]],
+                    "Metrics": [
+                        {"Name": "Runs", "Unit": "Count"},
+                        {"Name": "EstCostUSD", "Unit": "None"},
+                    ],
+                }],
+            },
+            "Source": "index",
+            "tool": tool or "unknown",
+            "Runs": 1,
+            "EstCostUSD": float(est_cost_usd or 0),
+        }))
+    except Exception:
+        pass
+
+
 def do_record_usage(body: dict) -> dict:
     """Count one tool run against the account's monthly quota. Returns
     allowed=False (without incrementing) when the account is already at its
@@ -532,6 +578,11 @@ def do_record_usage(body: dict) -> dict:
     tool = (body.get("tool") or "").strip()[:64]
     if tool:
         _bump_tool_usage(username, month, tool)
+
+    # Per-surface run + estimated-spend metric (Source='index') for the shared
+    # Admin → Platform breakdown. Emitted only for real, counted runs (past the
+    # quota gate above), so it never over-counts blocked attempts.
+    emit_usage_metric(tool, INDEX_TOOL_COST_USD.get(tool, INDEX_TOOL_COST_DEFAULT))
 
     return _resp(200, {"success": True, "allowed": True, "month": month, "used": used,
                        "limit": quota, "remaining": (max(0, quota - used) if quota > 0 else -1)})

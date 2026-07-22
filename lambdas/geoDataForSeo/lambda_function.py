@@ -22,6 +22,99 @@ import re
 import urllib.error
 import urllib.request
 
+# ── LLM usage metering (CloudWatch EMF) — Digimetrics/LLM ─────────────────────
+# Meters every Claude/DeepSeek/OpenAI call at each LLM helper's
+# response site (urllib/urllib3 Lambda) — all call sites report RAW token buckets (input, output,
+# cache read/write, web-search requests) into Digimetrics/LLM (dims Provider,
+# Provider+Model). Cost is derived at READ time from one central table, so no
+# rates live here (nothing to go stale). Mirrors saas/backend/src/lib/
+# llm-metric.mjs. Logs only; safe by construction — the real call runs first and
+# is returned regardless of metering.
+import json as _mllm_json
+import time as _mllm_time
+_LLM_FN = 'geoDataForSeo'
+_LLM_SOURCE = 'unknown'
+
+
+def _set_llm_source(event):
+    """Tag this invocation with the front-end that triggered it (saas | index).
+    Read from the request body's `_source` (a body field, NOT a header — a custom
+    header would force a CORS preflight on every agency Lambda). Lambda handles
+    one event at a time per container, so a module global is safe here."""
+    global _LLM_SOURCE
+    src = ''
+    try:
+        if isinstance(event, dict):
+            body = event.get('body')
+            if isinstance(body, str):
+                try:
+                    body = _mllm_json.loads(body or '{}')
+                except Exception:
+                    body = {}
+            if not isinstance(body, dict):
+                body = {}
+            src = body.get('_source') or event.get('_source') or ''
+        src = str(src).strip().lower()
+    except Exception:
+        src = ''
+    # Anything unrecognised stays 'unknown' so unattributed spend stays visible.
+    _LLM_SOURCE = src if src in ('saas', 'index') else 'unknown'
+
+
+def _llm_provider(model, url=''):
+    m = (model or '').lower()
+    u = url or ''
+    if 'deepseek' in m or 'deepseek' in u:
+        return 'deepseek'
+    if 'openai' in u or m.startswith('gpt') or m.startswith('o1') or m.startswith('o3'):
+        return 'openai'
+    if 'claude' in m or 'anthropic' in u:
+        return 'claude'
+    return 'other'
+
+
+def _llm_buckets(body, url=''):
+    """(provider, model, {in,out,cr,cw,ws}) from an Anthropic/OpenAI/DeepSeek body."""
+    u = (body.get('usage') or {}) if isinstance(body, dict) else {}
+    model = body.get('model') if isinstance(body, dict) else None
+    prov = _llm_provider(model, url)
+    if 'input_tokens' in u or 'output_tokens' in u:            # Anthropic shape
+        stu = u.get('server_tool_use') or {}
+        return prov, model, {'in': u.get('input_tokens', 0), 'out': u.get('output_tokens', 0),
+                             'cr': u.get('cache_read_input_tokens', 0),
+                             'cw': u.get('cache_creation_input_tokens', 0),
+                             'ws': stu.get('web_search_requests', 0)}
+    out = u.get('completion_tokens', 0)                        # OpenAI / DeepSeek
+    if 'prompt_cache_hit_tokens' in u or 'prompt_cache_miss_tokens' in u:   # DeepSeek
+        cr = u.get('prompt_cache_hit_tokens', 0)
+        inp = u.get('prompt_cache_miss_tokens', (u.get('prompt_tokens', 0) - cr))
+    else:                                                      # OpenAI
+        cr = (u.get('prompt_tokens_details') or {}).get('cached_tokens', 0)
+        inp = u.get('prompt_tokens', 0) - cr
+    return prov, model, {'in': max(0, inp), 'out': out, 'cr': cr, 'cw': 0, 'ws': 0}
+
+
+def _emit_llm_metric(provider, model, b, fn=None):
+    try:
+        print(_mllm_json.dumps({'_aws': {'Timestamp': int(_mllm_time.time() * 1000), 'CloudWatchMetrics': [{'Namespace': 'Digimetrics/LLM', 'Dimensions': [['Provider'], ['Provider', 'Model'], ['Source'], ['Source', 'Provider']], 'Metrics': [{'Name': 'Calls', 'Unit': 'Count'}, {'Name': 'InputTokens', 'Unit': 'Count'}, {'Name': 'OutputTokens', 'Unit': 'Count'}, {'Name': 'CacheReadTokens', 'Unit': 'Count'}, {'Name': 'CacheWriteTokens', 'Unit': 'Count'}, {'Name': 'WebSearchRequests', 'Unit': 'Count'}]}]}, 'Provider': provider, 'Model': model or 'unknown', 'Source': _LLM_SOURCE, 'fn': fn or _LLM_FN, 'Calls': 1, 'InputTokens': int(b.get('in', 0) or 0), 'OutputTokens': int(b.get('out', 0) or 0), 'CacheReadTokens': int(b.get('cr', 0) or 0), 'CacheWriteTokens': int(b.get('cw', 0) or 0), 'WebSearchRequests': int(b.get('ws', 0) or 0)}))
+    except Exception:
+        pass
+
+
+def _emit_llm_from_body(provider, body):
+    try:
+        if not isinstance(body, dict):
+            return
+        prov, model, b = _llm_buckets(body)
+        if any(b.values()):
+            _emit_llm_metric(provider or prov, model, b)
+    except Exception:
+        pass
+
+
+# ── end LLM usage metering ────────────────────────────────────────────────────
+
+
 DFS_AUTH = os.environ.get("DATAFORSEO_AUTH", "")  # already includes the "Basic " prefix
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 EXTRACT_MODEL = os.environ.get("EXTRACT_MODEL", "claude-haiku-4-5")
@@ -273,6 +366,8 @@ def extract_with_claude(brand, answer, aliases=None):
     status, body = _http_json("https://api.anthropic.com/v1/messages", payload, headers={
         "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
         "Content-Type": "application/json"})
+    if status == 200:
+        _emit_llm_from_body("claude", body)
     if status != 200:
         # Fallback: heuristic mention detection on the raw text.
         mentioned = heuristic_mentioned(brand, answer, aliases)
@@ -400,3 +495,17 @@ def lambda_handler(event, context):
         return _resp(200, {"verification": [result]})
     except Exception as e:
         return _resp(200, {"verification": [{"status": "error", "error": str(e), "engine": model_id}]})
+
+
+# ── LLM source attribution ────────────────────────────────────────────────────
+# Wrap the handler ONCE so every model call made during this invocation is tagged
+# with the front-end that triggered it. Appended at module end because
+# lambda_handler must already be defined. Pairs with the metering block above.
+try:
+    _llm_orig_handler = lambda_handler
+
+    def lambda_handler(event, context=None):
+        _set_llm_source(event)
+        return _llm_orig_handler(event, context)
+except NameError:
+    pass
