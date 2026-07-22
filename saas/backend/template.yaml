@@ -428,7 +428,10 @@ Resources:
           ThrottlingRateLimit: 300
       CorsConfiguration:
         AllowOrigins: !Ref CorsOrigins
-        AllowHeaders: [Content-Type, Authorization]
+        # X-Source: every frontend call() tags its product (saas|index) for
+        # per-product run/spend attribution — must be allow-listed or the browser
+        # preflight fails ("No Access-Control-Allow-Origin") on every POST.
+        AllowHeaders: [Content-Type, Authorization, X-Source]
         AllowMethods: [GET, POST, OPTIONS]
         AllowCredentials: true
       Auth:
