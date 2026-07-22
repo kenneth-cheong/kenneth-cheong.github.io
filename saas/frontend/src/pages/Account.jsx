@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
-import { PartyPopper, Zap, CreditCard } from 'lucide-react';
+import { PartyPopper, Zap } from 'lucide-react';
 import { PLANS, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
@@ -28,8 +28,6 @@ export default function Account() {
   const [emailBusy, setEmailBusy] = useState(false);
   const [uname, setUname] = useState(user.username || '');
   const [unameBusy, setUnameBusy] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const plan = PLANS[user.tier];
   // The current device's session id lives in the refresh token (decode locally).
   const currentSid = (() => {
@@ -93,26 +91,15 @@ export default function Account() {
     finally { setEmailBusy(false); }
   }
 
-  // Airwallex has no hosted customer portal, so card updates run through a
-  // SETUP-mode checkout: same hosted redirect, saves a new payment source
-  // against the existing customer.
-  async function updateCard() {
+  // Card updates, plan switches and cancellation all live in the Stripe
+  // Customer Portal. The bespoke in-app versions of these belong to the
+  // Airwallex backend, which hasn't shipped — one redirect until it does.
+  async function openPortal() {
     setBusy(true);
     try {
-      const { url } = await api.paymentMethod();
+      const { url } = await api.portal();
       window.location.href = url;
     } catch (e) { toast(e.message, 'error'); setBusy(false); }
-  }
-
-  async function cancelSubscription() {
-    setCancelling(true);
-    try {
-      await api.cancelPlan(true); // at period end — they keep what they paid for
-      toast('Subscription cancelled. You keep your plan until the end of the billing period.', 'success');
-      setConfirmCancel(false);
-      await refresh();
-    } catch (e) { toast(e.message, 'error'); }
-    finally { setCancelling(false); }
   }
 
   // The export used to be JSON-only, which most people cannot open — let alone
@@ -206,11 +193,6 @@ export default function Account() {
           <Zap size={16} aria-hidden /> Top-up successful — credits added to your balance.
         </div>
       )}
-      {params.get('card') === 'updated' && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-300">
-          <CreditCard size={16} aria-hidden /> Payment method updated — future invoices will use it.
-        </div>
-      )}
 
       <div className="card mt-6 p-5">
         <div className="flex items-center gap-3">
@@ -269,39 +251,16 @@ export default function Account() {
         <div className="mt-5 flex flex-wrap gap-3">
           <Link to="/pricing" className="btn-primary">Change plan</Link>
           {user.hasSubscription && (
-            <>
-              <button onClick={updateCard} disabled={busy} className="btn-ghost">
-                {busy ? '…' : 'Update payment method'}
-              </button>
-              {!confirmCancel && (
-                <button onClick={() => setConfirmCancel(true)} className="btn-ghost text-muted">
-                  Cancel subscription
-                </button>
-              )}
-            </>
+            <button onClick={openPortal} disabled={busy} className="btn-ghost">
+              {busy ? '…' : 'Manage billing'}
+            </button>
           )}
         </div>
 
-        {confirmCancel && (
-          <div className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 p-4">
-            <p className="text-sm text-amber-900 dark:text-amber-200">
-              Cancel your {plan.name} subscription? You'll keep {plan.name} until the end of the
-              current billing period, then move to Free. Top-up credits you've bought stay yours.
-            </p>
-            <div className="mt-3 flex gap-3">
-              <button onClick={cancelSubscription} disabled={cancelling} className="btn-primary">
-                {cancelling ? '…' : 'Yes, cancel'}
-              </button>
-              <button onClick={() => setConfirmCancel(false)} disabled={cancelling} className="btn-ghost">
-                Keep my plan
-              </button>
-            </div>
-          </div>
-        )}
-
-        {user.hasSubscription && !confirmCancel && (
-          <p className="mt-3 text-xs text-faint">
-            Change plan switches immediately and prorates your next invoice. Invoices are listed below.
+        {user.hasSubscription && (
+          <p className="mt-3 text-xs text-muted">
+            Manage billing opens the Stripe Customer Portal — update your card, switch plan, or
+            cancel. Invoices are listed below.
           </p>
         )}
       </div>

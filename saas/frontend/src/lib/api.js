@@ -254,11 +254,13 @@ export const api = {
       : call('/run/social-audit', { method: 'POST', body: payload }),
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
-  // Airwallex has no hosted customer portal, so "manage billing" is these three
-  // routes rather than one redirect.
-  paymentMethod: () => call('/billing/payment-method', { method: 'POST' }),
-  changePlan: (tier, interval) => call('/billing/subscription/change', { method: 'POST', body: { tier, interval } }),
-  cancelPlan: (atPeriodEnd = true) => call('/billing/subscription/cancel', { method: 'POST', body: { atPeriodEnd } }),
+  // Card updates, plan switches and cancellation all happen in the Stripe
+  // Customer Portal — one redirect, not three routes. The bespoke
+  // /billing/payment-method, /billing/subscription/change and
+  // /billing/subscription/cancel routes belong to the Airwallex backend that
+  // has not shipped (see catalog.mjs's TERMS_VERSION note); until it does,
+  // calling them 404s. Restore them in the same change that ships it.
+  portal: () => call('/billing/portal', { method: 'POST' }),
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
   chat: (messages, conversationId, context) => call('/chat', { method: 'POST', body: { messages, conversationId, context } }),

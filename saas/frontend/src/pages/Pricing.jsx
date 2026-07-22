@@ -9,7 +9,7 @@ import TopupPacks from '../components/TopupPacks.jsx';
 const ORDER = ['free', 'starter', 'pro', 'expert'];
 
 export default function Pricing() {
-  const { user, refresh } = useAuth();
+  const { user } = useAuth();
   const [interval, setInterval] = useState('monthly');
   const [busy, setBusy] = useState(null);
 
@@ -17,20 +17,16 @@ export default function Pricing() {
     if (tier === 'free' || tier === user.tier) return;
     setBusy(tier);
     try {
-      // Already subscribed → switch the existing subscription in place so
-      // Airwallex prorates. Sending them through checkout again would open a
-      // SECOND subscription and bill them twice.
-      if (user.hasSubscription) {
-        await api.changePlan(tier, interval);
-        toast(`Switched to ${PLANS[tier].name}. Your next invoice is prorated.`, 'success');
-        await refresh();
-        return;
-      }
-      const { url } = await api.checkout(tier, interval);
+      // Already subscribed → the Stripe Customer Portal, which switches the
+      // existing subscription in place and prorates. Sending them through
+      // checkout again would open a SECOND subscription and bill them twice
+      // (handleCheckout has no existing-subscription guard).
+      const { url } = user.hasSubscription
+        ? await api.portal()
+        : await api.checkout(tier, interval);
       window.location.href = url;
     } catch (e) {
       toast(e.message, 'error');
-    } finally {
       setBusy(null);
     }
   }
