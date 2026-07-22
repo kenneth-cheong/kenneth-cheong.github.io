@@ -30,7 +30,7 @@ echo "▸ Node $(node -v)"
 # ── Build + verify the real API base is baked in ──────────────────────────────
 echo "▸ Building…"
 npm run build
-grep -rq "execute-api" dist/assets/*.js || { echo "✗ Build looks wrong — no API base in bundle." >&2; exit 1; }
+grep -rq "api.digimetrics.ai" dist/assets/*.js || { echo "✗ Build looks wrong — no API base in bundle." >&2; exit 1; }
 
 # ── Zip dist contents (index.html at the zip root) ────────────────────────────
 echo "▸ Packaging…"
