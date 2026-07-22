@@ -458,6 +458,111 @@ export async function anthropicCostReport({ from, to }) {
   return { configured: true, provider: 'claude', totalCostUSD: totalUSD, currency: 'USD', buckets, byModel, ...(truncated ? { truncated: true } : {}) };
 }
 
+// ── Per-tool cost, per platform (CloudWatch Logs Insights) ───────────────────
+// Deliberately NOT a metric dimension. Tool x Source would add ~80 dimension
+// combinations across ~9 metric names — several hundred custom metrics at
+// ~$0.30/metric/month, i.e. more per month than the LLM spend it measures. The
+// `tool` value is already a PROPERTY on every Digimetrics/LLM line, so Logs
+// Insights answers the same question for ~$0.005/GB scanned, on demand.
+//
+// Heavier than a GetMetricData read (seconds, not milliseconds), so it's its own
+// route the UI only calls when the operator opens the panel — same treatment as
+// the Amplify access-log export.
+const LLM_LOG_GROUPS = [
+  'aiOptimiser', 'geoDataForSeo', 'webpageFomating', 'whatsappBot', 'socialMediaAudit',
+  'campaignSummaryProcessor', 'content-generator', 'similarKeywords',
+  'onPageRecommendations', 'gptTopicsPerUrl', 'pageDesignAnalysis', 'socialMediaStrategy',
+  'contentPillar', 'reasonForKwSelection', 'onPageContentRecommendations', 'mediaPlanGenerator',
+  'personaGenerator', 'techAuditSummary', 'AiMentions', 'checkKeywordRelevance',
+  'geoOnPageAnalysis', 'checkContent', 'proposeElementorContent', 'generateSemGoogle',
+  'performanceMarketing', 'monday', 'claude', 'overdueResponses',
+].map((f) => `/aws/lambda/${f}`);
+
+const TOOL_COST_QUERY = `
+fields coalesce(tool, fn) as toolKey, Source, Model, Calls, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, WebSearchRequests
+| filter ispresent(Calls) and ispresent(Model)
+| stats sum(Calls) as calls, sum(InputTokens) as inTok, sum(OutputTokens) as outTok, sum(CacheReadTokens) as crTok, sum(CacheWriteTokens) as cwTok, sum(WebSearchRequests) as ws by Source, toolKey, Model
+| sort outTok desc
+| limit 500`;
+
+export async function toolCostBreakdown({ from, to, chatStreamLogGroup }) {
+  const { CloudWatchLogsClient, StartQueryCommand, GetQueryResultsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+  const cwl = new CloudWatchLogsClient({ region: REGION });
+  const wanted = [...LLM_LOG_GROUPS, ...(chatStreamLogGroup ? [chatStreamLogGroup] : [])];
+  // StartQuery fails outright if ANY named group is missing, and a Lambda that
+  // has never been invoked has no log group yet (geoDataForSeo was exactly this).
+  // So intersect with what actually exists rather than failing the whole report.
+  const { DescribeLogGroupsCommand } = await import('@aws-sdk/client-cloudwatch-logs');
+  const existing = new Set();
+  let lgToken;
+  do {
+    const r = await cwl.send(new DescribeLogGroupsCommand({ logGroupNamePrefix: '/aws/lambda/', nextToken: lgToken, limit: 50 }));
+    for (const g of r.logGroups || []) existing.add(g.logGroupName);
+    lgToken = r.nextToken;
+  } while (lgToken);
+  const groups = wanted.filter((g) => existing.has(g));
+  const skipped = wanted.filter((g) => !existing.has(g)).map((g) => g.replace('/aws/lambda/', ''));
+  if (!groups.length) return { error: 'No model-call log groups exist yet for this account.' };
+  let queryId;
+  try {
+    ({ queryId } = await cwl.send(new StartQueryCommand({
+      logGroupNames: groups,
+      startTime: Math.floor(from.getTime() / 1000),
+      endTime: Math.floor(to.getTime() / 1000),
+      queryString: TOOL_COST_QUERY,
+      limit: 500,
+    })));
+  } catch (e) {
+    return { error: `Logs Insights query failed: ${e.message}` };
+  }
+  // Poll within the API Gateway 30s budget; return partial results rather than
+  // failing outright if the scan is still running.
+  const deadline = Date.now() + 20000;
+  let status = 'Running';
+  let results = [];
+  while (Date.now() < deadline) {
+    const r = await cwl.send(new GetQueryResultsCommand({ queryId }));
+    status = r.status;
+    results = r.results || [];
+    if (status === 'Complete' || status === 'Failed' || status === 'Cancelled') break;
+    await new Promise((res) => setTimeout(res, 1200));
+  }
+  if (status === 'Failed' || status === 'Cancelled') return { error: `Logs Insights query ${status}` };
+
+  // Price each (source, tool, model) row, then fold models into one row per
+  // tool+platform so the panel shows "what this tool costs on this surface".
+  const byKey = new Map();
+  for (const row of results) {
+    const f = Object.fromEntries(row.map((c) => [c.field, c.value]));
+    const num = (k) => Number(f[k] || 0);
+    const b = {
+      calls: num('calls'), inputTokens: num('inTok'), outputTokens: num('outTok'),
+      cacheReadTokens: num('crTok'), cacheWriteTokens: num('cwTok'), webSearchRequests: num('ws'),
+    };
+    const source = f.Source || 'unknown';
+    const tool = f.toolKey || 'unattributed';
+    const k = `${source}|${tool}`;
+    const cur = byKey.get(k) || { source, tool, ...zeroBuckets() };
+    for (const kk of Object.keys(b)) cur[kk] += b[kk];
+    cur.estCostUSD += costOf(f.Model, b);
+    byKey.set(k, cur);
+  }
+  const rows = [...byKey.values()].sort((a, b) => b.estCostUSD - a.estCostUSD);
+  const totals = rows.reduce((a, r) => ({
+    calls: a.calls + r.calls, inputTokens: a.inputTokens + r.inputTokens,
+    outputTokens: a.outputTokens + r.outputTokens, estCostUSD: a.estCostUSD + r.estCostUSD,
+  }), { calls: 0, inputTokens: 0, outputTokens: 0, estCostUSD: 0 });
+  return {
+    currency: 'USD',
+    range: { from: from.toISOString(), to: to.toISOString() },
+    complete: status === 'Complete',
+    rows,
+    totals,
+    // Named so a missing tool isn't mistaken for zero spend.
+    ...(skipped.length ? { skippedLogGroups: skipped } : {}),
+  };
+}
+
 /** Read a Secrets Manager string, or null when absent/unreadable. */
 async function readSecret(id) {
   try {

@@ -959,6 +959,9 @@ Resources:
           BROADCASTS_TABLE: !Ref BroadcastsTable
           # Public bucket for images embedded in broadcast notifications.
           BROADCAST_IMAGES_BUCKET: !Ref BroadcastImagesBucket
+          # Log group for the SaaS assistant's model calls, so the per-tool
+          # cost query covers chat as well as the agency Lambdas.
+          CHATSTREAM_LOG_GROUP: !Sub '/aws/lambda/${ChatStreamFn}'
           AMPLIFY_APP_ID: !Ref AmplifyAppId
           AMPLIFY_DOMAIN: !Ref AmplifyDomain
           AMPLIFY_BRANCH: !Ref AmplifyBranch
@@ -987,6 +990,11 @@ Resources:
               # ListMetrics: discover the exact (Provider,Model) pairs for the
               # per-model LLM cost breakdown. Both read-only + no resource scoping.
               Action: [cloudwatch:GetMetricData, cloudwatch:ListMetrics, ce:GetCostAndUsage]
+              Resource: '*'
+            - Effect: Allow
+              # Read-only Logs Insights for the per-tool cost breakdown (keeps
+              # `tool` out of metric dimensions, which would cost far more).
+              Action: [logs:StartQuery, logs:GetQueryResults, logs:StopQuery, logs:DescribeLogGroups]
               Resource: '*'
             - Effect: Allow
               Action: [amplify:ListJobs, amplify:GenerateAccessLogs, amplify:GetApp]
@@ -1036,6 +1044,7 @@ Resources:
         PlatformAccessLogs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/access-logs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformToolSpend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/tool-spend, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformLlmUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/llm-usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PlatformToolCost: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/tool-cost, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Finances: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/finances, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────

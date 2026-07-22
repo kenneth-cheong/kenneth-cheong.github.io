@@ -396,6 +396,14 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/platform/tool-spend${qs ? `?${qs}` : ''}`);
   },
+  // Per-tool LLM cost split by platform (Logs Insights scan — seconds, on demand).
+  adminToolCost: ({ from, to } = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const qs = p.toString();
+    return call(`/admin/platform/tool-cost${qs ? `?${qs}` : ''}`);
+  },
   // Per-provider LLM usage (Claude vs DeepSeek token counts + estimated $).
   adminLlmUsage: ({ from, to } = {}) => {
     const p = new URLSearchParams();

@@ -33,7 +33,7 @@ export function providerOf(model) {
 export function emitLlmMetric({
   provider, model, inputTokens = 0, outputTokens = 0,
   cacheReadTokens = 0, cacheWriteTokens = 0, webSearchRequests = 0, fn = '',
-  source = 'saas',
+  source = 'saas', tool = '',
 } = {}) {
   try {
     const n = (v) => Number(v) || 0;
@@ -59,6 +59,9 @@ export function emitLlmMetric({
       Model: model || 'unknown',
       Source: source || 'unknown',
       fn,
+      // Property, not a dimension: a Tool dimension would multiply metric
+      // combinations (~40 tools x 2 sources) and cost more than it measures.
+      tool,
       Calls: 1,
       InputTokens: n(inputTokens),
       OutputTokens: n(outputTokens),

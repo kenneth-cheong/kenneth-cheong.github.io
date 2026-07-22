@@ -2514,6 +2514,72 @@ function LlmUsageByProvider({ llm }) {
   );
 }
 
+// Per-tool cost, split by platform. Backed by a Logs Insights scan rather than a
+// metric dimension (Tool x Source would add hundreds of custom metrics costing
+// more per month than the spend they measure), so it is on-demand.
+function ToolCostByPlatform({ rangeArgs }) {
+  const [data, setData] = useState(null); // null = idle
+  const [busy, setBusy] = useState(false);
+  const load = () => {
+    setBusy(true);
+    api.adminToolCost(rangeArgs())
+      .then(setData)
+      .catch((e) => setData({ error: e.message || 'Query failed' }))
+      .finally(() => setBusy(false));
+  };
+  const rows = data?.rows || [];
+  const total = data?.totals?.estCostUSD || 0;
+  return (
+    <Panel title="Cost per tool, by platform">
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={load} disabled={busy} className="btn-ghost inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm disabled:opacity-50">
+          <RefreshCw size={14} className={busy ? 'animate-spin' : ''} /> {busy ? 'Scanning logs…' : data ? 'Re-run' : 'Run breakdown'}
+        </button>
+        <span className="text-xs text-faint">Scans the model-call logs on demand — a few seconds, ~$0.005/GB.</span>
+      </div>
+      {data?.error && <p className="mt-3 text-sm text-red-700 dark:text-red-300">{data.error}</p>}
+      {data && !data.error && rows.length === 0 && <Empty>No model calls with a tool tag in this window yet.</Empty>}
+      {data && !data.error && rows.length > 0 && (
+        <>
+          {data.complete === false && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Partial results — the scan was still running when the request timed out. Re-run or narrow the window.</p>
+          )}
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted">
+                  <th className="py-1 pr-3 font-medium">Platform</th>
+                  <th className="py-1 pr-3 font-medium">Tool</th>
+                  <th className="py-1 pr-3 font-medium">Calls</th>
+                  <th className="py-1 pr-3 font-medium">In / Out</th>
+                  <th className="py-1 pr-3 font-medium">Share</th>
+                  <th className="py-1 font-medium">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={`${r.source}/${r.tool}`} className="border-t border-edge">
+                    <td className="py-1 pr-3 text-dim">{SOURCE_LABEL[r.source] || r.source}</td>
+                    <td className="py-1 pr-3 font-mono text-xs text-dim">{r.tool}</td>
+                    <td className="py-1 pr-3 text-dim">{fmtNum(r.calls)}</td>
+                    <td className="py-1 pr-3 text-dim">{fmtTokens(r.inputTokens)} / {fmtTokens(r.outputTokens)}</td>
+                    <td className="py-1 pr-3 text-dim">{total ? pct(r.estCostUSD, total) : '—'}</td>
+                    <td className="py-1 font-medium text-strong">{USD(r.estCostUSD)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-faint">
+            Total <b>{USD(total)}</b> across <b>{fmtNum(data.totals?.calls)}</b> model calls.
+            Tools sharing one Lambda are separated by the tool tag; calls made before tagging shipped fall back to the Lambda name.
+          </p>
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function AdminPlatform() {
   const [days, setDays] = useState('30');
   const [custom, setCustom] = useState({ from: '', to: '' }); // YYYY-MM-DD; overrides preset when both set
@@ -2611,6 +2677,9 @@ function AdminPlatform() {
 
           {/* LLM token usage + estimated spend, split by provider (Claude/DeepSeek). */}
           <LlmUsageByProvider llm={llm} />
+
+          {/* Per-tool cost split by platform (on-demand log scan). */}
+          <ToolCostByPlatform rangeArgs={rangeArgs} />
 
           {/* Traffic chart */}
           <Panel title="Traffic">

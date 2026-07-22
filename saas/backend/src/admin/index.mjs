@@ -39,7 +39,7 @@ import {
 } from '../lib/dynamo.mjs';
 import { PLANS, NDA_VERSION, TERMS_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
-import { amplifyUsage, amplifyAccessLogs, toolSpendBySource, llmSpendByProvider, anthropicCostReport, anthropicUsageReport, deepseekBalance } from '../lib/platform-usage.mjs';
+import { amplifyUsage, amplifyAccessLogs, toolSpendBySource, llmSpendByProvider, anthropicCostReport, anthropicUsageReport, deepseekBalance, toolCostBreakdown } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
@@ -229,6 +229,19 @@ export const handler = async (event) => {
     } catch (e) {
       console.error('llm_usage_error', e);
       return serverError(e.message || 'Could not load LLM usage.');
+    }
+  }
+  // Per-tool LLM cost, split by platform. Logs Insights rather than a metric
+  // dimension — see toolCostBreakdown for why (dimension cost > spend measured).
+  // Seconds-long scan, so it's on-demand like the access-log route below.
+  if (method === 'GET' && path.endsWith('/admin/platform/tool-cost')) {
+    let range;
+    try { range = parseRange(q, { maxDays: 31 }); } catch (e) { return badRequest(e.message); }
+    try {
+      return ok(await toolCostBreakdown({ ...range, chatStreamLogGroup: process.env.CHATSTREAM_LOG_GROUP || '' }));
+    } catch (e) {
+      console.error('tool_cost_error', e);
+      return serverError(e.message || 'Could not load per-tool cost.');
     }
   }
   // Per-request access-log breakdowns (top pages, referrers, devices, edge geo,

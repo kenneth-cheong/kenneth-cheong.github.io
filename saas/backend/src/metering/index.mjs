@@ -60,6 +60,9 @@ const msRemaining = () => (INVOCATION_DEADLINE_AT ? Math.max(0, INVOCATION_DEADL
 // onto every upstream payload in postUpstream so the upstream Lambda's own LLM
 // metering can attribute its model spend back to the right product.
 let INVOCATION_SOURCE = 'saas';
+// Tool id for the same purpose — lets per-tool cost be attributed inside the
+// shared upstream Lambdas (one Lambda backs many tools, e.g. aiOptimiser).
+let INVOCATION_TOOL = '';
 
 export const handler = async (event, context) => {
   if (typeof context?.getRemainingTimeInMillis === 'function') {
@@ -116,6 +119,7 @@ export const handler = async (event, context) => {
   const source = sourceOf(event);
   body._source = source;
   INVOCATION_SOURCE = source;
+  INVOCATION_TOOL = tool.id || '';
   // Expose the authenticated email to adapters that attribute upstream jobs
   // (e.g. serpCompetitors keys results by user). Gateway-trusted, not user input.
   body._email = c.email || c.userId;
@@ -412,7 +416,7 @@ async function postUpstream(url, payload, opts = {}) {
   // for both the HTTP and direct-invoke paths). The upstream Lambda reads
   // `_source` at handler entry and tags its own LLM metrics with it.
   if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload._source == null) {
-    payload = { ...payload, _source: INVOCATION_SOURCE };
+    payload = { ...payload, _source: INVOCATION_SOURCE, _tool: INVOCATION_TOOL };
   }
   const cfg = FLAKY_BY_URL[url] || {};
   const timeoutMs = opts.timeoutMs ?? cfg.timeoutMs ?? 170000; // < 180s Lambda cap

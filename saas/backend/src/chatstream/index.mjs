@@ -132,7 +132,7 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
 
   // Per-provider LLM usage metric (Claude). Emitted for any real completion so
   // assistant-chat token spend rolls up alongside the tool AI calls.
-  if (full.trim() || usageOut) emitLlmMetric({ provider: 'claude', model: MODEL, inputTokens: usageIn, outputTokens: usageOut, cacheReadTokens: usageCacheRead, cacheWriteTokens: usageCacheWrite, fn: 'chatstream', source: 'saas' });
+  if (full.trim() || usageOut) emitLlmMetric({ provider: 'claude', model: MODEL, inputTokens: usageIn, outputTokens: usageOut, cacheReadTokens: usageCacheRead, cacheWriteTokens: usageCacheWrite, fn: 'chatstream', source: 'saas', tool: 'chatbot' });
 
   // Charge + persist after delivery (best-effort — the user already has the reply).
   if (full.trim()) {
