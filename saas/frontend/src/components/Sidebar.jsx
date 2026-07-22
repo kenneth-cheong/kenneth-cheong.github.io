@@ -28,7 +28,7 @@ const NAV_GROUPS = [
     // separate feature alongside the GEO+SEO Forensic Audit.
     { to: '/audit', label: 'Site Health Check', icon: HeartPulse, tour: 'nav-monitor' },
     { to: '/tracking', label: 'Rankings', icon: TrendingUp },
-    { to: '/performance', label: 'Traffic', icon: LineChart },
+    { to: '/performance', label: 'Performance', icon: LineChart },
   ] },
   { label: 'Work', items: [
     // Tools expands into the disciplines — each sub-row filters the catalogue to

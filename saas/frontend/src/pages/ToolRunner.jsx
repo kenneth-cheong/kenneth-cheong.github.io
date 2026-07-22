@@ -1410,17 +1410,21 @@ function MultiSelect({ field, options, value, onChange, values }) {
     // eslint-disable-next-line
   }, [allowed]);
 
-  const toggle = (o) => onChange((sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]).join(','));
+  const toggle = (v) => onChange((sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v]).join(','));
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
       {options.map((o) => {
-        const on = sel.includes(o);
-        const disabled = !isAllowed(o);
+        // Options are plain strings, or {value,label} where the stored value is a
+        // code the backend keys on but the user sees a friendlier label.
+        const v = typeof o === 'string' ? o : o.value;
+        const l = typeof o === 'string' ? o : o.label;
+        const on = sel.includes(v);
+        const disabled = !isAllowed(v);
         return (
-          <button type="button" key={o} disabled={disabled} onClick={() => toggle(o)}
+          <button type="button" key={v} disabled={disabled} onClick={() => toggle(v)}
             title={disabled ? 'Not available for the selected breakdown dimension' : undefined}
             className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${disabled ? 'cursor-not-allowed border-line bg-raised text-slate-300 line-through' : on ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'border-edge text-dim hover:border-brand-300 dark:hover:border-brand-500/40'}`}>
-            {o}
+            {l}
           </button>
         );
       })}

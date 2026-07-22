@@ -1134,7 +1134,7 @@ export const INPUTS = {
   'content-writer': [
     { name: 'mode', label: 'Mode', type: 'select', options: ['Optimise existing content', 'Write a new draft'], default: 'Optimise existing content',
       hint: 'Optimise runs a gap analysis and rewrites your copy to fill the gaps, then QAs the improved draft. Write turns a topic into a full article (outline → sections → polish).' },
-    { name: 'models', label: 'Generate with', type: 'multiselect', options: ['Haiku', 'DeepSeek'], default: 'Haiku', staffOnly: true,
+    { name: 'models', label: 'Generate with', type: 'multiselect', options: [{ value: 'Haiku', label: 'Claude' }, 'DeepSeek'], default: 'Haiku', staffOnly: true,
       hint: 'Staff only — pick one or both models. Choosing both runs the full research + generation pipeline through each and shows the drafts side by side so you can compare quality. (Two models = double the AI cost.)' },
     // `primary` on all three: none can be `required` (any ONE of URL / paste /
     // upload is enough), and without the flag the auto-collapse buries the paste
