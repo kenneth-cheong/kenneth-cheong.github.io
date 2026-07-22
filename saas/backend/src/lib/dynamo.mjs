@@ -651,6 +651,25 @@ export async function linkStripeCustomer(userId, customerId) {
   } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; /* already linked */ }
 }
 
+/**
+ * Drop a Stripe customer id that Stripe no longer recognises. Customer ids are
+ * per-account, so migrating to a different Stripe account strands every stored
+ * id — the old value then 404s ("resource_missing") on first use and the caller
+ * 500s. Clearing it lets the next checkout mint a fresh customer instead.
+ * Conditional on the exact stale value so a concurrent relink isn't clobbered.
+ */
+export async function unlinkStripeCustomer(userId, staleCustomerId) {
+  if (!userId || !staleCustomerId) return;
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users, Key: { userId },
+      UpdateExpression: 'REMOVE stripeCustomerId SET updatedAt = :now',
+      ConditionExpression: 'stripeCustomerId = :c',
+      ExpressionAttributeValues: { ':c': staleCustomerId, ':now': new Date().toISOString() },
+    }));
+  } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; /* already changed */ }
+}
+
 /** Admin-only: list every user (Scan — fine at MVP volume). */
 export async function listAllUsers(limit = 200) {
   const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.users, Limit: limit }));

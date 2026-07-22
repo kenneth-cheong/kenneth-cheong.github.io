@@ -10,7 +10,7 @@ import {
   getUser, getUserByStripeCustomer, grantTopupCredits,
   claimStripeEvent, releaseStripeEvent,
   resetMonthlyAllowance, applyTierChange, applyDowngrade, linkStripeCustomer,
-  setPastDue, debitTopupCredits,
+  setPastDue, debitTopupCredits, unlinkStripeCustomer,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, json, parseBody, claims } from '../lib/http.mjs';
@@ -24,6 +24,37 @@ const BILLING_LIMITS = [{ n: 15, seconds: 60 }, { n: 80, seconds: 3600 }];
 async function billingThrottle(userId) {
   const rl = await rateLimit('billing', userId, BILLING_LIMITS);
   return rl.allowed ? null : tooManyRequests(rl.retryAfter);
+}
+
+// A stored customer id Stripe doesn't recognise. Customer ids are per-account,
+// so moving to a different Stripe account strands every id we hold: the first
+// use returns resource_missing and the route 500s (this took out the billing
+// portal after the Apsolute.ai migration). Detect it, drop the dead id, and let
+// the caller recover — a checkout simply creates a new customer from the email.
+function isMissingCustomer(err) {
+  return err?.code === 'resource_missing'
+    && (err?.param === 'customer' || /No such customer/i.test(err?.message || ''));
+}
+
+// Create a Checkout Session, surviving a stranded customer id. Losing a sale to
+// a stale id is the worst outcome here, so on resource_missing we drop the dead
+// id and retry keyed on the email — Stripe then creates a fresh customer.
+async function createCheckoutSession(user, params) {
+  try {
+    return await stripe.checkout.sessions.create({
+      ...params,
+      customer: user.stripeCustomerId || undefined,
+      customer_email: user.stripeCustomerId ? undefined : user.email,
+    });
+  } catch (e) {
+    if (!isMissingCustomer(e) || !user.stripeCustomerId) throw e;
+    await unlinkStripeCustomer(user.userId, user.stripeCustomerId);
+    return stripe.checkout.sessions.create({
+      ...params,
+      customer: undefined,
+      customer_email: user.email,
+    });
+  }
 }
 
 // Stripe Price IDs live in env so the same code works in test + live mode.
@@ -59,10 +90,17 @@ async function handleInvoices(event) {
   if (!user?.stripeCustomerId) return ok({ documents: [] });
   const customer = user.stripeCustomerId;
 
-  const [invoices, charges] = await Promise.all([
-    stripe.invoices.list({ customer, limit: 24 }),
-    stripe.charges.list({ customer, limit: 24 }),
-  ]);
+  let invoices, charges;
+  try {
+    [invoices, charges] = await Promise.all([
+      stripe.invoices.list({ customer, limit: 24 }),
+      stripe.charges.list({ customer, limit: 24 }),
+    ]);
+  } catch (e) {
+    if (!isMissingCustomer(e)) throw e;
+    await unlinkStripeCustomer(user.userId, customer);
+    return ok({ documents: [] });
+  }
 
   const documents = [];
   for (const i of invoices.data) {
@@ -95,11 +133,9 @@ async function handleCheckout(event) {
   if (!price) return badRequest('Unknown tier/interval');
 
   const user = await getUser(c.userId);
-  const session = await stripe.checkout.sessions.create({
+  const session = await createCheckoutSession(user, {
     mode: 'subscription',
     line_items: [{ price, quantity: 1 }],
-    customer: user.stripeCustomerId || undefined,
-    customer_email: user.stripeCustomerId ? undefined : user.email,
     client_reference_id: user.userId,
     subscription_data: { trial_period_days: tier === 'pro' ? 7 : undefined },
     success_url: `${process.env.APP_ORIGIN}/account?checkout=success`,
@@ -121,11 +157,9 @@ async function handleTopup(event) {
   if (!price) return badRequest('Top-up price not configured');
 
   const user = await getUser(c.userId);
-  const session = await stripe.checkout.sessions.create({
+  const session = await createCheckoutSession(user, {
     mode: 'payment',
     line_items: [{ price, quantity: 1 }],
-    customer: user.stripeCustomerId || undefined,
-    customer_email: user.stripeCustomerId ? undefined : user.email,
     client_reference_id: user.userId,
     // Carried into checkout.session.completed so the webhook knows how many to grant.
     metadata: { type: 'topup', userId: user.userId, credits: String(pack.credits), packId },
@@ -141,10 +175,19 @@ async function handlePortal(event) {
   const throttled = await billingThrottle(c.userId); if (throttled) return throttled;
   const user = await getUser(c.userId);
   if (!user?.stripeCustomerId) return badRequest('No subscription yet');
-  const session = await stripe.billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
-    return_url: `${process.env.APP_ORIGIN}/account`,
-  });
+  let session;
+  try {
+    session = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${process.env.APP_ORIGIN}/account`,
+    });
+  } catch (e) {
+    if (!isMissingCustomer(e)) throw e;
+    // The customer is gone on Stripe's side, so there is genuinely nothing to
+    // manage. Clear it so the next checkout starts clean.
+    await unlinkStripeCustomer(user.userId, user.stripeCustomerId);
+    return badRequest('No subscription yet');
+  }
   return ok({ url: session.url });
 }
 
@@ -291,3 +334,6 @@ async function onChargeRefunded(charge) {
     await debitTopupCredits({ userId, amount: credits, action: 'topup_refund', meta: { chargeId: charge.id } });
   }
 }
+
+// Exported for unit tests only.
+export const __test = { isMissingCustomer };
