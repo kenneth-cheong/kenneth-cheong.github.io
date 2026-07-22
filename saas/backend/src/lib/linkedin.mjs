@@ -25,11 +25,30 @@ import { UPSTREAMS } from '../metering/upstreams.mjs';
 
 const CLIENT_ID = process.env.LINKEDIN_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET || '';
+// Credentials alone do NOT mean the connector works — see oauthConfigured.
+const ENABLED = process.env.LINKEDIN_ENABLED === 'true';
 
 const SCOPES = ['r_ads', 'r_ads_reporting'];
 
+// Having a client id and secret is necessary but NOT sufficient, and treating it
+// as sufficient is what shipped a dead button: the credentials were set, so the
+// UI offered "Connect LinkedIn", and every click landed on LinkedIn's own error
+// page ("The redirect_uri does not match the registered value") with nothing we
+// could say about it. Verified 2026-07-22 against the live client id — the
+// failure is the redirect, not the scopes: an `openid profile` request fails
+// identically, so it is not MDP gating.
+//
+// TWO console steps outside this repo have to land before flipping
+// LINKEDIN_ENABLED=true, and neither is visible from here:
+//   1. LinkedIn app → Auth → Authorized redirect URLs: add
+//      https://api.digimetrics.ai/oauth/callback  (the API's custom domain —
+//      oauthRedirectUri() derives it from the request host, so it follows
+//      whatever domain fronts the API).
+//   2. Marketing Developer Platform approval for r_ads + r_ads_reporting.
+// Until then the connector stays hidden rather than offering a button that
+// cannot work. See docs/linkedin-mdp-application.md.
 export function oauthConfigured() {
-  return !!(CLIENT_ID && CLIENT_SECRET);
+  return !!(CLIENT_ID && CLIENT_SECRET && ENABLED);
 }
 
 export function authUrl(_provider, state, redirect) {

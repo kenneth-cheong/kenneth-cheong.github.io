@@ -136,6 +136,11 @@ the SES sandbox (see the `AlarmEmail` warning below for the general failure mode
 add a new `Parameters:` entry to `template.yaml`, add it here too. Secrets aren't
 parameters (they're in Secrets Manager), so they're never listed here:
 
+> **A brand-new parameter can't take `UsePreviousValue=true`** — there is no previous
+> value, and the change-set fails. Pass it once with an explicit
+> `ParameterKey=<New>,ParameterValue=<v>`, then move it to the `UsePreviousValue` list
+> below for every deploy after that. `LinkedInEnabled` was added this way (`false`).
+
 The template outgrew CloudFormation's **51,200-byte `--template-body` limit** (62,675
 bytes as of `c83185d`), so it has to be uploaded and passed by `--template-url`. Inline
 `--template-body file:///tmp/pkg.yaml` now fails with a `ValidationError` that dumps the
@@ -169,6 +174,7 @@ aws cloudformation create-change-set --stack-name digimetrics-saas \
     ParameterKey=AmplifyBranch,UsePreviousValue=true \
     ParameterKey=AmplifyAppId,UsePreviousValue=true \
     ParameterKey=AmplifyDomain,UsePreviousValue=true \
+    ParameterKey=LinkedInEnabled,UsePreviousValue=true \
   --tags Key=product,Value=saas
 
 # Wait for the change-set to finish computing, then ALWAYS review before executing —

@@ -180,11 +180,14 @@ function Report({ report }) {
       {/* Score + summary */}
       <div className="card flex flex-col items-center gap-5 p-6 sm:flex-row">
         <svg width="130" height="130" viewBox="0 0 130 130" className="shrink-0" role="img" aria-label={`Health score ${score} out of 100`}>
-          <circle cx="65" cy="65" r="52" fill="none" stroke="#e2e8f0" strokeWidth="12" />
+          {/* Themed, not fixed slate. The headline score was fill #0f172a — all
+              but the royal canvas's own colour — so the one number the whole
+              page exists to deliver was unreadable in dark and blue. */}
+          <circle cx="65" cy="65" r="52" fill="none" className="stroke-line" strokeWidth="12" />
           <circle cx="65" cy="65" r="52" fill="none" stroke={tone.ring} strokeWidth="12" strokeLinecap="round"
             strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 65 65)" />
-          <text x="65" y="62" textAnchor="middle" fill="#0f172a" style={{ fontSize: 30, fontWeight: 800 }}>{score}</text>
-          <text x="65" y="84" textAnchor="middle" fill="#94a3b8" style={{ fontSize: 12, fontWeight: 600 }}>/ 100</text>
+          <text x="65" y="62" textAnchor="middle" className="fill-heading" style={{ fontSize: 30, fontWeight: 800 }}>{score}</text>
+          <text x="65" y="84" textAnchor="middle" className="fill-muted" style={{ fontSize: 12, fontWeight: 600 }}>/ 100</text>
         </svg>
         <div className="text-center sm:text-left">
           <div className={`text-sm font-bold uppercase tracking-wide ${tone.text}`}>{report.grade ? `Grade ${report.grade} · ` : ''}{tone.label}</div>

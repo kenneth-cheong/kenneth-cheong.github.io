@@ -1,6 +1,10 @@
 // Stripe billing:
 //   POST /billing/checkout   { tier, interval }  -> hosted Checkout URL  (authed)
 //   POST /billing/portal                          -> Customer Portal URL  (authed)
+//   POST /billing/payment-method                  -> SETUP Checkout URL   (authed)
+//   POST /billing/subscription/change { tier, interval } -> switch in place (authed)
+//   POST /billing/subscription/cancel { atPeriodEnd }    -> cancel         (authed)
+//   GET  /billing/invoices                        -> invoices + receipts  (authed)
 //   POST /billing/webhook                         -> Stripe events        (PUBLIC, signed)
 //
 // The webhook is the source of truth for tier + credit grants. `invoice.paid`
@@ -78,6 +82,9 @@ export const handler = async (event) => {
   if (path.endsWith('/topup')) return handleTopup(event);
   if (path.endsWith('/portal')) return handlePortal(event);
   if (path.endsWith('/invoices')) return handleInvoices(event);
+  if (path.endsWith('/payment-method')) return handlePaymentMethod(event);
+  if (path.endsWith('/subscription/change')) return handleSubscriptionChange(event);
+  if (path.endsWith('/subscription/cancel')) return handleSubscriptionCancel(event);
   return badRequest('Unknown billing route');
 };
 
@@ -191,6 +198,127 @@ async function handlePortal(event) {
   return ok({ url: session.url });
 }
 
+// ── Manage-billing routes ────────────────────────────────────────────────────
+// The Account page manages a subscription in place rather than bouncing the user
+// to Stripe's hosted portal: update card, switch plan, cancel. handlePortal above
+// stays as the escape hatch (and is what a card-on-file dispute needs), but these
+// three are what the UI actually calls.
+
+// The customer's live subscription, or null. We don't store a subscription id —
+// the webhook keys everything off the customer — so we ask Stripe. 'all' minus
+// the dead states, because a past_due or trialing subscription is still theirs
+// to change or cancel.
+const LIVE_STATUSES = new Set(['active', 'trialing', 'past_due', 'unpaid']);
+async function activeSubscription(customer) {
+  const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 10 });
+  return subs.data.find((s) => LIVE_STATUSES.has(s.status)) || null;
+}
+
+// Resolve the caller to a user with a usable Stripe customer, or the error
+// response to return. Every route below opens with this.
+async function billingCaller(event) {
+  const c = claims(event);
+  if (!c?.userId) return { err: unauthorized() };
+  const throttled = await billingThrottle(c.userId);
+  if (throttled) return { err: throttled };
+  const user = await getUser(c.userId);
+  if (!user?.stripeCustomerId) return { err: badRequest('No subscription yet') };
+  return { user };
+}
+
+// A stranded customer id means there is nothing left to manage on Stripe's side.
+// Drop it (so the next checkout starts clean) and tell the caller plainly.
+async function forgetStrandedCustomer(user, e) {
+  if (!isMissingCustomer(e)) throw e;
+  await unlinkStripeCustomer(user.userId, user.stripeCustomerId);
+  return badRequest('No subscription yet');
+}
+
+// Update the card on file. Stripe has no "edit payment method" API — the
+// supported flow is a SETUP-mode Checkout, which collects a card against the
+// existing customer and makes it the default for future invoices.
+async function handlePaymentMethod(event) {
+  const { user, err } = await billingCaller(event);
+  if (err) return err;
+  try {
+    const sub = await activeSubscription(user.stripeCustomerId);
+    const session = await stripe.checkout.sessions.create({
+      mode: 'setup',
+      customer: user.stripeCustomerId,
+      client_reference_id: user.userId,
+      // Setup mode ATTACHES the card to the customer but does not make it the
+      // default — without the webhook half below, the subscription would happily
+      // keep charging the old card. `subscriptionId` tells that half what to
+      // repoint; `type` is what makes it look.
+      metadata: { type: 'card', userId: user.userId, subscriptionId: sub?.id || '' },
+      success_url: `${process.env.APP_ORIGIN}/account?card=updated`,
+      cancel_url: `${process.env.APP_ORIGIN}/account`,
+    });
+    return ok({ url: session.url });
+  } catch (e) {
+    return forgetStrandedCustomer(user, e);
+  }
+}
+
+// Switch an existing subscription to another plan/interval in place. Sending a
+// subscriber back through Checkout would open a SECOND subscription and bill
+// them twice, which is why Pricing.jsx routes here once hasSubscription is set.
+//
+// We only move the price. The tier itself is applied by the
+// customer.subscription.updated webhook, so the grant path stays single-sourced
+// whether the change came from here, the portal, or Stripe's dashboard.
+async function handleSubscriptionChange(event) {
+  const { user, err } = await billingCaller(event);
+  if (err) return err;
+  const { tier, interval = 'monthly' } = parseBody(event);
+  // Downgrading to free is a cancellation, not a price swap — there is no free
+  // price to move to.
+  if (tier === 'free') return badRequest('To move to Free, cancel your subscription.');
+  const price = priceId(tier, interval);
+  if (!price) return badRequest('Unknown tier/interval');
+
+  try {
+    const sub = await activeSubscription(user.stripeCustomerId);
+    if (!sub) return badRequest('No active subscription to change.');
+    const item = sub.items?.data?.[0];
+    if (!item) return badRequest('No active subscription to change.');
+    if (item.price?.id === price) return ok({ changed: false, tier });
+
+    await stripe.subscriptions.update(sub.id, {
+      items: [{ id: item.id, price }],
+      // Bill the difference now rather than silently swallowing it.
+      proration_behavior: 'create_prorations',
+      // A pending cancellation would otherwise survive the switch and cut them
+      // off at period end on a plan they just paid to change to.
+      cancel_at_period_end: false,
+    });
+    return ok({ changed: true, tier });
+  } catch (e) {
+    return forgetStrandedCustomer(user, e);
+  }
+}
+
+// Cancel. Default is at period end — they keep what they already paid for, and
+// the downgrade lands via customer.subscription.deleted when the period closes.
+async function handleSubscriptionCancel(event) {
+  const { user, err } = await billingCaller(event);
+  if (err) return err;
+  const { atPeriodEnd = true } = parseBody(event);
+
+  try {
+    const sub = await activeSubscription(user.stripeCustomerId);
+    if (!sub) return badRequest('No active subscription to cancel.');
+    if (atPeriodEnd) {
+      const updated = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+      return ok({ cancelled: true, atPeriodEnd: true, endsAt: updated.current_period_end });
+    }
+    await stripe.subscriptions.cancel(sub.id);
+    return ok({ cancelled: true, atPeriodEnd: false });
+  } catch (e) {
+    return forgetStrandedCustomer(user, e);
+  }
+}
+
 async function handleWebhook(event) {
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   let stripeEvent;
@@ -259,6 +387,15 @@ async function onCheckoutComplete(session) {
     await linkStripeCustomer(userId, session.customer);
   }
 
+  // Card update (SETUP mode) → promote the new card to the default, both for
+  // future invoices and on the live subscription. Attaching it is all Checkout
+  // does; without this the customer sees a new card on file and keeps being
+  // charged on the old one.
+  if (session.metadata?.type === 'card') {
+    await promoteNewCard(session);
+    return;
+  }
+
   // One-time top-up → grant rollover credits (event-level idempotency above
   // prevents a retried delivery from double-granting).
   if (session.metadata?.type === 'topup') {
@@ -287,6 +424,27 @@ async function onInvoicePaid(invoice) {
   // Atomic: touches only tier/credits/periodEnd — topupCredits and other fields
   // are preserved even if a tool run spends concurrently.
   await resetMonthlyAllowance({ userId: user.userId, tier, monthlyCredits: plan.monthlyCredits, periodEnd, previousCredits: user.credits || 0 });
+}
+
+// Make the card just collected in SETUP mode the one we actually charge. The
+// subscription carries its own default_payment_method which overrides the
+// customer's, so repointing only the customer would leave the live subscription
+// on the old card — the exact failure the user came here to fix.
+async function promoteNewCard(session) {
+  const setupIntentId = session.setup_intent;
+  if (!setupIntentId) return;
+  const intent = await stripe.setupIntents.retrieve(setupIntentId);
+  const pm = intent?.payment_method;
+  if (!pm) return;
+
+  await stripe.customers.update(session.customer, {
+    invoice_settings: { default_payment_method: pm },
+  });
+
+  // Re-read rather than trusting the id we stashed at session-create time: the
+  // user may have cancelled or switched in the meantime.
+  const sub = await activeSubscription(session.customer);
+  if (sub) await stripe.subscriptions.update(sub.id, { default_payment_method: pm });
 }
 
 async function onSubscriptionUpdated(sub) {
@@ -336,4 +494,7 @@ async function onChargeRefunded(charge) {
 }
 
 // Exported for unit tests only.
-export const __test = { isMissingCustomer };
+export const __test = {
+  isMissingCustomer, activeSubscription, promoteNewCard,
+  handlePaymentMethod, handleSubscriptionChange, handleSubscriptionCancel,
+};

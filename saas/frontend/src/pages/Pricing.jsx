@@ -17,9 +17,9 @@ export default function Pricing() {
     if (tier === 'free' || tier === user.tier) return;
     setBusy(tier);
     try {
-      // Already subscribed → switch the existing subscription in place so
-      // Airwallex prorates. Sending them through checkout again would open a
-      // SECOND subscription and bill them twice.
+      // Already subscribed → switch the existing subscription in place so Stripe
+      // prorates. Sending them through checkout again would open a SECOND
+      // subscription and bill them twice.
       if (user.hasSubscription) {
         await api.changePlan(tier, interval);
         toast(`Switched to ${PLANS[tier].name}. Your next invoice is prorated.`, 'success');

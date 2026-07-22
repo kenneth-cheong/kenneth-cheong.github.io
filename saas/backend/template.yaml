@@ -13,6 +13,15 @@ Parameters:
     Default: http://localhost:5173
   GoogleClientId:
     Type: String
+  LinkedInEnabled:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+    Description: >-
+      Show the LinkedIn Ads connector. Keep 'false' until the LinkedIn app has
+      https://api.digimetrics.ai/oauth/callback in its Authorized redirect URLs
+      AND Marketing Developer Platform has granted r_ads — credentials alone are
+      not enough, and without both, connecting fails on LinkedIn's own error page.
   # JwtSecret, StripeSecretKey, StripeWebhookSecret, GatewaySecret and
   # GoogleAdsDeveloperToken were migrated to Secrets Manager (digimetrics-saas/*)
   # and are now referenced via {{resolve:secretsmanager:...}} dynamic references —
@@ -597,6 +606,11 @@ Resources:
           # credentials; data fetch proxies the monday Lambda (see lib/linkedin.mjs).
           LINKEDIN_CLIENT_ID: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-id:SecretString}}'
           LINKEDIN_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-secret:SecretString}}'
+          # Flip to 'true' ONLY after the LinkedIn app registers
+          # https://api.digimetrics.ai/oauth/callback AND Marketing Developer
+          # Platform grants r_ads. Until both land, connecting is impossible and
+          # the connector stays hidden (see lib/linkedin.mjs).
+          LINKEDIN_ENABLED: !Ref LinkedInEnabled
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -674,6 +688,9 @@ Resources:
         Topup: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/topup, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Portal: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/portal, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Invoices: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/invoices, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PaymentMethod: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/payment-method, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        SubscriptionChange: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/subscription/change, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        SubscriptionCancel: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/subscription/cancel, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Webhook: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/webhook, Method: POST } }
 
   # ── In-app features (authed): chat, support, run history, integrations ──
@@ -693,6 +710,11 @@ Resources:
           # LinkedIn Ads connector — OAuth authorize/callback run in this fn.
           LINKEDIN_CLIENT_ID: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-id:SecretString}}'
           LINKEDIN_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-secret:SecretString}}'
+          # Flip to 'true' ONLY after the LinkedIn app registers
+          # https://api.digimetrics.ai/oauth/callback AND Marketing Developer
+          # Platform grants r_ads. Until both land, connecting is impossible and
+          # the connector stays hidden (see lib/linkedin.mjs).
+          LINKEDIN_ENABLED: !Ref LinkedInEnabled
           # OAuth redirect URI is derived at runtime from the request domain (see
           # app handler) — referencing ${Api} here created a circular dependency.
           ATTACHMENTS_BUCKET: !Ref AttachmentsBucket

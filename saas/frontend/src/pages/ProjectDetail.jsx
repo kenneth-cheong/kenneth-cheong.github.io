@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { BarChart2, KeyRound, History, ExternalLink } from 'lucide-react';
-import { TOOLS, CATEGORY_META, tierMeets, toolById } from '@shared/catalog.mjs';
+import { TOOLS, tierMeets, toolById } from '@shared/catalog.mjs';
+import { categoryHue } from '../lib/categoryHue.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { CategoryIcon } from '../lib/icons.jsx';
@@ -191,7 +192,7 @@ export default function ProjectDetail() {
           {TOOL_CATEGORIES.map((cat) => {
             const tools = TOOLS.filter((t) => t.category === cat);
             if (!tools.length) return null;
-            const color = CATEGORY_META[cat]?.color || '#4f46e5';
+            const color = categoryHue(cat);
             return (
               <div key={cat}>
                 <div className="mb-2 flex items-center gap-2">

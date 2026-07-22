@@ -91,7 +91,11 @@ export const handler = async (event) => {
         monthlyCredits: user.credits || 0,
         topupCredits: user.topupCredits || 0,
         periodEnd: user.periodEnd,
-        hasSubscription: !!user.stripeCustomerId,
+        // "Has a plan to manage", NOT "has ever paid us". A Free user who bought a
+        // one-off top-up owns a Stripe customer too, and on the customer id alone
+        // Pricing.jsx would route them to the in-place plan switch — which has no
+        // subscription to switch, so they could never subscribe at all.
+        hasSubscription: !!user.stripeCustomerId && user.tier !== 'free',
         pastDue: !!user.pastDue, // surfaced as an "update card" banner in the UI
         isAdmin: isStaff(user),
         // True permanent admin (ADMIN_EMAILS allowlist), distinct from `isAdmin`

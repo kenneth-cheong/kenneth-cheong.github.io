@@ -151,9 +151,14 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // but if it somehow does, hand off to the page instead of rendering nothing.)
   if (tool.route) { if (embedded) { onClose?.(); navigate(tool.route); return null; } return <Navigate to={tool.route} replace />; }
   const unlocked = tierMeets(user.tier, tool.minTier);
-  // Only the guided tour's sample result needs a number now — the form itself no
-  // longer prices the run. Fan-out aware so the tour's "used N" matches what a
-  // real run of rank-checker & friends (per-keyword billing) would charge.
+  // Fan-out aware, so per-keyword tools (rank-checker & friends) price the batch
+  // the user actually typed rather than a flat unit.
+  //
+  // Shown at the RUN BUTTON only — never on the tool cards. Pricing every tile
+  // trained people to shop by price instead of by job (see ToolCard), but that
+  // is an argument about browsing, not about spending: at the moment credits
+  // leave the account, silence reads as a hidden charge, and the balance then
+  // drops for no visible reason. So: quiet in the catalogue, explicit at commit.
   const cost = costPerRun(tool, values);
   const set = (name, v) => { editedRef.current.add(name); setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
   // Switch GSC sub-tool tab: clear the previous result, seed any new fields'
@@ -563,6 +568,15 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
                 onClick={() => { onClose?.(); navigate('/schedules', { state: { scheduleCreate: { toolId: tool.id, inputs: values } } }); }}>
                 <Clock size={15} />Schedule
               </button>
+            )}
+            {/* What this run costs, at the point of spending it. Locked tools run
+                a free preview, and integration pulls are free, so neither claims
+                a price it won't charge. */}
+            {unlocked && !tool.integration && cost > 0 && (
+              <span className="text-xs font-medium text-muted" data-tour="tool-cost">
+                {cost} credit{cost === 1 ? '' : 's'}
+                {etaLabel(tool) && <span className="text-faint"> · ~{etaLabel(tool)}</span>}
+              </span>
             )}
             <button className={`btn-primary ${!ready ? 'opacity-60' : ''}`} disabled={busy} aria-disabled={busy || !ready}
               onClick={attemptRun} data-tour="tool-run">

@@ -123,10 +123,13 @@ function Gauge({ pct, stroke }) {
   const off = C * (1 - Math.max(0, Math.min(100, pct)) / 100);
   return (
     <svg width="60" height="60" viewBox="0 0 60 60" className="block" role="img" aria-label={`${pct}%`}>
-      <circle cx="30" cy="30" r={r} fill="none" stroke="#e2e8f0" strokeWidth="6" />
+      {/* Themed, not fixed slate: the score sat at fill #0f172a, which is very
+          nearly the royal/dark canvas itself — dark ink on a dark card, i.e.
+          invisible in two of the three themes. */}
+      <circle cx="30" cy="30" r={r} fill="none" className="stroke-line" strokeWidth="6" />
       <circle cx="30" cy="30" r={r} fill="none" stroke={stroke} strokeWidth="6" strokeLinecap="round"
         strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 30 30)" />
-      <text x="30" y="34" textAnchor="middle" fill="#0f172a" style={{ fontSize: 14, fontWeight: 700 }}>{pct}%</text>
+      <text x="30" y="34" textAnchor="middle" className="fill-heading" style={{ fontSize: 14, fontWeight: 700 }}>{pct}%</text>
     </svg>
   );
 }

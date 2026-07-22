@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // (SEO Diagnostics et al) build their own forms and need the same control —
 // without it they fall back to a native <select>, which is unusable once the
 // option list is a full country list.
-export default function SearchableSelect({ options, value, onChange, autoFocus }) {
+export default function SearchableSelect({ options, value, onChange, autoFocus, placeholder = 'Select…' }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -63,7 +63,7 @@ export default function SearchableSelect({ options, value, onChange, autoFocus }
         onClick={() => setOpen((o) => !o)}
         className="field dm-select flex w-full items-center pr-9 text-left"
       >
-        <span className="truncate">{selectedLabel || 'Select…'}</span>
+        <span className={`truncate ${selectedLabel ? '' : 'text-faint'}`}>{selectedLabel || placeholder}</span>
       </button>
       {open && (
         <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lift">

@@ -1517,9 +1517,14 @@ export const PROFILE_FIELDS = [
     options: ['Beginner', 'Intermediate', 'Advanced'] },
 
   // ── Targeting & geo ──
+  // The SAME markets the tools can actually run against (LOCATIONS), not a
+  // hand-kept SEA shortlist. The old 11-entry list had no European market but
+  // the UK, so anyone selling into Europe had to answer "Global" — which then
+  // fed every downstream recommendation a target audience they don't have.
+  // `searchable` renders it as chips + a type-to-filter picker; sixty toggle
+  // buttons would bury the rest of the form.
   { key: 'targetMarkets', label: 'Target markets', group: 'targeting', type: 'multiselect', required: true,
-    options: ['Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Vietnam', 'Philippines',
-      'Australia', 'United States', 'United Kingdom', 'India', 'Global'] },
+    searchable: true, options: LOCATIONS },
   { key: 'targetAudience', label: 'Target audience', group: 'targeting', type: 'textarea', required: true,
     placeholder: 'e.g. SME owners in F&B looking to grow online orders' },
   { key: 'competitors', label: 'Main competitors', group: 'targeting', type: 'textarea', required: false,
@@ -1532,9 +1537,23 @@ export const PROFILE_FIELDS = [
   // anyone who'd have to ask HQ for it. Optional, and only surfaced this late.
   { key: 'uen', label: 'Company registration no. (UEN)', group: 'contact', type: 'text', required: false,
     placeholder: 'Optional — e.g. 201912345A' },
+  // Every pre-existing value is still here verbatim — dropping one would fail
+  // validation on the next save for anyone who had picked it, and quietly cost
+  // them the completion bonus. New zones are appended, not substituted.
   { key: 'timezone', label: 'Timezone', group: 'contact', type: 'select', required: true,
+    searchable: true,
     options: ['SGT (UTC+8)', 'MYT (UTC+8)', 'WIB (UTC+7)', 'ICT (UTC+7)', 'IST (UTC+5:30)',
-      'GMT (UTC+0)', 'EST (UTC−5)', 'PST (UTC−8)', 'AEST (UTC+10)', 'Other'] },
+      'GMT (UTC+0)', 'EST (UTC−5)', 'PST (UTC−8)', 'AEST (UTC+10)',
+      // Europe — the gap that made "GMT or Other" the only honest answer for
+      // most of the continent.
+      'WET (UTC+0)', 'CET (UTC+1)', 'EET (UTC+2)', 'MSK (UTC+3)',
+      // Americas
+      'BRT (UTC−3)', 'AST (UTC−4)', 'CST (UTC−6)', 'MST (UTC−7)',
+      // Middle East, Africa & rest of APAC
+      'GST (UTC+4)', 'PKT (UTC+5)', 'BST (UTC+6)', 'CST China (UTC+8)',
+      'JST (UTC+9)', 'KST (UTC+9)', 'NZST (UTC+12)',
+      'SAST (UTC+2)', 'EAT (UTC+3)', 'WAT (UTC+1)',
+      'Other'] },
   { key: 'contactMethod', label: 'Preferred contact', group: 'contact', type: 'select', required: true,
     options: ['Email', 'Phone', 'WhatsApp'] },
   { key: 'heardFrom', label: 'How did you hear about us?', group: 'contact', type: 'select', required: true,

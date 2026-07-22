@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Lock, ArrowRight } from 'lucide-react';
-import { PLANS, CATEGORY_META, tierMeets, etaLabel } from '@shared/catalog.mjs';
+import { PLANS, tierMeets, etaLabel } from '@shared/catalog.mjs';
 import { ToolIcon } from '../lib/icons.jsx';
+import { categoryHue } from '../lib/categoryHue.js';
 
 // A tool tile: a photo header carrying the category's hue — glyph top-left,
 // tool name across the bottom — then the description and a go-arrow that
@@ -14,23 +15,9 @@ import { ToolIcon } from '../lib/icons.jsx';
 // shop by price instead of by job. The full cost table lives on its own page
 // (/credit-guide, linked from the rail) for anyone who wants to plan spend.
 
-// Per-theme category hues live in CSS (--cat-*, see index.css) because the right
-// hue depends on the canvas: catalog.mjs's SEO blue is royal's own background.
-// CATEGORY_META.color stays the fallback for any category CSS doesn't name.
-const HUE_VAR = {
-  SEO: '--cat-seo',
-  Content: '--cat-content',
-  'AI Visibility': '--cat-ai',
-  Strategy: '--cat-strategy',
-  Integrations: '--cat-integrations',
-};
-
 export default function ToolCard({ tool, userTier, onNavigate }) {
   const unlocked = tierMeets(userTier, tool.minTier);
-  const meta = CATEGORY_META[tool.category] || { color: '#64748b' };
-  const hue = HUE_VAR[tool.category]
-    ? `var(${HUE_VAR[tool.category]}, ${meta.color})`
-    : meta.color;
+  const hue = categoryHue(tool.category);
 
   // Every tool opens as its OWN PAGE — the generic ToolRunner at /tool/:id, or
   // the tool's bespoke route (only Social Media Audit has one). One behaviour for

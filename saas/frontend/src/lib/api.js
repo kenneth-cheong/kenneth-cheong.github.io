@@ -254,8 +254,9 @@ export const api = {
       : call('/run/social-audit', { method: 'POST', body: payload }),
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
-  // Airwallex has no hosted customer portal, so "manage billing" is these three
-  // routes rather than one redirect.
+  // "Manage billing" is these three routes rather than one redirect to Stripe's
+  // hosted portal: cancelling and switching plans stay in the app, where we can
+  // word them ourselves. api.portal() remains as the escape hatch.
   paymentMethod: () => call('/billing/payment-method', { method: 'POST' }),
   changePlan: (tier, interval) => call('/billing/subscription/change', { method: 'POST', body: { tier, interval } }),
   cancelPlan: (atPeriodEnd = true) => call('/billing/subscription/cancel', { method: 'POST', body: { atPeriodEnd } }),

@@ -93,9 +93,9 @@ export default function Account() {
     finally { setEmailBusy(false); }
   }
 
-  // Airwallex has no hosted customer portal, so card updates run through a
-  // SETUP-mode checkout: same hosted redirect, saves a new payment source
-  // against the existing customer.
+  // Card updates run through a SETUP-mode Checkout: a hosted redirect that saves
+  // a new payment source against the existing customer. The webhook then promotes
+  // it to the default on both the customer and the live subscription.
   async function updateCard() {
     setBusy(true);
     try {

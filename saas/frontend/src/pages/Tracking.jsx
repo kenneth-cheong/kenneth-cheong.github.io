@@ -8,7 +8,7 @@ import LineChart from '../components/LineChart.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import { api } from '../lib/api.js';
-import { toast, downloadCsv, markStepDone } from '../lib/ui.js';
+import { toast, downloadCsv, markStepDone, confirmDialog } from '../lib/ui.js';
 import { startTrackingTour, TRACKING_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
 
 const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All'], ['custom', 'Custom']];
@@ -102,7 +102,23 @@ export default function Tracking() {
     } catch (err) { toast(err.message, 'error'); }
     finally { setBackfilling(false); }
   }
-  async function remove(trackId) { await api.removeTracked(trackId); load(); }
+  // Removing a keyword throws away its whole position history, which no amount
+  // of re-adding brings back — the ranks were sampled on days that have passed.
+  // Too destructive to fire off a single stray click.
+  async function remove(t) {
+    const points = (t.history || []).length;
+    const ok = await confirmDialog({
+      title: 'Remove keyword',
+      message: points > 1
+        ? `Stop tracking “${t.keyword}”? Its ${points} days of position history will be deleted and can't be recovered.`
+        : `Stop tracking “${t.keyword}”?`,
+      confirmText: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
+    await api.removeTracked(t.trackId);
+    load();
+  }
 
   // Most recent ranking URL for a keyword (from lastUrl or newest history point).
   const rankingUrl = (t) => t.lastUrl || [...(t.history || [])].reverse().find((h) => h.url)?.url || '';
@@ -119,9 +135,29 @@ export default function Tracking() {
   // Current position label: a rank, "Unranked" (checked, out of top 100), or "—".
   const posLabel = (t) => (t.lastPosition >= 1 ? `#${t.lastPosition}` : (t.history?.length ? 'Unranked' : '—'));
 
+  // A bare <input type="date"> takes a six-digit year — "04.04.56645" was typed
+  // straight into the audit — and browsers happily hand that back as a valid
+  // value. min/max stop the picker offering it; this clamp stops a typed or
+  // pasted one reaching the filter, where it silently matches nothing.
+  const TODAY = new Date().toISOString().slice(0, 10);
+  const EARLIEST = '2020-01-01'; // no ranking history predates the product
+  const clampDate = (d) => {
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    if (d < EARLIEST) return EARLIEST;
+    if (d > TODAY) return TODAY;
+    return d;
+  };
+
   // Date range filtering — supports fixed periods or a custom from/to range.
   const { fromCutoff, toCutoff } = useMemo(() => {
-    if (period === 'custom') return { fromCutoff: customFrom || null, toCutoff: customTo || null };
+    if (period === 'custom') {
+      const from = clampDate(customFrom);
+      const to = clampDate(customTo);
+      // Reversed range would show nothing at all with no hint why — read it the
+      // way it was obviously meant.
+      if (from && to && from > to) return { fromCutoff: to, toCutoff: from };
+      return { fromCutoff: from, toCutoff: to };
+    }
     if (period === 'all') return { fromCutoff: null, toCutoff: null };
     const d = new Date(); d.setDate(d.getDate() - Number(period));
     return { fromCutoff: d.toISOString().slice(0, 10), toCutoff: null };
@@ -270,9 +306,11 @@ export default function Tracking() {
               {period === 'custom' && (
                 <div className="flex items-center gap-2">
                   <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                    min={EARLIEST} max={customTo || TODAY} aria-label="From date"
                     className="rounded-lg border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
                   <span className="text-sm text-faint">to</span>
                   <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                    min={customFrom || EARLIEST} max={TODAY} aria-label="To date"
                     className="rounded-lg border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
                 </div>
               )}
@@ -340,7 +378,7 @@ export default function Tracking() {
                       {tr && tr.n > 0 && <div className={`text-xs font-medium ${tr.cls}`}>{tr.dir} {tr.n}</div>}
                       {noData && <div className="text-[11px] text-slate-300">checking…</div>}
                     </div>
-                    <button onClick={() => remove(t.trackId)} className="text-sm text-faint hover:text-red-600 dark:hover:text-red-400">Remove</button>
+                    <button onClick={() => remove(t)} className="text-sm text-faint hover:text-red-600 dark:hover:text-red-400">Remove</button>
                   </div>
                   {hasChart && <div className="mt-2"><LineChart data={hist} /></div>}
                 </div>

@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
-import { PLANS, TOOLS, CATEGORIES, CATEGORY_META, CURRENCY, tierMeets } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, CATEGORIES, CURRENCY, tierMeets } from '@shared/catalog.mjs';
+import { categoryHue } from '../lib/categoryHue.js';
 import Logo from './Logo.jsx';
 import Mascot from './Mascot.jsx';
 import Modal from './Modal.jsx';
@@ -125,7 +126,7 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
                     onClick={onNavigate}
                     className={`dm-sb-sub ${activeCategory === c ? 'dm-sb-sub-on' : ''}`}
                   >
-                    <span className="dm-sb-dot" style={{ background: CATEGORY_META[c]?.color || 'currentColor' }} aria-hidden />
+                    <span className="dm-sb-dot" style={{ background: categoryHue(c) }} aria-hidden />
                     <span className="truncate">{c}</span>
                     <span className="ml-auto text-[10px] font-bold text-faint">
                       {TOOLS.filter((t) => t.category === c).length}

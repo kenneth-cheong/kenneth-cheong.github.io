@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { TOOLS, CATEGORIES, CATEGORY_META, SIMPLE_NAMES } from '@shared/catalog.mjs';
+import { TOOLS, CATEGORIES, SIMPLE_NAMES } from '@shared/catalog.mjs';
+import { categoryHue } from '../lib/categoryHue.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import ToolCard from '../components/ToolCard.jsx';
 
@@ -57,7 +58,7 @@ export default function Tools() {
             to={category === c ? '/tools' : `/tools?category=${encodeURIComponent(c)}`}
             className={`dm-cat-chip ${category === c ? 'dm-cat-chip-on' : ''}`}
           >
-            <span className="dm-sb-dot" style={{ background: CATEGORY_META[c]?.color || 'currentColor' }} aria-hidden />
+            <span className="dm-sb-dot" style={{ background: categoryHue(c) }} aria-hidden />
             {c}
             {category === c && <X size={12} aria-hidden />}
           </Link>
