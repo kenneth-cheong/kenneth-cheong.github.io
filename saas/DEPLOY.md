@@ -136,12 +136,21 @@ the SES sandbox (see the `AlarmEmail` warning below for the general failure mode
 add a new `Parameters:` entry to `template.yaml`, add it here too. Secrets aren't
 parameters (they're in Secrets Manager), so they're never listed here:
 
+The template outgrew CloudFormation's **51,200-byte `--template-body` limit** (62,675
+bytes as of `c83185d`), so it has to be uploaded and passed by `--template-url`. Inline
+`--template-body file:///tmp/pkg.yaml` now fails with a `ValidationError` that dumps the
+whole template into the error message:
+
 ```bash
 CS="deploy-$(git rev-parse --short HEAD)"
+BUCKET=aws-sam-cli-managed-default-samclisourcebucket-fhg7g9oh6l2a
+aws s3 cp /tmp/pkg.yaml "s3://$BUCKET/templates/pkg-$(git rev-parse --short HEAD).yaml" \
+  --region ap-southeast-1
 aws cloudformation create-change-set --stack-name digimetrics-saas \
   --change-set-name "$CS" --change-set-type UPDATE \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-  --template-body file:///tmp/pkg.yaml --region ap-southeast-1 \
+  --template-url "https://$BUCKET.s3.ap-southeast-1.amazonaws.com/templates/pkg-$(git rev-parse --short HEAD).yaml" \
+  --region ap-southeast-1 \
   --parameters \
     ParameterKey=AppOrigin,UsePreviousValue=true \
     ParameterKey=CorsOrigins,UsePreviousValue=true \
