@@ -17,11 +17,13 @@ export const CURRENCY = { code: 'USD', symbol: 'US$' };
 // NOT happening (confirmed 2026-07-22) — payments are Stripe — so the bump was
 // dropped rather than deferred.
 //
-// One real gap is left: the generated Privacy Notice lists Airwallex, PayPal,
-// PayNow et al as the payment providers and never names Stripe, which is the only
-// one actually processing. Fixing that means editing the source .docx and
-// regenerating legalContent.js (never hand-edit it), and THAT change is what
-// should carry the version bump — it re-prompts every user for consent.
+// The clause 11.1 provider list named Airwallex, PayPal, PayNow et al but not
+// Stripe, the only processor actually handling payments. Stripe was added to
+// legalContent.js on 2026-07-22 — deliberately, as the single hand-edit in a
+// generated file; see the note in its header. No bump was taken: both passages
+// are non-exhaustive, so naming the live processor states what their wording
+// already covered. The executed .docx still omits Stripe; when legal amends it,
+// THAT revision carries the version bump, since it re-prompts every user.
 export const TERMS_VERSION = '2026-07-25';
 
 /**
