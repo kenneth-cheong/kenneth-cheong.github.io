@@ -2211,10 +2211,315 @@ function LedgerRow({ label, value, sub, strong, border, muted, tag }) {
   );
 }
 
+// Per-product tool runs + estimated vendor spend: the SaaS dashboard vs the
+// legacy index.html tools, side by side. Both surfaces emit the same
+// Digimetrics/Usage CloudWatch metric; this reads it back per Source. The metric
+// is forward-only (runs before it shipped were never attributed), so the panel
+// says so rather than implying a complete history.
+const USD = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+const PRODUCTS = [
+  { key: 'saas', label: 'SaaS dashboard', hint: 'app.digimetrics.ai' },
+  { key: 'index', label: 'Agency tools', hint: 'index.html' },
+];
+
+function ProductSpendCard({ label, hint, row, share }) {
+  const runs = row?.runs || 0;
+  const cost = row?.estCostUSD || 0;
+  return (
+    <div className="rounded-xl border border-edge p-4">
+      <div className="flex items-baseline justify-between">
+        <div>
+          <div className="text-sm font-semibold text-strong">{label}</div>
+          <div className="text-xs text-faint">{hint}</div>
+        </div>
+        <div className="text-xs text-muted">{share != null ? `${Math.round(share * 100)}% of spend` : ''}</div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div>
+          <div className="text-lg font-semibold text-strong">{fmtNum(runs)}</div>
+          <div className="text-xs text-muted">runs</div>
+        </div>
+        <div>
+          <div className="text-lg font-semibold text-strong">{USD(cost)}</div>
+          <div className="text-xs text-muted">est. vendor spend</div>
+        </div>
+        <div>
+          <div className="text-lg font-semibold text-strong">{runs ? USD(cost / runs) : '—'}</div>
+          <div className="text-xs text-muted">avg / run</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolSpendByProduct({ spend }) {
+  const totalCost = spend?.combined?.estCostUSD || 0;
+  return (
+    <Panel title="Runs & spend by product">
+      {spend === null && <div className="text-sm text-muted">Loading per-product usage…</div>}
+      {spend === undefined && <Empty>Per-product usage metric unavailable yet — it starts accruing once tool runs flow through the tagged backend.</Empty>}
+      {spend && spend.bySource && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {PRODUCTS.map((p) => (
+              <ProductSpendCard key={p.key} label={p.label} hint={p.hint}
+                row={spend.bySource[p.key]}
+                share={totalCost ? (spend.bySource[p.key]?.estCostUSD || 0) / totalCost : null} />
+            ))}
+          </div>
+          <p className="mt-3 flex items-start gap-1.5 text-xs text-faint">
+            <Info size={13} className="mt-0.5 shrink-0" />
+            <span>
+              Combined: <b>{fmtNum(spend.combined?.runs)}</b> runs · <b>{USD(totalCost)}</b> estimated vendor cost.
+              Spend is estimated from per-tool vendor rates (DataForSEO / Anthropic / SE Ranking …), not a billed figure,
+              and only counts runs since attribution shipped — there’s no historical backfill.
+            </span>
+          </p>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+// Per-provider LLM usage: Claude vs DeepSeek (vs OpenAI) token counts + estimated
+// $, from the fleet-wide Digimetrics/LLM metric. Token-based estimate — the
+// provider consoles remain the authoritative bill. Forward-only per Lambda.
+const LLM_META = {
+  claude: { label: 'Claude', hint: 'Anthropic', color: '#d97757' },
+  deepseek: { label: 'DeepSeek', hint: 'deepseek.com', color: '#4d6bfe' },
+  openai: { label: 'OpenAI', hint: 'GPT', color: '#10a37f' },
+};
+const fmtTokens = (n) => {
+  n = Number(n) || 0;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+  return String(Math.round(n));
+};
+
+const pct = (n, d) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '0%');
+// chatbot.html is folded into 'index' — it shares the agency backend.
+const SOURCE_LABEL = { saas: 'SaaS dashboard', index: 'Agency tools (index + chatbot)', unknown: 'Unattributed' };
+
+function LlmProviderCard({ pkey, row, share }) {
+  const meta = LLM_META[pkey] || { label: pkey, hint: '', color: '#64748b' };
+  const cached = row?.cacheReadTokens || 0;
+  const totalIn = (row?.inputTokens || 0) + cached; // billed input + cached reads
+  return (
+    <div className="rounded-xl border border-edge p-4">
+      <div className="flex items-baseline justify-between">
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: meta.color }} />
+          <div>
+            <div className="text-sm font-semibold text-strong">{meta.label}</div>
+            <div className="text-xs text-faint">{meta.hint}</div>
+          </div>
+        </div>
+        <div className="text-xs text-muted">{share != null ? `${Math.round(share * 100)}% of est. $` : ''}</div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-lg font-semibold text-strong">{USD(row?.estCostUSD)}</div>
+          <div className="text-xs text-muted">est. spend</div>
+        </div>
+        <div>
+          <div className="text-lg font-semibold text-strong">{fmtNum(row?.calls)}</div>
+          <div className="text-xs text-muted">calls</div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-dim">{fmtTokens(row?.inputTokens)}<span className="text-faint"> / {fmtTokens(row?.outputTokens)}</span></div>
+          <div className="text-xs text-muted">tokens in / out</div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-dim">{cached ? pct(cached, totalIn) : '—'}</div>
+          <div className="text-xs text-muted">cached{row?.webSearchRequests ? ` · ${fmtNum(row.webSearchRequests)} web` : ''}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LlmUsageByProvider({ llm }) {
+  const totalCost = llm?.combined?.estCostUSD || 0;
+  const providers = llm?.byProvider ? Object.keys(llm.byProvider) : [];
+  const auth = llm?.authoritative;
+  const usage = llm?.anthropicUsage;
+  const ds = llm?.deepseek;
+  // Prefer Anthropic's own per-model token counts: they cover the FULL window,
+  // whereas our metric is forward-only and only sees instrumented calls.
+  const authModels = (usage?.configured && !usage?.error && usage.byModel?.length) ? usage.byModel : null;
+  const costItems = (auth?.configured && !auth?.error) ? (auth.byModel || []) : [];
+  const topModels = (llm?.byModel || []).slice(0, 8);
+  // Per-front-end split; biggest spender first, zero-traffic sources dropped.
+  const sourceRows = Object.entries(llm?.bySource || {})
+    .filter(([, r]) => r.calls > 0)
+    .sort((a, b) => b[1].estCostUSD - a[1].estCostUSD);
+  const sourceTotal = sourceRows.reduce((a, [, r]) => a + (r.estCostUSD || 0), 0);
+  // Provider-side data is worth showing even with zero instrumented calls.
+  const hasAny = providers.length > 0 || authModels || costItems.length > 0 || ds?.configured;
+  return (
+    <Panel title="LLM usage by provider">
+      {llm === null && <div className="text-sm text-muted">Loading LLM usage…</div>}
+      {llm === undefined && <Empty>LLM usage metric unavailable yet — it starts accruing as model calls flow through the instrumented Lambdas.</Empty>}
+      {llm && !hasAny && <Empty>No model calls recorded in this window yet.</Empty>}
+      {llm && hasAny && (
+        <>
+          {/* Authoritative bill vs our estimate, when an Anthropic admin key is configured. */}
+          {auth?.configured && auth.totalCostUSD != null && (
+            <div className="mb-3 rounded-lg bg-sunken px-3 py-2 text-sm">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="text-muted">Anthropic actual bill (this window): <b className="text-strong">{USD(auth.totalCostUSD)}</b></span>
+                <span className="text-faint">our Claude estimate {USD(llm.byProvider?.claude?.estCostUSD || 0)}</span>
+              </div>
+              {/* These two measure different things — say so, or the gap reads as a bug. */}
+              <p className="mt-1 text-xs text-faint">
+                Not a like-for-like check: the bill is your <b>whole Anthropic organisation</b> for this window, while the
+                estimate counts only calls recorded since each Lambda was instrumented. They converge as the metric
+                accumulates, but org usage outside this fleet stays in the bill only.
+                {auth.truncated ? ' (Bill truncated — window too long to page fully.)' : ''}
+              </p>
+            </div>
+          )}
+          {/* DeepSeek exposes a real remaining-credit balance (Anthropic doesn't),
+              so show it even when DeepSeek had no calls this window. */}
+          {ds?.configured && !ds.error && (ds.balances || []).length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-sunken px-3 py-2 text-sm">
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: LLM_META.deepseek.color }} />
+                <span className="text-muted">DeepSeek credit remaining:</span>
+              </span>
+              {ds.balances.map((b) => (
+                <b key={b.currency} className="text-strong">{b.currency} {b.total.toFixed(2)}</b>
+              ))}
+              {!ds.isAvailable && <span className="text-amber-700 dark:text-amber-300">account unavailable</span>}
+              <span className="text-xs text-faint">balance, not spend — Anthropic exposes no equivalent</span>
+            </div>
+          )}
+          {ds?.error && <p className="mb-3 text-xs text-amber-700 dark:text-amber-300">DeepSeek balance unavailable: {ds.error}</p>}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {providers.map((p) => (
+              <LlmProviderCard key={p} pkey={p} row={llm.byProvider[p]}
+                share={totalCost ? (llm.byProvider[p]?.estCostUSD || 0) / totalCost : null} />
+            ))}
+          </div>
+
+          {/* Which front-end drove the model spend. 'unknown' = calls that reached
+              a Lambda without a _source tag (e.g. crons, or an untagged caller). */}
+          {sourceRows.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-1 text-xs font-medium text-muted">LLM spend by product</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted">
+                      <th className="py-1 pr-3 font-medium">Product</th>
+                      <th className="py-1 pr-3 font-medium">Calls</th>
+                      <th className="py-1 pr-3 font-medium">In / Out</th>
+                      <th className="py-1 pr-3 font-medium">Share</th>
+                      <th className="py-1 font-medium">Est. $</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sourceRows.map(([key, r]) => (
+                      <tr key={key} className="border-t border-edge">
+                        <td className="py-1 pr-3 text-dim">{SOURCE_LABEL[key] || key}</td>
+                        <td className="py-1 pr-3 text-dim">{fmtNum(r.calls)}</td>
+                        <td className="py-1 pr-3 text-dim">{fmtTokens(r.inputTokens)} / {fmtTokens(r.outputTokens)}</td>
+                        <td className="py-1 pr-3 text-dim">{sourceTotal ? pct(r.estCostUSD, sourceTotal) : '—'}</td>
+                        <td className="py-1 font-medium text-strong">{USD(r.estCostUSD)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {/* Per-model breakdown. Anthropic's own token counts win when available
+              (full window); otherwise fall back to what our metric has seen. */}
+          {authModels ? (
+            <div className="mt-4">
+              <div className="mb-1 text-xs font-medium text-muted">Anthropic — actual tokens by model ({usage.byModel.length === 1 ? '1 model' : `${usage.byModel.length} models`})</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted">
+                      <th className="py-1 pr-3 font-medium">Model</th>
+                      <th className="py-1 pr-3 font-medium">Output</th>
+                      <th className="py-1 pr-3 font-medium">Input</th>
+                      <th className="py-1 pr-3 font-medium">Cache rd / wr</th>
+                      <th className="py-1 font-medium">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {authModels.map((m) => (
+                      <tr key={m.model} className="border-t border-edge">
+                        <td className="py-1 pr-3 font-mono text-xs text-dim">{m.model}</td>
+                        <td className="py-1 pr-3 font-medium text-strong">{fmtTokens(m.outputTokens)}</td>
+                        <td className="py-1 pr-3 text-dim">{fmtTokens(m.inputTokens)}</td>
+                        <td className="py-1 pr-3 text-dim">{fmtTokens(m.cacheReadTokens)} / {fmtTokens(m.cacheWriteTokens)}</td>
+                        <td className="py-1 font-medium text-strong">{USD(m.estCostUSD)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Where the money actually splits (output vs input vs cache vs tools). */}
+              {costItems.length > 0 && (
+                <p className="mt-2 text-xs text-faint">
+                  Cost split: {costItems.slice(0, 7).map((c, i) => (
+                    <span key={c.model}>{i > 0 ? ' · ' : ''}{String(c.model).replace(/^Claude\s+/, '').replace(/\s*Usage\s*-\s*/, ' ')} <b>{USD(c.costUSD)}</b></span>
+                  ))}
+                </p>
+              )}
+            </div>
+          ) : topModels.length > 0 && (
+            <div className="mt-3 overflow-x-auto">
+              <div className="mb-1 text-xs font-medium text-muted">From our metric (instrumented calls only)</div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted">
+                    <th className="py-1 pr-3 font-medium">Model</th>
+                    <th className="py-1 pr-3 font-medium">Calls</th>
+                    <th className="py-1 pr-3 font-medium">In / Out</th>
+                    <th className="py-1 pr-3 font-medium">Cached</th>
+                    <th className="py-1 font-medium">Est. $</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topModels.map((m) => (
+                    <tr key={`${m.provider}/${m.model}`} className="border-t border-edge">
+                      <td className="py-1 pr-3 font-mono text-xs text-dim">{m.model}</td>
+                      <td className="py-1 pr-3 text-dim">{fmtNum(m.calls)}</td>
+                      <td className="py-1 pr-3 text-dim">{fmtTokens(m.inputTokens)} / {fmtTokens(m.outputTokens)}</td>
+                      <td className="py-1 pr-3 text-dim">{m.cacheReadTokens ? pct(m.cacheReadTokens, m.inputTokens + m.cacheReadTokens) : '—'}</td>
+                      <td className="py-1 font-medium text-strong">{USD(m.estCostUSD)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {usage?.error && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Anthropic usage report unavailable: {usage.error}</p>}
+          <p className="mt-3 flex items-start gap-1.5 text-xs text-faint">
+            <Info size={13} className="mt-0.5 shrink-0" />
+            <span>
+              Combined: <b>{fmtNum(llm.combined?.calls)}</b> calls · <b>{fmtTokens(llm.combined?.inputTokens)}</b> in / <b>{fmtTokens(llm.combined?.outputTokens)}</b> out · <b>{USD(totalCost)}</b> estimated.
+              Cost is computed from per-model token rates including cache-read/write and web-search pricing.
+              {auth?.configured ? '' : ' Add an Anthropic admin key to show the authoritative bill alongside.'} Forward-only (no backfill).
+            </span>
+          </p>
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function AdminPlatform() {
   const [days, setDays] = useState('30');
   const [custom, setCustom] = useState({ from: '', to: '' }); // YYYY-MM-DD; overrides preset when both set
   const [data, setData] = useState(null); // null = loading
+  const [spend, setSpend] = useState(null); // per-product tool spend; null = loading
+  const [llm, setLlm] = useState(null); // per-provider LLM usage; null = loading
   const [error, setError] = useState('');
 
   // Resolve the active window into ISO from/to the API accepts. A complete
@@ -2227,10 +2532,18 @@ function AdminPlatform() {
   };
 
   const load = () => {
-    setData(null); setError('');
+    setData(null); setSpend(null); setLlm(null); setError('');
     api.adminPlatformUsage(rangeArgs())
       .then(setData)
       .catch((e) => { setError(e.message || 'Could not load usage.'); setData(undefined); });
+    // Independent (free CloudWatch reads) — each has its own error state so a
+    // metric gap never blanks the whole panel.
+    api.adminToolSpend(rangeArgs())
+      .then(setSpend)
+      .catch(() => setSpend(undefined));
+    api.adminLlmUsage(rangeArgs())
+      .then(setLlm)
+      .catch(() => setLlm(undefined));
   };
   // Reload whenever the window changes.
   useEffect(load, [days, custom.from, custom.to]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2292,6 +2605,12 @@ function AdminPlatform() {
             <Stat label="Avg latency" value={`${Math.round(d.avgLatency * 1000)} ms`} sub={`p90 ${Math.round(d.peakLatencyP90 * 1000)} ms`} />
             <Stat label="Est. spend" value={data.cost?.totalCost != null ? `$${data.cost.totalCost.toFixed(2)}` : '—'} sub={data.cost?.estimated ? 'incl. estimated' : ''} />
           </div>
+
+          {/* Runs & estimated vendor spend, split by front-end product. */}
+          <ToolSpendByProduct spend={spend} />
+
+          {/* LLM token usage + estimated spend, split by provider (Claude/DeepSeek). */}
+          <LlmUsageByProvider llm={llm} />
 
           {/* Traffic chart */}
           <Panel title="Traffic">

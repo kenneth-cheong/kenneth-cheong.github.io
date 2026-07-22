@@ -98,6 +98,10 @@ async function call(path, { method = 'GET', body, auth = true, base, signal, bac
       method,
       headers: {
         'Content-Type': 'application/json',
+        // Label every call as coming from the SaaS dashboard so the shared
+        // backend can attribute runs + vendor spend per product (the legacy
+        // index.html tools are tagged 'index' server-side in staffAuth).
+        'X-Source': 'saas',
         ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -382,6 +386,23 @@ export const api = {
     if (to) p.set('to', to);
     const qs = p.toString();
     return call(`/admin/platform/access-logs${qs ? `?${qs}` : ''}`);
+  },
+  // Per-product tool runs + estimated vendor spend (SaaS dashboard vs the legacy
+  // index.html tools) over a date range, from the shared usage metric.
+  adminToolSpend: ({ from, to } = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const qs = p.toString();
+    return call(`/admin/platform/tool-spend${qs ? `?${qs}` : ''}`);
+  },
+  // Per-provider LLM usage (Claude vs DeepSeek token counts + estimated $).
+  adminLlmUsage: ({ from, to } = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const qs = p.toString();
+    return call(`/admin/platform/llm-usage${qs ? `?${qs}` : ''}`);
   },
   // Finances balance sheet (Airwallex revenue vs AWS + estimated COGS, in USD).
   adminFinances: ({ from, to } = {}) => {
