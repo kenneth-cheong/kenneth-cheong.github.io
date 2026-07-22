@@ -20,6 +20,10 @@ function costOf(tool) {
   if (tool.fanout) return { credits: unit, label: `${unit} per item`, note: `${unit} credit${unit > 1 ? 's' : ''} for each keyword you submit.` };
   if (tool.cost === 'keyword_lookup') return { credits: unit, label: `${unit} per batch`, note: 'One credit covers a batch of up to 10 keywords.' };
   if (tool.cost === 'crawl') return { credits: unit, label: `${unit} per 10 pages`, note: 'Scales with how much of the site is crawled.' };
+  // AI writing tools bill this as a floor, then reconcile real token spend above
+  // it — a very long piece can cost a little more. Everything else is flat.
+  if (tool.cost === 'ai_short' || tool.cost === 'ai_long' || tool.cost === 'ai_long_research')
+    return { credits: unit, label: `${unit} credit${unit > 1 ? 's' : ''}`, note: 'Charged per run; longer outputs cost slightly more.' };
   return { credits: unit, label: `${unit} credit${unit > 1 ? 's' : ''}`, note: 'Charged once per run.' };
 }
 
