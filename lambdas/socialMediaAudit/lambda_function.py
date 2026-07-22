@@ -1576,7 +1576,10 @@ def _post_type(p):
 # they stay optional rather than emitting null noise.
 _GRID_POST_EXTRA = ('reach', 'impressions', 'interactions', 'reactions',
                     'reactions_by_type', 'shares', 'saves', 'interaction_rate',
-                    'engagement_rate')
+                    'engagement_rate',
+                    # Carries the platform's immutable post id through to the grid so
+                    # tags/overrides key off it rather than a rotating permalink.
+                    'post_id')
 
 
 def _grid_post(p, followers=None):
@@ -1602,7 +1605,10 @@ def _grid_post(p, followers=None):
         signals = [p.get(k) for k in ('likes', 'comments', 'shares', 'saves')]
         if any(v is not None for v in signals):
             eng = sum(v for v in signals if v is not None)
-            out['engagement_rate'] = round(eng / followers * 100, 2)
+            rate = eng / followers * 100
+            # A large page divides modest engagement by a huge follower base, so 2dp
+            # collapses every post to 0.00%. Keep more places once the rate goes small.
+            out['engagement_rate'] = round(rate, 2 if rate >= 1 else 4)
             out['engagement_rate_basis'] = 'followers'
     return out
 
@@ -3891,6 +3897,21 @@ def _audience_breakdowns_for(proj, month):
                                             'asof': 'as of ' + datetime.now(timezone.utc).strftime('%d %b %Y')}
     except Exception as e:
         errors['instagram'] = str(e)[:160]
+    # Facebook — page-level fan demographics, for whichever of the page_fans_*
+    # metrics the Page still serves. Nothing back = the audience tab keeps showing
+    # its content-performance proxies instead.
+    try:
+        if ('facebook' in plats) or handles.get('facebook'):
+            token = (conns.get('meta') or {}).get('token') or META_ACCESS_TOKEN
+            if token:
+                meta = _meta_resolve(proj, token)
+                if meta and meta.get('pageId'):
+                    bd = _fb_breakdowns(meta['pageId'], meta.get('pageToken') or token)
+                    if bd:
+                        out['facebook'] = {'breakdowns': bd,
+                                           'asof': 'as of ' + datetime.now(timezone.utc).strftime('%d %b %Y')}
+    except Exception as e:
+        errors['facebook'] = str(e)[:160]
     if errors:
         out['_errors'] = errors
     return out
@@ -4575,6 +4596,32 @@ def report_save_tags(body):
         ExpressionAttributeValues={':t': _enc(tagged), ':u': _now_iso(), ':w': _who(body)})
     return {'ok': True, 'tagged_posts': _dec(_enc(tagged))}
 
+# Names a point might use for a platform other than the one it sits under. A
+# competitor account name can legitimately contain a platform word ("OCBC
+# Facebook"), so the guard below only fires on the platform as a subject.
+_PLAT_ALIASES = {
+    'facebook':  ('facebook', ' fb ', 'meta page'),
+    'instagram': ('instagram', ' ig ', 'reels'),
+    'linkedin':  ('linkedin',),
+    'tiktok':    ('tiktok', 'tik tok'),
+    'youtube':   ('youtube', 'yt shorts'),
+    'xiaohongshu': ('xiaohongshu', 'red note', 'rednote', 'xhs'),
+}
+
+
+def _mentions_other_platform(text, own_key, plat_keys):
+    """True when a point written under `own_key` is really about a different
+    tracked platform — 'Pause Instagram & TikTok, consolidate to LinkedIn' has no
+    business sitting in the TikTok section of a per-platform report."""
+    t = ' ' + str(text or '').lower() + ' '
+    for k in plat_keys:
+        if k == own_key:
+            continue
+        if any(a in t for a in _PLAT_ALIASES.get(k, (k,))):
+            return True
+    return False
+
+
 def _rec_platform_blocks(blocks, plat_keys):
     """Pin the model's per-platform recommendation blocks back onto the platform
     keys the report actually has. The model is asked to echo the key verbatim but
@@ -4592,15 +4639,17 @@ def _rec_platform_blocks(blocks, plat_keys):
                     if k.lower() == raw or (raw and (k.lower() in raw or raw in k.lower()))), None)
         if not key or key in by_key:        # unknown, or a duplicate second block
             continue
+        keep = lambda x: x and not _mentions_other_platform(x, key, plat_keys)
         by_key[key] = {
             'platform': key,
-            'wins': [str(x) for x in (b.get('wins') or []) if x],
-            'concerns': [str(x) for x in (b.get('concerns') or []) if x],
+            'wins': [str(x) for x in (b.get('wins') or []) if keep(x)],
+            'concerns': [str(x) for x in (b.get('concerns') or []) if keep(x)],
             'recommendations': [
                 {'title': str(r.get('title') or ''), 'detail': str(r.get('detail') or ''),
                  'priority': str(r.get('priority') or 'medium').lower()}
-                for r in (b.get('recommendations') or []) if isinstance(r, dict)],
-            'next_month_focus': [str(x) for x in (b.get('next_month_focus') or []) if x],
+                for r in (b.get('recommendations') or []) if isinstance(r, dict)
+                and keep('%s %s' % (r.get('title') or '', r.get('detail') or ''))],
+            'next_month_focus': [str(x) for x in (b.get('next_month_focus') or []) if keep(x)],
         }
     return [by_key[k] for k in plat_keys if k in by_key]
 
@@ -4717,6 +4766,13 @@ def report_recommend(body):
         "platform only — no cross-platform points, and no repeating the same "
         "generic advice under every platform. Only the headline speaks to the "
         "account as a whole.\n"
+        "HARD RULE: inside a platform's entry, do NOT name any OTHER platform — not "
+        "in a win, a concern, an action title/detail, or a focus point. No "
+        "'consolidate to LinkedIn', no 'repurpose this to Facebook', no 'pause "
+        "Instagram'. A reader on the TikTok tab must see TikTok advice and nothing "
+        "else; budget-shifting advice across channels belongs in the headline or "
+        "nowhere. Any point naming another platform will be discarded, so write the "
+        "same advice in terms of THIS platform instead.\n"
         "Ground every point in the numbers. If tagged "
         "posts are present, comment on what made them work and how to repeat it. "
         "If `audience_breakdowns` is present, work in WHO the audience is (age, "
@@ -6605,6 +6661,59 @@ def _ig_breakdowns(ig_id, token):
     return out
 
 
+# Page-level fan demographics. Meta has retired these piecemeal rather than all
+# at once, and which ones a Page still serves varies by API version and by the
+# Page itself — so ASK for each and keep whatever comes back, instead of assuming
+# the whole family is gone. A rejected metric raises and is skipped; the audience
+# tab falls back to its "not available" note only when nothing at all returns.
+_FB_FAN_METRICS = (
+    ('fb_country',    'page_fans_country'),
+    ('fb_city',       'page_fans_city'),
+    ('fb_gender_age', 'page_fans_gender_age'),
+    ('fb_locale',     'page_fans_locale'),
+)
+_FB_GENDER = {'M': 'Men', 'F': 'Women', 'U': 'Unknown'}
+
+
+def _fb_fan_metric(page_id, token, metric):
+    """One lifetime page_fans_* metric → sorted [{name,value}]. Returns [] when the
+    Page or the API version no longer serves it."""
+    try:
+        j = _meta_get('/' + page_id + '/insights', {
+            'metric': metric, 'period': 'lifetime', 'access_token': token})
+    except Exception:
+        return []
+    rows = j.get('data') or []
+    if not rows:
+        return []
+    vals = rows[0].get('values') or []
+    if not vals:
+        return []
+    val = (vals[-1] or {}).get('value') or {}
+    if not isinstance(val, dict):
+        return []
+    out = []
+    for name, v in val.items():
+        n = _num(v) or 0
+        if name and n:
+            # 'M.25-34' → 'Men 25-34'
+            if '.' in name and name.split('.')[0] in _FB_GENDER:
+                g, _, band = name.partition('.')
+                name = _FB_GENDER[g] + ' ' + band
+            out.append({'name': name, 'value': n})
+    return sorted(out, key=lambda x: -x['value'])
+
+
+def _fb_breakdowns(page_id, token):
+    """Whatever page-level fan demographics this Page still serves."""
+    out = {}
+    for key, metric in _FB_FAN_METRICS:
+        rows = _fb_fan_metric(page_id, token, metric)
+        if rows:
+            out[key] = rows[:10]
+    return out
+
+
 def _meta_in_window(rows, since, until):
     """Keep only posts whose timestamp falls in the month window (defensive — some
     edges don't honour since/until server-side)."""
@@ -6700,7 +6809,8 @@ def _meta_ig_posts(ig_id, token, since, until):
             'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
             'image': m.get('thumbnail_url') or m.get('media_url') or '',
-            'url': m.get('permalink') or ''}
+            'url': m.get('permalink') or '',
+            'post_id': m.get('id') or ''}      # stable key for tags/overrides
         if reach and interactions is not None:
             rec['interaction_rate'] = round(interactions / reach * 100, 2)
         out.append(rec)
@@ -6814,7 +6924,11 @@ def _meta_fb_posts(page_id, token, since, until):
             'reach': reach, 'interactions': interactions,
             'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
-            'image': image, 'url': p.get('permalink_url') or ''}
+            'image': image, 'url': p.get('permalink_url') or '',
+            # Graph's own post id is immutable; the permalink is not (Facebook hands
+            # back rotating `pfbid…` links), and the report keys a post's tags and
+            # format overrides off whatever identifies it here.
+            'post_id': p.get('id') or ''}
         rbt = met.get('reactions_by_type')
         if rbt:
             rec['reactions_by_type'] = rbt

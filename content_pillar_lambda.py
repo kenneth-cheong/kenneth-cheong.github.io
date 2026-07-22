@@ -133,6 +133,11 @@ A <table> with the following structure:
 A <table> mapping each pillar to ONLY the active platforms stated: {platforms_str}. Use 'High', 'Medium', 'Low', or 'N/A' to indicate relative priority. Ensure NO other platforms are present.
 
 Include a final section <h3>Execution Guardrails</h3> using an <ul> with <li> items.
+
+FORMATTING: inside table cells, only the row-label cells (the first cell of each
+row, e.g. Objective / Main Topics / the pillar name) may use <strong>. Do NOT bold
+the body copy in any other cell — no <strong>/<b> around objectives, topics or the
+priority values. The report styles those columns itself.
 """.strip()
 
     # 4. Call the LLM — DeepSeek if requested, else Anthropic Claude (default).

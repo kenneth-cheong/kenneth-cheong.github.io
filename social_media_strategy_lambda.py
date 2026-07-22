@@ -150,6 +150,11 @@ A high-level brand strategy block containing four fields:
     "strategy":    A specific strategy for that method.
     "audience":    Target priority audience(s) for that method.
     "pillars":     Specific content pillars or topics for that method.
+    "keywords":    A comma-separated string of 4-6 words and short phrases the
+                   captions for this method should actually use — the brand's own
+                   vocabulary, product and category terms, and the language the
+                   audience uses. These are copywriting cues for a caption writer,
+                   NOT SEO keywords: no search volumes, no hashtags, no stuffing.
   "explanation":   A single string containing a detailed strategic rationale. You MUST provide exactly four substantial paragraphs (at least 3 sentences each), one for each method: 1) Inspire, 2) Cultivate, 3) Connect, and 4) Amplify. You MUST use double line breaks (\\n\\n) between every paragraph so they are visually distinct. Do NOT return as an object.
 
 ────────────────────────────────────────────
