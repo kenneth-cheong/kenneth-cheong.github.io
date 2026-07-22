@@ -12,6 +12,38 @@ import requests
 import json as _mllm_json
 import time as _mllm_time
 _LLM_FN = 'monday'
+_LLM_SOURCE = 'unknown'
+_LLM_TOOL = ''
+
+
+def _set_llm_source(event):
+    """Tag this invocation with the front-end that triggered it (saas | index).
+    Read from the request body's `_source` (a body field, NOT a header — a custom
+    header would force a CORS preflight on every agency Lambda). Lambda handles
+    one event at a time per container, so a module global is safe here."""
+    global _LLM_SOURCE, _LLM_TOOL
+    src = ''
+    tool = ''
+    try:
+        if isinstance(event, dict):
+            body = event.get('body')
+            if isinstance(body, str):
+                try:
+                    body = _mllm_json.loads(body or '{}')
+                except Exception:
+                    body = {}
+            if not isinstance(body, dict):
+                body = {}
+            src = body.get('_source') or event.get('_source') or ''
+            tool = body.get('_tool') or event.get('_tool') or ''
+        src = str(src).strip().lower()
+        tool = str(tool).strip()[:64]
+    except Exception:
+        src = ''
+        tool = ''
+    # Anything unrecognised stays 'unknown' so unattributed spend stays visible.
+    _LLM_SOURCE = src if src in ('saas', 'index') else 'unknown'
+    _LLM_TOOL = tool
 
 
 def _llm_provider(model, url=''):
@@ -49,7 +81,7 @@ def _llm_buckets(body, url=''):
 
 def _emit_llm_metric(provider, model, b, fn=None):
     try:
-        print(_mllm_json.dumps({'_aws': {'Timestamp': int(_mllm_time.time() * 1000), 'CloudWatchMetrics': [{'Namespace': 'Digimetrics/LLM', 'Dimensions': [['Provider'], ['Provider', 'Model']], 'Metrics': [{'Name': 'Calls', 'Unit': 'Count'}, {'Name': 'InputTokens', 'Unit': 'Count'}, {'Name': 'OutputTokens', 'Unit': 'Count'}, {'Name': 'CacheReadTokens', 'Unit': 'Count'}, {'Name': 'CacheWriteTokens', 'Unit': 'Count'}, {'Name': 'WebSearchRequests', 'Unit': 'Count'}]}]}, 'Provider': provider, 'Model': model or 'unknown', 'fn': fn or _LLM_FN, 'Calls': 1, 'InputTokens': int(b.get('in', 0) or 0), 'OutputTokens': int(b.get('out', 0) or 0), 'CacheReadTokens': int(b.get('cr', 0) or 0), 'CacheWriteTokens': int(b.get('cw', 0) or 0), 'WebSearchRequests': int(b.get('ws', 0) or 0)}))
+        print(_mllm_json.dumps({'_aws': {'Timestamp': int(_mllm_time.time() * 1000), 'CloudWatchMetrics': [{'Namespace': 'Digimetrics/LLM', 'Dimensions': [['Provider'], ['Provider', 'Model'], ['Source'], ['Source', 'Provider']], 'Metrics': [{'Name': 'Calls', 'Unit': 'Count'}, {'Name': 'InputTokens', 'Unit': 'Count'}, {'Name': 'OutputTokens', 'Unit': 'Count'}, {'Name': 'CacheReadTokens', 'Unit': 'Count'}, {'Name': 'CacheWriteTokens', 'Unit': 'Count'}, {'Name': 'WebSearchRequests', 'Unit': 'Count'}]}]}, 'Provider': provider, 'Model': model or 'unknown', 'Source': _LLM_SOURCE, 'fn': fn or _LLM_FN, 'tool': _LLM_TOOL, 'Calls': 1, 'InputTokens': int(b.get('in', 0) or 0), 'OutputTokens': int(b.get('out', 0) or 0), 'CacheReadTokens': int(b.get('cr', 0) or 0), 'CacheWriteTokens': int(b.get('cw', 0) or 0), 'WebSearchRequests': int(b.get('ws', 0) or 0)}))
     except Exception:
         pass
 
@@ -4795,17 +4827,32 @@ def claude_chat_with_tools(body):
             if system:
                 payload["system"] = system
             if tools:
-                payload["tools"] = tools
+                # Prompt-cache the tool definitions. They are ~40KB / ~10K tokens,
+                # byte-identical on every call, and ONE user turn re-sends them up
+                # to MAX_TOOL_ROUNDS+1 times seconds apart — so they were being
+                # re-billed at full input price up to 9x per question.
+                # Anthropic reads the prompt as tools -> system -> messages, so a
+                # cache_control breakpoint on the LAST tool caches the whole tools
+                # prefix; reads then bill at ~10% of input.
+                # Applied to the payload copy ONLY: the DeepSeek/OpenAI branch
+                # below converts the original `tools`, and would reject this key.
+                _cached_tools = list(tools)
+                _cached_tools[-1] = {**_cached_tools[-1], "cache_control": {"type": "ephemeral"}}
+                payload["tools"] = _cached_tools
             if thinking:
                 payload["thinking"] = thinking
 
             # ── Data size logging ──────────────────────────────────────────────
             sys_size = len(system) if system else 0
             msg_size = len(json.dumps(messages))
-            total_est = sys_size + msg_size
+            # Tools were excluded here, so every request looked ~40KB smaller than
+            # it really was — and the tool array is the single largest component.
+            tools_size = len(json.dumps(tools)) if tools else 0
+            total_est = sys_size + msg_size + tools_size
             print(f"[LOG] {provider} Request ({model}) - Round {round_num}")
             print(f"      System Prompt Size: {sys_size} chars")
             print(f"      Messages Size:      {msg_size} chars")
+            print(f"      Tools Size:         {tools_size} chars")
             print(f"      Estimated Total:    {total_est} chars")
             # ───────────────────────────────────────────────────────────────────
 
@@ -7285,3 +7332,17 @@ def lambda_handler(event, context):
             "headers": headers,
             "body": json.dumps({"error": "Internal Server Error", "detail": str(e), "traceback": tb})
         }
+
+
+# ── LLM source attribution ────────────────────────────────────────────────────
+# Wrap the handler ONCE so every model call made during this invocation is tagged
+# with the front-end that triggered it. Appended at module end because
+# lambda_handler must already be defined. Pairs with the metering block above.
+try:
+    _llm_orig_handler = lambda_handler
+
+    def lambda_handler(event, context=None):
+        _set_llm_source(event)
+        return _llm_orig_handler(event, context)
+except NameError:
+    pass
