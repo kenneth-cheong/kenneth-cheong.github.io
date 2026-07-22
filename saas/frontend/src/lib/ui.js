@@ -6,6 +6,29 @@ export function toast(msg, type = 'info') {
   window.dispatchEvent(new CustomEvent('dm:toast', { detail: { msg, type, id: Math.random().toString(36).slice(2) } }));
 }
 
+// ── In-app confirm / prompt ──────────────────────────────────────────────────
+// Promise-based replacements for the browser's blocking window.confirm/prompt,
+// rendered as our own <Modal> by <DialogHost> (mounted once in Layout). Keeping
+// the imperative call shape (like toast) means call sites just `await` them
+// instead of wiring a hook through every component:
+//   if (!(await confirmDialog('Delete this?'))) return;
+//   const name = await promptDialog({ message: 'New name?', defaultValue: cur });
+// confirmDialog resolves true/false; promptDialog resolves the string or null
+// (cancelled). Until the host mounts we fall back to the native dialog so a call
+// can never hang.
+let _dialogHandler = null;
+export function _registerDialogHandler(fn) { _dialogHandler = fn; }
+export function confirmDialog(opts) {
+  const o = typeof opts === 'string' ? { message: opts } : (opts || {});
+  if (!_dialogHandler) return Promise.resolve(window.confirm(o.message || 'Are you sure?'));
+  return _dialogHandler({ kind: 'confirm', ...o });
+}
+export function promptDialog(opts) {
+  const o = typeof opts === 'string' ? { message: opts } : (opts || {});
+  if (!_dialogHandler) { const v = window.prompt(o.message || '', o.defaultValue ?? ''); return Promise.resolve(v); }
+  return _dialogHandler({ kind: 'prompt', ...o });
+}
+
 // ── Clipboard + downloads ────────────────────────────────────────────────────
 export async function copyText(text) {
   try { await navigator.clipboard.writeText(text); toast('Copied to clipboard', 'success'); }

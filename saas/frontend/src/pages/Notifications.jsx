@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Trash2 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { NOTIF_KINDS, kindMeta, kindOf, targetOf, relativeTime, notificationsChanged, onNotificationsChanged } from '../lib/notifications.js';
+import { confirmDialog } from '../lib/ui.js';
 
 // The full notification history: filter by type or unread, select rows, and
 // mark/delete in bulk. The bell only shows the recent few — this is where older
@@ -67,7 +68,7 @@ export default function Notifications() {
   }
 
   async function clearAll() {
-    if (!window.confirm('Delete every notification? This cannot be undone.')) return;
+    if (!(await confirmDialog({ title: 'Delete all notifications', message: 'Delete every notification? This cannot be undone.', confirmText: 'Delete all', danger: true }))) return;
     setBusy(true);
     setItems([]);
     setPicked(new Set());

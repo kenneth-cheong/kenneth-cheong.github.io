@@ -6,6 +6,7 @@ import { PLANS, TIER_ORDER, CURRENCY, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAUL
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import { api } from '../lib/api.js';
+import { confirmDialog, promptDialog } from '../lib/ui.js';
 import { interpolate } from '../lib/proactive.js';
 import SortableTable from '../components/SortableTable.jsx';
 import TrialNdaGate from '../components/TrialNdaGate.jsx';
@@ -93,7 +94,7 @@ function AdminAssistant() {
     setDirty(true);
     return { ...c, triggers: next };
   });
-  const restoreDefaults = () => { if (confirm('Replace the current triggers with the built-in defaults? Unsaved edits will be lost.')) { setCfg(DEFAULT_PROACTIVE); setDirty(true); setOpenId(null); } };
+  const restoreDefaults = async () => { if (await confirmDialog({ title: 'Restore default triggers', message: 'Replace the current triggers with the built-in defaults? Unsaved edits will be lost.', confirmText: 'Restore defaults' })) { setCfg(DEFAULT_PROACTIVE); setDirty(true); setOpenId(null); } };
 
   async function save() {
     // Client-side guard: server drops canned triggers with no message, so flag them here first.
@@ -755,7 +756,7 @@ function AdminNotifications() {
     const count = preview?.count;
     const who = count != null ? `${count} user${count === 1 ? '' : 's'}` : 'the matching users';
     const via = [channels.inApp && 'in-app', channels.email && 'email'].filter(Boolean).join(' + ');
-    if (!confirm(`Send "${title.trim()}" to ${who} via ${via}? This can't be undone.`)) return;
+    if (!(await confirmDialog({ title: 'Send broadcast', message: `Send "${title.trim()}" to ${who} via ${via}? This can't be undone.`, confirmText: 'Send' }))) return;
     setSending(true);
     try {
       const { broadcast } = await api.adminBroadcastSend({
@@ -772,7 +773,7 @@ function AdminNotifications() {
   }
 
   async function doBackfill() {
-    if (!confirm('Seed last-login and last-tool-use from existing sessions + run history? Safe to run anytime — it only fills missing values.')) return;
+    if (!(await confirmDialog({ title: 'Backfill activity', message: 'Seed last-login and last-tool-use from existing sessions + run history? Safe to run anytime — it only fills missing values.', confirmText: 'Run backfill' }))) return;
     setBackfilling(true); setError(''); setMsg('');
     try {
       const r = await api.adminBackfillActivity();
@@ -991,25 +992,25 @@ function AdminUsers() {
   async function setTier(u, tier) { await api.adminTier(u.userId, tier); flash(`${u.email} → ${PLANS[tier].name}`); load(); }
   async function setRole(u, role) {
     if (role === (u.role || 'client')) return;
-    if (role === 'staff' && !confirm(`Grant ${u.email} staff (admin panel) access?`)) { load(); return; }
-    if (role === 'client' && !confirm(`Remove staff access from ${u.email}?`)) { load(); return; }
+    if (role === 'staff' && !(await confirmDialog({ title: 'Grant staff access', message: `Grant ${u.email} staff (admin panel) access?`, confirmText: 'Grant access' }))) { load(); return; }
+    if (role === 'client' && !(await confirmDialog({ title: 'Remove staff access', message: `Remove staff access from ${u.email}?`, confirmText: 'Remove access', danger: true }))) { load(); return; }
     try { await api.adminRole(u.userId, role); flash(`${u.email} → ${role === 'staff' ? 'Staff' : 'Client'}`); }
     catch (e) { setError(e?.payload?.message || e?.payload?.error || 'Could not update role.'); }
     load();
   }
   async function setStatus(u, status) {
     if (status === (u.status || 'active')) return;
-    if (status !== 'active' && !confirm(`Set ${u.email} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`)) { load(); return; }
+    if (status !== 'active' && !(await confirmDialog({ title: `Set account to “${status}”`, message: `Set ${u.email} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`, confirmText: `Set ${status}`, danger: true }))) { load(); return; }
     try { await api.adminStatus(u.userId, status); flash(`${u.email} → ${status}`); }
     catch (e) { setError(e?.payload?.error || 'Could not update status.'); }
     load();
   }
   async function adjust(u, bucket) {
-    const raw = prompt(`Adjust ${bucket} credits for ${u.email} (use a negative number to deduct):`, '100');
+    const raw = await promptDialog({ title: `Adjust ${bucket} credits`, message: `Adjust ${bucket} credits for ${u.email} (use a negative number to deduct):`, label: 'Amount', defaultValue: '100' });
     if (raw === null) return;
     const amt = parseInt(raw, 10);
     if (Number.isNaN(amt)) return;
-    const reason = prompt('Reason (optional, logged to the ledger):', '') || '';
+    const reason = (await promptDialog({ title: 'Reason', message: 'Reason (optional, logged to the ledger):', label: 'Reason', defaultValue: '' })) || '';
     await api.adminCredits(u.userId, bucket === 'monthly' ? amt : 0, bucket === 'topup' ? amt : 0, reason);
     flash(`${amt >= 0 ? '+' : ''}${amt} ${bucket} credits → ${u.email}`);
     load();
@@ -1033,7 +1034,7 @@ function AdminUsers() {
   async function bulkStatus(status) {
     const targets = users.filter((u) => selected.has(u.userId) && u.role !== 'staff' && u.status !== 'invited');
     if (!targets.length) return;
-    if (status !== 'active' && !confirm(`Set ${targets.length} user${targets.length === 1 ? '' : 's'} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`)) return;
+    if (status !== 'active' && !(await confirmDialog({ title: `Set ${targets.length} account${targets.length === 1 ? '' : 's'} to “${status}”`, message: `Set ${targets.length} user${targets.length === 1 ? '' : 's'} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`, confirmText: `Set ${status}`, danger: true }))) return;
     const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminStatus(id, status));
     flash(`Status → ${status}: ${ok} updated${fail ? `, ${fail} failed` : ''}`);
     setSelected(new Set()); load();
@@ -1041,7 +1042,7 @@ function AdminUsers() {
   async function bulkTier(tier) {
     const targets = users.filter((u) => selected.has(u.userId));
     if (!targets.length) return;
-    if (!confirm(`Change plan to ${PLANS[tier].name} for ${targets.length} user${targets.length === 1 ? '' : 's'}? This resets each user's monthly allowance.`)) return;
+    if (!(await confirmDialog({ title: 'Change plan', message: `Change plan to ${PLANS[tier].name} for ${targets.length} user${targets.length === 1 ? '' : 's'}? This resets each user's monthly allowance.`, confirmText: 'Change plan' }))) return;
     const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminTier(id, tier));
     flash(`Tier → ${PLANS[tier].name}: ${ok} updated${fail ? `, ${fail} failed` : ''}`);
     setSelected(new Set()); load();
@@ -1050,7 +1051,7 @@ function AdminUsers() {
     if (role === 'staff' && !me.isSuperAdmin) { setError('Only an admin can grant staff access.'); return; }
     const targets = users.filter((u) => selected.has(u.userId) && u.userId !== me.userId && (u.role || 'client') !== role);
     if (!targets.length) return;
-    if (!confirm(`${role === 'staff' ? 'Grant staff access to' : 'Remove staff access from'} ${targets.length} user${targets.length === 1 ? '' : 's'}?`)) return;
+    if (!(await confirmDialog({ title: role === 'staff' ? 'Grant staff access' : 'Remove staff access', message: `${role === 'staff' ? 'Grant staff access to' : 'Remove staff access from'} ${targets.length} user${targets.length === 1 ? '' : 's'}?`, confirmText: role === 'staff' ? 'Grant access' : 'Remove access', danger: role !== 'staff' }))) return;
     const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminRole(id, role));
     flash(`Role → ${role}: ${ok} updated${fail ? `, ${fail} failed` : ''}`);
     setSelected(new Set()); load();
@@ -1058,11 +1059,11 @@ function AdminUsers() {
   async function bulkAdjust(bucket) {
     const targets = users.filter((u) => selected.has(u.userId));
     if (!targets.length) return;
-    const raw = prompt(`Adjust ${bucket} credits for ${targets.length} selected user${targets.length === 1 ? '' : 's'} (use a negative number to deduct):`, '100');
+    const raw = await promptDialog({ title: `Adjust ${bucket} credits`, message: `Adjust ${bucket} credits for ${targets.length} selected user${targets.length === 1 ? '' : 's'} (use a negative number to deduct):`, label: 'Amount', defaultValue: '100' });
     if (raw === null) return;
     const amt = parseInt(raw, 10);
     if (Number.isNaN(amt)) return;
-    const reason = prompt('Reason (optional, logged to the ledger):', '') || '';
+    const reason = (await promptDialog({ title: 'Reason', message: 'Reason (optional, logged to the ledger):', label: 'Reason', defaultValue: '' })) || '';
     const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminCredits(id, bucket === 'monthly' ? amt : 0, bucket === 'topup' ? amt : 0, reason));
     flash(`${amt >= 0 ? '+' : ''}${amt} ${bucket} credits → ${ok} user${ok === 1 ? '' : 's'}${fail ? `, ${fail} failed` : ''}`);
     setSelected(new Set()); load();
@@ -1769,7 +1770,7 @@ function AdminTicketDetail({ summary, onBack }) {
     }
   }
   async function close() {
-    if (!confirm('Close this ticket?')) return;
+    if (!(await confirmDialog({ title: 'Close ticket', message: 'Close this ticket?', confirmText: 'Close ticket' }))) return;
     setBusy(true);
     try { await api.adminCloseTicket(summary.userId, summary.ticketId); setTicket((t) => ({ ...t, status: 'closed' })); } finally { setBusy(false); }
   }

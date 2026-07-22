@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Clock, Play, Trash2, Pencil, Plus, Pause, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Minus, X, Loader2 } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { toast } from '../lib/ui.js';
+import { toast, confirmDialog } from '../lib/ui.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import {
@@ -368,7 +368,7 @@ export default function Schedules() {
     finally { setBusyId(null); }
   }
   async function remove(s) {
-    if (!window.confirm(`Delete the schedule “${s.name}”? Past runs stay in your history.`)) return;
+    if (!(await confirmDialog({ title: 'Delete schedule', message: `Delete the schedule “${s.name}”? Past runs stay in your history.`, confirmText: 'Delete', danger: true }))) return;
     setBusyId(s.scheduleId);
     try { await api.deleteSchedule(s.scheduleId); await load(); }
     catch (e) { toast(e?.message || 'Could not delete.', 'error'); }

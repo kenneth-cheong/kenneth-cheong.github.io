@@ -8,6 +8,7 @@ import NotificationBell from './NotificationBell.jsx';
 import PlanWidget from './PlanWidget.jsx';
 import PlanBreadcrumb from './PlanBreadcrumb.jsx';
 import Toaster from './Toaster.jsx';
+import DialogHost from './DialogHost.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProactiveEngine from './ProactiveEngine.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
@@ -367,6 +368,7 @@ export default function Layout({ children }) {
       <ExplainMenu />
       <FaultReporter />
       <Toaster />
+      <DialogHost />
       {/* One legal dialog. A new account needs both acceptances, so the NDA gate
           carries the Terms checkbox too (`withTerms`). The standalone consent
           gate is only for the re-consent case: an established user who already

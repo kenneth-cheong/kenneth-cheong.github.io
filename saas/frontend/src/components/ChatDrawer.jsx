@@ -4,7 +4,7 @@ import { api, ApiError, chatStream, chatStreamAvailable } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { CREDIT_COSTS, toolById, TOOLS } from '@shared/catalog.mjs';
-import { toast } from '../lib/ui.js';
+import { toast, confirmDialog } from '../lib/ui.js';
 import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings, Bell, BellOff } from 'lucide-react';
 import PlanPanelCard from './PlanPanelCard.jsx';
 import Mascot from './Mascot.jsx';
@@ -53,7 +53,7 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
 
   async function trackKeyword(kw) {
     if (!activeId || !active?.domain) { toast('Create a project with a domain first to track keywords.', 'info'); go('/projects'); return; }
-    if (!window.confirm(`Track “${kw}” for ${active.domain}?`)) return;
+    if (!(await confirmDialog(`Track “${kw}” for ${active.domain}?`))) return;
     try { await api.addTracked(kw, active.domain, 'Singapore', activeId); toast(`Now tracking “${kw}”`, 'success'); }
     catch (e) { toast(e.message, 'error'); }
   }

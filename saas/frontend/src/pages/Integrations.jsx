@@ -4,6 +4,7 @@ import { Check, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { FAMILY_META } from '@shared/catalog.mjs';
 import { RETURN_KEY } from '../components/ConnectPrompt.jsx';
+import { toast, confirmDialog } from '../lib/ui.js';
 
 const TOOL_FOR = { gsc: 'gsc', ga4: 'ga4', 'google-ads': 'google-ads', 'meta-ads': 'meta-ads', 'linkedin-ads': 'linkedin-ads' };
 const LABELS = {
@@ -72,11 +73,11 @@ export default function Integrations() {
       window.location.href = url;
     } catch (e) {
       setBusy('');
-      alert(e.message || 'Could not start sign-in.');
+      toast(e.message || 'Could not start sign-in.', 'error');
     }
   }
   async function disconnectFamily(fam) {
-    if (!window.confirm(`Disconnect your ${fam.meta.label || 'account'}?`)) return;
+    if (!(await confirmDialog({ title: 'Disconnect account', message: `Disconnect your ${fam.meta.label || 'account'}?`, confirmText: 'Disconnect', danger: true }))) return;
     setBusy(fam.id);
     try { await Promise.all(fam.sources.map((p) => api.connectIntegration(p.id, '', false))); await load(); }
     finally { setBusy(''); }
@@ -90,14 +91,14 @@ export default function Integrations() {
       window.location.href = url;
     } catch (e) {
       setBusy('');
-      alert(e.message || 'Could not start sign-in.');
+      toast(e.message || 'Could not start sign-in.', 'error');
     }
   }
   // Per-source disconnect: revokes this source's access outright — its stored
   // token is dropped, so the tool can no longer list or pull anything. The other
   // sources in the family (GA4, Ads) keep their own sign-in.
   async function disconnectSource(fam, p) {
-    if (!window.confirm(`Disconnect ${p.name}? It will lose access to your data until you connect it again. Your other ${shortName(fam)} sources stay connected.`)) return;
+    if (!(await confirmDialog({ title: 'Disconnect source', message: `Disconnect ${p.name}? It will lose access to your data until you connect it again. Your other ${shortName(fam)} sources stay connected.`, confirmText: 'Disconnect', danger: true }))) return;
     setBusy(p.id);
     try { await api.connectIntegration(p.id, '', false); await load(); }
     finally { setBusy(''); }
