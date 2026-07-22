@@ -2,6 +2,37 @@
 <html lang="en">
 
 <head>
+<!-- LLM/vendor spend attribution: tag every backend call with the front-end that
+     made it, so Claude/DeepSeek spend can be split per product. The tag goes in
+     the JSON BODY, not a header — a custom header would force a CORS preflight on
+     every agency Lambda (that exact mistake broke sign-in once). Wraps fetch once
+     rather than touching 500+ call sites. Best-effort: anything unexpected falls
+     through to the original request untouched. chatbot.html counts as 'index'. -->
+<script>
+(function () {
+  if (window.__dmSourceTagged) return;
+  window.__dmSourceTagged = true;
+  var SOURCE = 'index';
+  var BACKEND = /(execute-api\.[a-z0-9-]+\.amazonaws\.com|lambda-url\.[a-z0-9-]+\.on\.aws)/i;
+  var _fetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    try {
+      var url = typeof input === 'string' ? input : (input && input.url) || '';
+      var opts = init || {};
+      var method = (opts.method || (input && input.method) || 'GET').toUpperCase();
+      if (BACKEND.test(url) && method === 'POST' && typeof opts.body === 'string') {
+        var b = JSON.parse(opts.body);
+        if (b && typeof b === 'object' && !Array.isArray(b) && b._source == null) {
+          b._source = SOURCE;
+          init = Object.assign({}, opts, { body: JSON.stringify(b) });
+        }
+      }
+    } catch (e) { /* non-JSON or opaque body - send unchanged */ }
+    return _fetch(input, init);
+  };
+})();
+</script>
+
     <meta charset="UTF-8">
     <script src="error-reporter.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
