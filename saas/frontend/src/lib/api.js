@@ -412,7 +412,7 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/platform/llm-usage${qs ? `?${qs}` : ''}`);
   },
-  // Finances balance sheet (Airwallex revenue vs AWS + estimated COGS, in USD).
+  // SaaS balance sheet (Stripe revenue vs SaaS-tagged AWS + estimated COGS, in USD).
   adminFinances: ({ from, to } = {}) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);

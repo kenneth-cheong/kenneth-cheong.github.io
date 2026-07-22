@@ -159,7 +159,8 @@ aws cloudformation create-change-set --stack-name digimetrics-saas \
     ParameterKey=SmtpPort,UsePreviousValue=true \
     ParameterKey=AmplifyBranch,UsePreviousValue=true \
     ParameterKey=AmplifyAppId,UsePreviousValue=true \
-    ParameterKey=AmplifyDomain,UsePreviousValue=true
+    ParameterKey=AmplifyDomain,UsePreviousValue=true \
+  --tags Key=product,Value=saas
 
 # Wait for the change-set to finish computing, then ALWAYS review before executing —
 # every Lambda shows "Modify" (shared/catalog.mjs is inlined into each bundle); check
@@ -177,6 +178,14 @@ aws cloudformation wait stack-update-complete --stack-name digimetrics-saas --re
 > ⚠️ **Don't drop `AlarmEmail` from the param list.** It defaults to `''` and gates
 > the `AlarmTopic` SNS resource. Omitting it (instead of `UsePreviousValue=true`)
 > makes the change-set show `Remove AlarmTopic` and silently kills all alerting.
+
+> ⚠️ **Don't drop `--tags Key=product,Value=saas` either.** Tags behave like
+> parameters on a change-set: omit them and CloudFormation *removes* the stack tags,
+> which un-tags every resource. That tag is what scopes Admin → Finances to SaaS-only
+> AWS cost — the ~160 internal tool Lambdas share this account and region, so without
+> it the balance sheet charges the whole fleet's bill to the SaaS P&L. Resources
+> outside the stack (the Amplify app) are tagged by
+> `backend/scripts/tag-saas-resources.sh`, which is idempotent and safe to re-run.
 
 ### Code-only fast path (no `template.yaml`/param change)
 

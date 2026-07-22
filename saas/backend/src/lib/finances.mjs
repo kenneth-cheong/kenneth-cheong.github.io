@@ -5,11 +5,15 @@
 //                Balance transactions supply Stripe processing fees + refunds.
 //                Stripe settles in USD (our billing currency) so revenue is
 //                already in the reporting currency — no conversion.
-//   • AWS      — authoritative, from Cost Explorer (ALL services, not just
-//                Amplify). Natively USD.
+//   • AWS      — authoritative, from Cost Explorer, SCOPED TO THE SAAS PRODUCT
+//                by the `product=saas` cost-allocation tag (all services, but
+//                only SaaS-tagged resources — the ~160 internal tool Lambdas
+//                behind index.html/chatbot.html share this account and region
+//                and must not be charged to the SaaS P&L). Natively USD.
 //   • AI/data  — an ESTIMATE, not a billed figure: credits consumed in the
 //     COGS      window × COGS_USD_PER_CREDIT (what one credit of Claude / DeepSeek
-//                / DataForSEO / Apify work costs us). Natively USD.
+//                / DataForSEO / Apify work costs us), scoped to `source='saas'`
+//                ledger rows. Natively USD.
 //
 // Every leg is USD, so nothing is FX-converted — the whole sheet is one currency.
 //
@@ -27,6 +31,17 @@ const REPORT_CCY = CURRENCY.code;
 // What one consumed credit actually costs us in vendor spend (USD). The catalog
 // targets 1 credit ≈ US$0.01–0.015 underlying; midpoint default.
 const COGS_USD_PER_CREDIT = Number(process.env.COGS_USD_PER_CREDIT) || 0.012;
+
+// Cost-allocation tag that marks a resource as SaaS. Applied to the whole
+// `digimetrics-saas` CloudFormation stack plus the Amplify app that serves the
+// front end; everything else in the account (the internal tool Lambdas, Lightsail,
+// the NAS box, …) is deliberately untagged and therefore excluded.
+// NOTE: AWS only records a tag against cost data from the day it is ACTIVATED in
+// Billing → Cost allocation tags, and never backfills. Windows that start before
+// activation have no tagged data at all, so `awsCost` detects that case and falls
+// back to the whole-account figure rather than silently reporting US$0.
+const COST_TAG_KEY = process.env.COST_TAG_KEY || 'product';
+const COST_TAG_VALUE = process.env.COST_TAG_VALUE || 'saas';
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
@@ -60,7 +75,15 @@ export async function financeReport({ from, to, users = [], consumed = { credits
     cost: {
       aws: aws.error
         ? { error: aws.error, usd: 0 }
-        : { usd: aws.usd, granularity: aws.granularity, byService: aws.byService, estimated: aws.estimated },
+        : {
+            usd: aws.usd,
+            granularity: aws.granularity,
+            byService: aws.byService,
+            estimated: aws.estimated,
+            scope: aws.scope,
+            tag: aws.tag,
+            ...(aws.note ? { note: aws.note } : {}),
+          },
       cogs: {
         credits: consumed.credits || 0,
         usdPerCredit: COGS_USD_PER_CREDIT,
@@ -68,6 +91,10 @@ export async function financeReport({ from, to, users = [], consumed = { credits
         byTool: consumed.byTool || [],
         truncated: !!consumed.truncated,
         estimated: true,
+        source: consumed.source || 'saas',
+        // Credits spent by SaaS accounts but driven from the internal cockpit —
+        // reported for transparency, NOT added to the SaaS cost base.
+        excluded: consumed.excluded || {},
       },
       total: totalCost,
     },
@@ -138,37 +165,62 @@ function monthlyRunRate(users = []) {
   return { total: round2(total), byPlan: Object.values(byPlan).sort((a, b) => b.mrr - a.mrr) };
 }
 
-// ── AWS cost (Cost Explorer, all services) ───────────────────────────────────
+// ── AWS cost (Cost Explorer, SaaS-tagged resources) ──────────────────────────
+// Runs the tag-filtered query first. A zero result is ambiguous — it means either
+// "the SaaS stack genuinely cost nothing" or "this window predates tag activation"
+// — so it's disambiguated with one unfiltered probe: if the account also billed
+// zero, the zero is real; if the account billed something, the tag simply wasn't
+// recording yet and we report the whole-account figure flagged `scope:'account'`
+// so the UI can say so instead of quietly showing a US$0 cost base.
 async function awsCost(from, to) {
   const { CostExplorerClient, GetCostAndUsageCommand } = await import('@aws-sdk/client-cost-explorer');
   const ce = new CostExplorerClient({ region: 'us-east-1' }); // CE is global, pinned to us-east-1
   const span = to - from;
   const granularity = span <= 40 * DAY ? 'DAILY' : 'MONTHLY';
-  const res = await ce.send(new GetCostAndUsageCommand({
-    // End date is EXCLUSIVE, so bump `to` a day to include it.
-    TimePeriod: { Start: ymd(from), End: ymd(new Date(to.getTime() + DAY)) },
-    Granularity: granularity,
-    Metrics: ['UnblendedCost'],
-    GroupBy: [{ Type: 'DIMENSION', Key: 'SERVICE' }],
-  }));
-  const byService = {};
-  let usd = 0;
-  for (const bucket of res.ResultsByTime || []) {
-    for (const g of bucket.Groups || []) {
-      const svc = g.Keys?.[0] || 'Other';
-      const cost = Number(g.Metrics?.UnblendedCost?.Amount || 0);
-      byService[svc] = (byService[svc] || 0) + cost;
-      usd += cost;
+  const query = async (Filter) => {
+    const res = await ce.send(new GetCostAndUsageCommand({
+      // End date is EXCLUSIVE, so bump `to` a day to include it.
+      TimePeriod: { Start: ymd(from), End: ymd(new Date(to.getTime() + DAY)) },
+      Granularity: granularity,
+      Metrics: ['UnblendedCost'],
+      GroupBy: [{ Type: 'DIMENSION', Key: 'SERVICE' }],
+      ...(Filter ? { Filter } : {}),
+    }));
+    const byService = {};
+    let usd = 0;
+    for (const bucket of res.ResultsByTime || []) {
+      for (const g of bucket.Groups || []) {
+        const svc = g.Keys?.[0] || 'Other';
+        const cost = Number(g.Metrics?.UnblendedCost?.Amount || 0);
+        byService[svc] = (byService[svc] || 0) + cost;
+        usd += cost;
+      }
     }
-  }
+    return {
+      usd: round2(usd),
+      granularity,
+      byService: Object.entries(byService)
+        .map(([service, c]) => ({ service, usd: round2(c) }))
+        .filter((r) => r.usd > 0)
+        .sort((a, b) => b.usd - a.usd),
+      estimated: (res.ResultsByTime || []).some((b) => b.Estimated),
+    };
+  };
+
+  const tagged = await query({
+    Tags: { Key: COST_TAG_KEY, Values: [COST_TAG_VALUE], MatchOptions: ['EQUALS'] },
+  });
+  if (tagged.usd > 0) return { ...tagged, scope: 'saas', tag: `${COST_TAG_KEY}=${COST_TAG_VALUE}` };
+
+  const account = await query(null);
+  if (account.usd <= 0) return { ...tagged, scope: 'saas', tag: `${COST_TAG_KEY}=${COST_TAG_VALUE}` };
   return {
-    usd: round2(usd),
-    granularity,
-    byService: Object.entries(byService)
-      .map(([service, c]) => ({ service, usd: round2(c) }))
-      .filter((r) => r.usd > 0)
-      .sort((a, b) => b.usd - a.usd),
-    estimated: (res.ResultsByTime || []).some((b) => b.Estimated),
+    ...account,
+    scope: 'account',
+    tag: `${COST_TAG_KEY}=${COST_TAG_VALUE}`,
+    // The UI must label this: it includes the internal index.html/chatbot.html
+    // fleet, so gross profit for this window understates SaaS margin.
+    note: `No ${COST_TAG_KEY}=${COST_TAG_VALUE} tagged cost in this window — AWS only tags cost data from the day the tag is activated. Showing whole-account spend, which includes the internal tool fleet.`,
   };
 }
 

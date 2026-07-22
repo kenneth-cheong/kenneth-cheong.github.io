@@ -1970,10 +1970,12 @@ function fmtWhen(iso) {
 const RANGE_PRESETS = [['1', '24h'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days']];
 
 // ── Finances (balance sheet: cost vs revenue) ────────────────────────────────
-// Company P&L for a window: Airwallex revenue vs AWS spend + an ESTIMATED AI/data
+// SaaS-product P&L for a window: Stripe revenue vs AWS spend + an ESTIMATED AI/data
 // COGS line, all in USD (revenue, AWS and COGS are natively USD, so nothing is
-// FX-converted). Revenue is authoritative (Airwallex); AWS is authoritative
+// FX-converted). Revenue is authoritative (Stripe); AWS is authoritative
 // (Cost Explorer); COGS is an estimate from credits consumed, labelled as such.
+// The Airwallex switch is staged but NOT live (see shared/catalog.mjs) — the
+// processor behind these figures is Stripe, so the copy below must say Stripe.
 function AdminFinances() {
   const [days, setDays] = useState('30');
   const [custom, setCustom] = useState({ from: '', to: '' });
@@ -2001,6 +2003,9 @@ function AdminFinances() {
   const profit = data?.profit;
   const revErr = rev?.error;
   const money = (n) => fmtMoney(n, ccy);
+  // Credits burned by SaaS accounts but driven from the internal index.html
+  // cockpit — surfaced for transparency, deliberately not in the SaaS cost base.
+  const excludedCredits = Object.values(cost?.cogs?.excluded || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 
   return (
     <div className="mt-4">
@@ -2031,7 +2036,7 @@ function AdminFinances() {
       <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
         <Info size={13} className="mt-0.5 shrink-0" />
         <span>
-          Each load runs one <b>AWS Cost Explorer</b> query (~US$0.01) plus a few read-only Airwallex calls. Revenue and AWS spend are actual figures; the <b>AI &amp; data COGS</b> line is an estimate (see notes below).
+          SaaS product only — the internal cockpit's AWS and tool spend is excluded (see notes). Each load runs one or two <b>AWS Cost Explorer</b> queries (~US$0.01 each) plus a few read-only Stripe calls. Revenue and AWS spend are actual figures; the <b>AI &amp; data COGS</b> line is an estimate (see notes below).
         </span>
       </p>
 
@@ -2064,9 +2069,10 @@ function AdminFinances() {
                     <LedgerRow label="Subscriptions" value={money(rev.subscriptions)} />
                     <LedgerRow label="Top-ups" value={money(rev.topups)} />
                     <LedgerRow label="Gross revenue" value={money(rev.gross)} strong border />
-                    {/* Fees come from a separate Airwallex call that can fail on
-                        its own. `fees: null` means "we don't know", NOT zero —
-                        say so rather than quietly understating cost. */}
+                    {/* Fees come from Stripe's balance-transaction list, a separate
+                        call that can fail on its own. `feesAvailable: false` means
+                        "we don't know", NOT zero — say so rather than quietly
+                        understating cost. */}
                     <LedgerRow
                       label="Processing fees"
                       value={rev.feesAvailable === false ? '—' : `− ${money(rev.fees)}`}
@@ -2086,7 +2092,13 @@ function AdminFinances() {
                   <LedgerRow
                     label="AWS infrastructure"
                     value={cost.aws?.error ? '—' : money(cost.aws?.usd)}
-                    sub={cost.aws?.error ? cost.aws.error : 'Cost Explorer, all services'}
+                    tag={cost.aws?.scope && cost.aws.scope !== 'saas' ? 'all products' : undefined}
+                    // `scope` is absent when the frontend is newer than the backend —
+                    // never claim SaaS-only scoping we can't see evidence for.
+                    sub={cost.aws?.error ? cost.aws.error
+                      : cost.aws?.scope === 'saas' ? `Cost Explorer, ${cost.aws.tag || 'SaaS'} resources only`
+                      : cost.aws?.scope === 'account' ? 'Cost Explorer, WHOLE ACCOUNT (see note)'
+                      : 'Cost Explorer, all services'}
                   />
                   <LedgerRow
                     label="AI & data COGS"
@@ -2097,6 +2109,16 @@ function AdminFinances() {
                   <LedgerRow label="Total cost" value={money(cost.total)} strong border />
                 </tbody>
               </table>
+              {cost.aws?.note && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{cost.aws.note}</p>
+              )}
+              {excludedCredits > 0 && (
+                <p className="mt-2 text-xs text-faint">
+                  Excluded from this sheet: {fmtNum(excludedCredits)} credits
+                  ({money(round2(excludedCredits * cost.cogs.usdPerCredit))}) consumed from the internal
+                  cockpit — not SaaS product cost.
+                </p>
+              )}
             </Panel>
           </div>
 
@@ -2186,9 +2208,20 @@ function AdminFinances() {
           <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-xs text-muted">
             <p className="font-semibold text-dim">How these numbers are built</p>
             <ul className="mt-1.5 list-disc space-y-1 pl-4">
-              <li><b>Revenue</b> — actual, from Airwallex: paid invoices with a subscription = subscriptions, without one = top-ups. Refunds from credit notes; processing fees from the financial-transactions ledger. Settled in {rev?.currency || CURRENCY.code}.</li>
-              <li><b>AWS</b> — actual, from Cost Explorer (all services), natively in {ccy} so no FX conversion{cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
-              <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (upstream vendor spend). Not a billed figure.</li>
+              <li><b>Revenue</b> — actual, from Stripe: paid invoices = subscriptions; succeeded charges with no invoice = top-ups. Processing fees and refunds come from balance transactions. Settled in {rev?.currency || CURRENCY.code}.</li>
+              <li>
+                <b>Scope</b> — this is a <b>SaaS-product P&amp;L</b>. The internal cockpit (index.html / chatbot.html)
+                shares this AWS account but earns no revenue, so its tool spend is excluded from COGS and its
+                infrastructure is excluded from the AWS line{cost.aws?.scope === 'saas' ? '' : ' (except where noted below)'}.
+                For the cockpit's own usage, see <b>Admin → Platform</b>.
+              </li>
+              <li>
+                <b>AWS</b> — actual, from Cost Explorer{cost.aws?.scope === 'saas'
+                  ? <>, filtered to resources tagged <code>{cost.aws.tag}</code> (the SaaS CloudFormation stack + the Amplify app)</>
+                  : ' (all services)'}, natively in {ccy} so no FX conversion{cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.
+                {cost.aws?.scope === 'account' && <> <b>This window is unfiltered</b> — AWS records tags against cost data only from the day the tag was activated and never backfills, so it shows whole-account spend and understates SaaS margin.</>}
+              </li>
+              <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (upstream vendor spend), counting only runs driven from the SaaS app. Not a billed figure.</li>
               <li><b>Run-rate MRR</b> — a snapshot of active paid subscribers × plan price, not windowed.</li>
             </ul>
           </div>

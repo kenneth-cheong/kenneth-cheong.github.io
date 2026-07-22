@@ -788,12 +788,18 @@ export async function listLedger(userId, limit = 100) {
  * authoritative per-spend record, so we scan it filtered to `spend` rows whose
  * `at` timestamp falls in [from,to]. Bounded/best-effort: at MVP volume the
  * table is small; a page cap stops a runaway scan on a very large ledger.
- * Returns { credits, rows, byTool: [{ tool, credits }] }.
+ *
+ * Scoped to ONE product surface via `source` (the front-end that drove the run):
+ * the balance sheet is a SaaS P&L, so runs an authenticated user drove from the
+ * internal index.html cockpit are counted separately and excluded from `credits`.
+ * Legacy rows written before `source` existed are treated as 'saas'.
+ * Returns { credits, rows, byTool: [{ tool, credits }], excluded: { source: credits } }.
  */
-export async function creditsConsumed({ from, to }) {
+export async function creditsConsumed({ from, to, source = 'saas' }) {
   const fromISO = (from instanceof Date ? from : new Date(from)).toISOString();
   const toISO = (to instanceof Date ? to : new Date(to)).toISOString();
   const byTool = {};
+  const excluded = {};
   let credits = 0, rows = 0, ExclusiveStartKey, pages = 0, truncated = false;
   do {
     const res = await ddb.send(new ScanCommand({
@@ -801,13 +807,17 @@ export async function creditsConsumed({ from, to }) {
       // Only real consumption: `spend` rows (tool runs + assistant chat). Grants,
       // top-ups and refunds carry other actions and are excluded.
       FilterExpression: '#a = :spend AND #at BETWEEN :from AND :to',
-      ExpressionAttributeNames: { '#a': 'action', '#at': 'at' },
+      ExpressionAttributeNames: { '#a': 'action', '#at': 'at', '#s': 'source' },
       ExpressionAttributeValues: { ':spend': 'spend', ':from': fromISO, ':to': toISO },
-      ProjectionExpression: 'delta, tool',
+      // `source` filtered in code, not in the FilterExpression: legacy rows have
+      // no `source` attribute at all, and an `#s = :src` filter would drop them.
+      ProjectionExpression: 'delta, tool, #s',
       ExclusiveStartKey,
     }));
     for (const it of res.Items || []) {
       const c = Math.abs(Number(it.delta) || 0);
+      const src = it.source || 'saas';
+      if (src !== source) { excluded[src] = (excluded[src] || 0) + c; continue; }
       credits += c;
       rows++;
       const t = it.tool || 'other';
@@ -820,6 +830,8 @@ export async function creditsConsumed({ from, to }) {
     credits,
     rows,
     truncated,
+    source,
+    excluded,
     byTool: Object.entries(byTool)
       .map(([tool, c]) => ({ tool, credits: c }))
       .sort((a, b) => b.credits - a.credits),
