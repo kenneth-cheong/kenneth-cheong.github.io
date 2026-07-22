@@ -1602,6 +1602,7 @@ function ReplyTemplates({ ticket, onInsert }) {
   const [templates, setTemplates] = useState(null); // null = not yet loaded
   const [editing, setEditing] = useState(null);      // null | {} (new) | template (edit)
   const [form, setForm] = useState({ title: '', body: '' });
+  const [confirmId, setConfirmId] = useState(null);  // template id pending inline delete-confirm
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const wrapRef = useRef(null);
@@ -1612,15 +1613,16 @@ function ReplyTemplates({ ticket, onInsert }) {
   // Close the menu on an outside click or Escape.
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setOpen(false); setEditing(null); } };
-    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setEditing(null); } };
+    const reset = () => { setOpen(false); setEditing(null); setConfirmId(null); };
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) reset(); };
+    const onKey = (e) => { if (e.key === 'Escape') reset(); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
-  function startNew() { setForm({ title: '', body: '' }); setEditing({}); setErr(''); }
-  function startEdit(t) { setForm({ title: t.title, body: t.body }); setEditing(t); setErr(''); }
+  function startNew() { setForm({ title: '', body: '' }); setEditing({}); setErr(''); setConfirmId(null); }
+  function startEdit(t) { setForm({ title: t.title, body: t.body }); setEditing(t); setErr(''); setConfirmId(null); }
 
   async function save(e) {
     e.preventDefault();
@@ -1633,9 +1635,8 @@ function ReplyTemplates({ ticket, onInsert }) {
     finally { setBusy(false); }
   }
   async function remove(t) {
-    if (!confirm(`Delete the “${t.title}” template? This affects all staff.`)) return;
     setBusy(true);
-    try { const { templates: list } = await api.deleteTicketTemplate(t.id); setTemplates(list); }
+    try { const { templates: list } = await api.deleteTicketTemplate(t.id); setTemplates(list); setConfirmId(null); }
     catch { /* leave the list as-is on failure */ } finally { setBusy(false); }
   }
   function insert(t) { onInsert(fillTemplateTokens(t.body, ticket)); setOpen(false); }
@@ -1686,10 +1687,20 @@ function ReplyTemplates({ ticket, onInsert }) {
                       <div className="truncate text-sm font-medium text-body">{t.title}</div>
                       <div className="truncate text-[11px] text-faint">{t.body}</div>
                     </button>
-                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
-                      <button type="button" onClick={() => startEdit(t)} className="rounded p-1 text-faint hover:text-body" aria-label="Edit"><Pencil size={13} /></button>
-                      <button type="button" onClick={() => remove(t)} className="rounded p-1 text-faint hover:text-red-600 dark:hover:text-red-400" aria-label="Delete"><Trash2 size={13} /></button>
-                    </div>
+                    {confirmId === t.id ? (
+                      // Inline confirm — replaces a native confirm() so the whole
+                      // flow stays in-app. Always visible (not hover-gated) while armed.
+                      <div className="flex shrink-0 items-center gap-1 text-[11px]">
+                        <span className="text-faint">Delete?</span>
+                        <button type="button" onClick={() => remove(t)} disabled={busy} className="rounded px-1.5 py-0.5 font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50">{busy ? '…' : 'Yes'}</button>
+                        <button type="button" onClick={() => setConfirmId(null)} className="rounded px-1.5 py-0.5 font-medium text-muted hover:bg-raised">No</button>
+                      </div>
+                    ) : (
+                      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+                        <button type="button" onClick={() => startEdit(t)} className="rounded p-1 text-faint hover:text-body" aria-label="Edit"><Pencil size={13} /></button>
+                        <button type="button" onClick={() => setConfirmId(t.id)} className="rounded p-1 text-faint hover:text-red-600 dark:hover:text-red-400" aria-label="Delete"><Trash2 size={13} /></button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
