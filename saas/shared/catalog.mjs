@@ -5,7 +5,7 @@
 // agree on both sides, but the BACKEND is always the authority that enforces.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Billing currency — prices below and all Airwallex Prices are created in USD. */
+/** Billing currency — prices below and all Stripe Prices are created in USD. */
 export const CURRENCY = { code: 'USD', symbol: 'US$' };
 
 /**
@@ -13,11 +13,15 @@ export const CURRENCY = { code: 'USD', symbol: 'US$' };
  * the first-run consent gate re-prompts any user whose accepted version differs,
  * so a bump forces everyone to re-accept. Keep in sync with Legal.jsx's date.
  */
-// The .2 bump (payment processor Stripe → Airwallex) is staged but NOT live: it
-// re-prompts every user with terms naming Airwallex as the card processor, and
-// the Airwallex billing backend is not deployed yet, so those terms would be
-// factually wrong in the gap. Restore it to '.2' in the same change that ships
-// src/billing/index.mjs + lib/airwallex.mjs — not before.
+// A '.2' bump was once staged for a Stripe → Airwallex switch. That migration is
+// NOT happening (confirmed 2026-07-22) — payments are Stripe — so the bump was
+// dropped rather than deferred.
+//
+// One real gap is left: the generated Privacy Notice lists Airwallex, PayPal,
+// PayNow et al as the payment providers and never names Stripe, which is the only
+// one actually processing. Fixing that means editing the source .docx and
+// regenerating legalContent.js (never hand-edit it), and THAT change is what
+// should carry the version bump — it re-prompts every user for consent.
 export const TERMS_VERSION = '2026-07-25';
 
 /**
@@ -41,7 +45,7 @@ export function tierMeets(userTier, requiredTier) {
 }
 
 // ── Subscription plans ─────────────────────────────────────────────────────
-// Airwallex Price IDs are filled in from env at runtime on the backend; the
+// Stripe Price IDs are filled in from env at runtime on the backend; the
 // frontend only needs display data. `monthlyCredits` is the allowance granted
 // on each successful invoice (the billing-cycle anchor, not a cron).
 export const PLANS = {

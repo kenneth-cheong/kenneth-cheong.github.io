@@ -255,11 +255,11 @@ export const api = {
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
   // Card updates, plan switches and cancellation all happen in the Stripe
-  // Customer Portal — one redirect, not three routes. The bespoke
-  // /billing/payment-method, /billing/subscription/change and
-  // /billing/subscription/cancel routes belong to the Airwallex backend that
-  // has not shipped (see catalog.mjs's TERMS_VERSION note); until it does,
-  // calling them 404s. Restore them in the same change that ships it.
+  // Customer Portal — one redirect, not three routes. 9bb374c briefly replaced
+  // this with bespoke /billing/payment-method, /billing/subscription/change and
+  // /billing/subscription/cancel calls for an Airwallex backend that was never
+  // built; all three 404'd for every subscriber until 76a550c. If you add
+  // in-app equivalents, add the backend routes in the same change.
   portal: () => call('/billing/portal', { method: 'POST' }),
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
@@ -406,7 +406,7 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/platform/llm-usage${qs ? `?${qs}` : ''}`);
   },
-  // Finances balance sheet (Airwallex revenue vs AWS + estimated COGS, in USD).
+  // Finances balance sheet (Stripe revenue vs AWS + estimated COGS, in USD).
   adminFinances: ({ from, to } = {}) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);

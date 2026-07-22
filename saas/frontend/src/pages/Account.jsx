@@ -92,8 +92,8 @@ export default function Account() {
   }
 
   // Card updates, plan switches and cancellation all live in the Stripe
-  // Customer Portal. The bespoke in-app versions of these belong to the
-  // Airwallex backend, which hasn't shipped — one redirect until it does.
+  // Customer Portal — one redirect rather than three bespoke in-app flows.
+  // See api.js for why the bespoke versions were reverted.
   async function openPortal() {
     setBusy(true);
     try {
