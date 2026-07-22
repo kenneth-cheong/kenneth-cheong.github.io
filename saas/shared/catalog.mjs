@@ -139,6 +139,38 @@ export const CREDIT_COSTS = {
   ai_chat: 2, // one assistant message (Claude call + injected account context)
 };
 
+// Estimated REAL vendor cost (USD) of one run, keyed by the CREDIT_COSTS class.
+// This is what a run costs US in third-party spend (DataForSEO / Anthropic / SE
+// Ranking / PageSpeed …) — deliberately distinct from CREDIT_COSTS, which is what
+// we CHARGE the user. It exists so we can attribute real spend to the front-end
+// surface that drove it (the SaaS dashboard vs the legacy index.html tools),
+// which AWS billing can never see because both share one set of API keys.
+//
+// Coarse, per-class, and TUNABLE: refine these as real vendor invoices land. A
+// per-unit figure — fan-out tools (e.g. rank-check per keyword) multiply it by
+// the item count at the call site.
+export const VENDOR_COST_USD = {
+  ai_short: 0.01,
+  ai_long: 0.06,
+  ai_long_research: 0.12,
+  keyword_lookup: 0.003,
+  rank_check: 0.003, // per keyword × location (one DataForSEO SERP)
+  rank_backfill: 0.02,
+  page_speed: 0.004,
+  crawl: 0.02, // per 10 pages
+  backlinks: 0.05,
+  page_analysis: 0.05,
+  ai_visibility: 0.15, // multi-LLM fan-out
+  forensic_audit: 0.60,
+  integration_pull: 0, // user's own OAuth quota — no vendor cost to us
+  ai_chat: 0.02,
+};
+
+/** Estimated vendor $ for a run of `costClass` (0 if unknown). */
+export function estCostUsd(costClass) {
+  return VENDOR_COST_USD[costClass] ?? 0;
+}
+
 // Real credit cost of ONE run: the unit cost, multiplied by the fan-out item
 // count for tools that charge per item (e.g. rank-checker → per keyword). The
 // tool page, the schedule estimate, and the confirm dialog MUST all use this so

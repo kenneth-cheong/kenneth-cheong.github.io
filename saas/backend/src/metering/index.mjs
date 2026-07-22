@@ -24,6 +24,7 @@ import {
   CREDIT_COSTS,
   PLANS,
   tierMeets,
+  estCostUsd,
 } from '../../../shared/catalog.mjs';
 import {
   ok,
@@ -37,6 +38,7 @@ import {
   parseBody,
   claims,
   preflight,
+  sourceOf,
 } from '../lib/http.mjs';
 import { accountBlocked, isStaff } from '../lib/admin.mjs';
 import { verify } from '../lib/jwt.mjs';
@@ -52,6 +54,12 @@ const TEASER_RUNS_PER_MONTH = 1;
 // by a different invocation. Infinity when there's no clock (unit tests).
 let INVOCATION_DEADLINE_AT = 0;
 const msRemaining = () => (INVOCATION_DEADLINE_AT ? Math.max(0, INVOCATION_DEADLINE_AT - Date.now()) : Infinity);
+
+// Front-end that triggered this invocation, captured at handler entry for the
+// same reason as the deadline above (one event at a time per container). Stamped
+// onto every upstream payload in postUpstream so the upstream Lambda's own LLM
+// metering can attribute its model spend back to the right product.
+let INVOCATION_SOURCE = 'saas';
 
 export const handler = async (event, context) => {
   if (typeof context?.getRemainingTimeInMillis === 'function') {
@@ -102,6 +110,12 @@ export const handler = async (event, context) => {
   if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
 
   const body = parseBody(event);
+  // Front-end surface that drove this run (saas dashboard vs legacy index.html),
+  // from the X-Source header — defaults to 'saas'. Threaded into the credit spend,
+  // the saved run, and the per-source usage metric for per-product attribution.
+  const source = sourceOf(event);
+  body._source = source;
+  INVOCATION_SOURCE = source;
   // Expose the authenticated email to adapters that attribute upstream jobs
   // (e.g. serpCompetitors keys results by user). Gateway-trusted, not user input.
   body._email = c.email || c.userId;
@@ -219,6 +233,7 @@ export const handler = async (event, context) => {
       cost: creditsUsed,
       tool: tool.id,
       meta: usageMeta(result),
+      source,
     });
     creditsRemaining = spent.total;
     topupRemaining = spent.topupCredits;
@@ -235,6 +250,7 @@ export const handler = async (event, context) => {
         projectId: body.projectId || null,
         // Tag runs fired by the schedules cron so they're queryable per-schedule.
         scheduleId: body._scheduleId || null,
+        source,
       });
       runId = saved.runId;
       // Stamp the outcome onto the originating schedule (last run + count), so
@@ -279,7 +295,15 @@ export const handler = async (event, context) => {
   }
 
   // Structured metric line (CloudWatch Logs Insights / metric filters).
-  console.log(JSON.stringify({ metric: 'tool_run', tool: tool.id, ms: Date.now() - t0, creditsUsed, cached: !!result?.cached, teaser, softFailed }));
+  console.log(JSON.stringify({ metric: 'tool_run', tool: tool.id, source, ms: Date.now() - t0, creditsUsed, cached: !!result?.cached, teaser, softFailed }));
+  // Per-surface run + spend metric (CloudWatch EMF) so the Admin → Platform panel
+  // can split runs and estimated vendor $ between the SaaS dashboard and the
+  // legacy index.html tools — attribution AWS billing can't do (shared API keys).
+  // Only count real, charged runs; teaser/soft-failed/zero-cost pulls don't spend.
+  if (charge && !softFailed) {
+    const units = fanItems ? Math.max(1, fanItems.length) : 1;
+    emitUsageMetric({ source, tool: tool.id, creditsUsed, estCostUSD: estCostUsd(tool.cost) * units });
+  }
 
   return ok({
     tool: tool.id,
@@ -384,6 +408,12 @@ async function invokeUpstreamLambda(fnName, payload) {
  * DIRECT_INVOKE are called via the Lambda API instead of their 29s gateway.
  */
 async function postUpstream(url, payload, opts = {}) {
+  // Stamp the originating front-end onto every upstream payload (one choke point
+  // for both the HTTP and direct-invoke paths). The upstream Lambda reads
+  // `_source` at handler entry and tags its own LLM metrics with it.
+  if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload._source == null) {
+    payload = { ...payload, _source: INVOCATION_SOURCE };
+  }
   const cfg = FLAKY_BY_URL[url] || {};
   const timeoutMs = opts.timeoutMs ?? cfg.timeoutMs ?? 170000; // < 180s Lambda cap
   const retries = opts.retries ?? cfg.retries ?? 0;
@@ -5545,6 +5575,38 @@ function reconcileCost(tool, result, flatCost) {
 function usageMeta(result) {
   const u = result?.usage || result?.token_usage;
   return u ? { inputTokens: u.input_tokens, outputTokens: u.output_tokens } : {};
+}
+
+// Emit one CloudWatch Embedded Metric Format (EMF) line — a specially-shaped log
+// object CloudWatch auto-converts into metrics, no PutMetricData call needed. We
+// dimension on Source ONLY (two values: saas | index) to keep custom-metric
+// cardinality — and its cost — minimal; `tool` rides along as a plain property
+// for Logs Insights drilldowns, not as a metric dimension. The Admin Platform
+// panel reads these back per source (GetMetricData) as the unified cross-surface
+// runs + estimated-spend view. Logging must never sink a run, so it's swallowed.
+// The staffAuth Lambda emits the matching Source='index' side for index.html.
+function emitUsageMetric({ source, tool, creditsUsed = 0, estCostUSD = 0 }) {
+  try {
+    console.log(JSON.stringify({
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [{
+          Namespace: 'Digimetrics/Usage',
+          Dimensions: [['Source']],
+          Metrics: [
+            { Name: 'Runs', Unit: 'Count' },
+            { Name: 'EstCostUSD', Unit: 'None' },
+            { Name: 'CreditsUsed', Unit: 'Count' },
+          ],
+        }],
+      },
+      Source: source,
+      tool,
+      Runs: 1,
+      EstCostUSD: Number(estCostUSD) || 0,
+      CreditsUsed: Number(creditsUsed) || 0,
+    }));
+  } catch { /* metrics are best-effort — never break a paid run over a log */ }
 }
 
 function applyTeaser(tool, result) {

@@ -984,13 +984,23 @@ Resources:
         # and cost APIs don't support resource-level scoping, so Resource is '*'.
         - Statement:
             - Effect: Allow
-              Action: [cloudwatch:GetMetricData, ce:GetCostAndUsage]
+              # ListMetrics: discover the exact (Provider,Model) pairs for the
+              # per-model LLM cost breakdown. Both read-only + no resource scoping.
+              Action: [cloudwatch:GetMetricData, cloudwatch:ListMetrics, ce:GetCostAndUsage]
               Resource: '*'
             - Effect: Allow
               Action: [amplify:ListJobs, amplify:GenerateAccessLogs, amplify:GetApp]
               Resource:
                 - !Sub 'arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}'
                 - !Sub 'arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/*'
+            - Effect: Allow
+              # Provider-side reconciliation: the Anthropic admin key (cost +
+              # usage reports) and the DeepSeek key (remaining-credit balance).
+              # Absent secrets degrade gracefully to "not configured".
+              Action: [secretsmanager:GetSecretValue]
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:digimetrics-saas/anthropic-admin-key*'
+                - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:digimetrics-saas/deepseek-key*'
       Events:
         Users: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         UserCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
@@ -1024,6 +1034,8 @@ Resources:
         BroadcastBackfill: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/backfill, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformAccessLogs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/access-logs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PlatformToolSpend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/tool-spend, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PlatformLlmUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/llm-usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Finances: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/finances, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────

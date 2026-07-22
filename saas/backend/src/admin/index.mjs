@@ -39,7 +39,7 @@ import {
 } from '../lib/dynamo.mjs';
 import { PLANS, NDA_VERSION, TERMS_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
-import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
+import { amplifyUsage, amplifyAccessLogs, toolSpendBySource, llmSpendByProvider, anthropicCostReport, anthropicUsageReport, deepseekBalance } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
@@ -193,6 +193,42 @@ export const handler = async (event) => {
     } catch (e) {
       console.error('platform_usage_error', e);
       return serverError(e.message || 'Could not load Amplify usage.');
+    }
+  }
+  // Per-front-end tool runs + estimated vendor spend (SaaS dashboard vs the
+  // legacy index.html tools) over the window, from the shared Digimetrics/Usage
+  // metric. A single CloudWatch GetMetricData read — no Cost Explorer, so free.
+  if (method === 'GET' && path.endsWith('/admin/platform/tool-spend')) {
+    let range;
+    try { range = parseRange(q); } catch (e) { return badRequest(e.message); }
+    try {
+      return ok(await toolSpendBySource(range));
+    } catch (e) {
+      console.error('tool_spend_error', e);
+      return serverError(e.message || 'Could not load per-product tool spend.');
+    }
+  }
+  // Per-provider LLM usage (Claude vs DeepSeek token + estimated $) over the
+  // window, from the fleet-wide Digimetrics/LLM metric. One CloudWatch read.
+  if (method === 'GET' && path.endsWith('/admin/platform/llm-usage')) {
+    let range;
+    try { range = parseRange(q); } catch (e) { return badRequest(e.message); }
+    try {
+      // Our token-based estimate + (if an admin key is configured) Anthropic's
+      // authoritative cost for the same window. The reconciliation never blocks
+      // the estimate — a failure there just omits the `authoritative` field.
+      const [usage, authoritative, anthropicUsage, deepseek] = await Promise.all([
+        llmSpendByProvider(range),
+        anthropicCostReport(range).catch((e) => ({ configured: false, error: e.message })),
+        // Authoritative per-MODEL token counts (the cost report can't group by
+        // model) + DeepSeek's real remaining credit. Both optional.
+        anthropicUsageReport(range).catch((e) => ({ configured: false, error: e.message })),
+        deepseekBalance().catch((e) => ({ configured: false, error: e.message })),
+      ]);
+      return ok({ ...usage, authoritative, anthropicUsage, deepseek });
+    } catch (e) {
+      console.error('llm_usage_error', e);
+      return serverError(e.message || 'Could not load LLM usage.');
     }
   }
   // Per-request access-log breakdowns (top pages, referrers, devices, edge geo,

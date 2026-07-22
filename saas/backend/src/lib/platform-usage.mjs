@@ -155,6 +155,409 @@ async function costBreakdown(from, to) {
   };
 }
 
+// ── Per-surface tool runs + estimated spend (Digimetrics/Usage EMF) ──────────
+// The single cross-product view: how many tool runs, and how much estimated
+// vendor $, each front-end drove — the SaaS dashboard ('saas') vs the legacy
+// index.html tools ('index'). Both surfaces emit CloudWatch EMF into the same
+// custom namespace (SaaS: metering/index.mjs emitUsageMetric; index: staffAuth
+// emit_usage_metric), dimensioned on Source, so this is one GetMetricData read.
+//
+// NOTE: this only reflects runs since the metric shipped — there is no historical
+// backfill, because untagged runs were never attributed. It accrues going forward.
+const USAGE_NS = 'Digimetrics/Usage';
+const USAGE_SOURCES = ['saas', 'index'];
+const USAGE_METRICS = [
+  { key: 'runs', name: 'Runs' },
+  { key: 'estCostUSD', name: 'EstCostUSD' },
+  { key: 'creditsUsed', name: 'CreditsUsed' },
+];
+
+export async function toolSpendBySource({ from, to }) {
+  const { CloudWatchClient, GetMetricDataCommand } = await import('@aws-sdk/client-cloudwatch');
+  const cw = new CloudWatchClient({ region: REGION });
+  // One period bucket spanning the whole window — we only need window totals here.
+  // CloudWatch requires Period to be a multiple of 60, so round the span (in
+  // seconds) UP to the next minute; a period ≥ the range yields a single bucket.
+  const period = Math.max(60, Math.ceil((to - from) / 60000) * 60);
+  // Build one query per (source × metric); Id maps back to which is which.
+  const specs = [];
+  USAGE_SOURCES.forEach((source, si) =>
+    USAGE_METRICS.forEach((m, mi) => specs.push({
+      id: `s${si}m${mi}`, source, key: m.key,
+      query: {
+        Id: `s${si}m${mi}`,
+        MetricStat: {
+          Metric: { Namespace: USAGE_NS, MetricName: m.name, Dimensions: [{ Name: 'Source', Value: source }] },
+          Period: period,
+          Stat: 'Sum',
+        },
+      },
+    })));
+  const res = await cw.send(new GetMetricDataCommand({
+    StartTime: from, EndTime: to, ScanBy: 'TimestampAscending',
+    MetricDataQueries: specs.map((s) => s.query),
+  }));
+  // Sum each series' values (there may be >1 bucket if CW clamps the period).
+  const totalById = Object.fromEntries(
+    (res.MetricDataResults || []).map((r) => [r.Id, (r.Values || []).reduce((a, b) => a + b, 0)])
+  );
+  const bySource = {};
+  for (const source of USAGE_SOURCES) bySource[source] = { runs: 0, estCostUSD: 0, creditsUsed: 0 };
+  for (const s of specs) bySource[s.source][s.key] = totalById[s.id] || 0;
+  const combined = USAGE_SOURCES.reduce((a, s) => ({
+    runs: a.runs + bySource[s].runs,
+    estCostUSD: a.estCostUSD + bySource[s].estCostUSD,
+    creditsUsed: a.creditsUsed + bySource[s].creditsUsed,
+  }), { runs: 0, estCostUSD: 0, creditsUsed: 0 });
+  return {
+    currency: 'USD',
+    range: { from: from.toISOString(), to: to.toISOString() },
+    bySource,
+    combined,
+  };
+}
+
+// ── Per-provider LLM usage (Digimetrics/LLM EMF) ─────────────────────────────
+// Claude vs DeepSeek (vs OpenAI) usage across the whole fleet — every Lambda that
+// calls a model emits RAW token buckets into this namespace (dims Provider and
+// Provider+Model). We discover the exact models present, sum each bucket, and
+// derive $ HERE from a single per-model rate table below — so prices live in one
+// place, never go stale in 30 Lambda copies, and caching/web-search are priced
+// correctly. Forward-only. Still an estimate — the Anthropic/DeepSeek consoles
+// (and the optional cost-report reconciliation) are the authoritative bill.
+const LLM_NS = 'Digimetrics/LLM';
+
+// $ per MILLION tokens (input / output / cache-read / cache-write) + web-search $
+// per 1,000 requests. Longest-specific prefix wins. Anthropic caches: read ~0.1x
+// input, write ~1.25x input. OpenAI cached ~0.5x. DeepSeek cache-hit is its own
+// rate. web_search billed per request (Anthropic). TUNABLE — update from the
+// pricing pages here, and the whole history recomputes on next read.
+const LLM_PRICING = [
+  ['claude-3-5-haiku', { in: 0.80, out: 4.00, cacheRead: 0.08, cacheWrite: 1.00, ws: 10 }],
+  ['claude-3-haiku', { in: 0.25, out: 1.25, cacheRead: 0.03, cacheWrite: 0.30, ws: 10 }],
+  ['claude-haiku', { in: 1.00, out: 5.00, cacheRead: 0.10, cacheWrite: 1.25, ws: 10 }],
+  ['claude-3-5-sonnet', { in: 3.00, out: 15.00, cacheRead: 0.30, cacheWrite: 3.75, ws: 10 }],
+  ['claude-sonnet', { in: 3.00, out: 15.00, cacheRead: 0.30, cacheWrite: 3.75, ws: 10 }],
+  ['claude-opus', { in: 15.00, out: 75.00, cacheRead: 1.50, cacheWrite: 18.75, ws: 10 }],
+  ['claude', { in: 3.00, out: 15.00, cacheRead: 0.30, cacheWrite: 3.75, ws: 10 }],
+  ['deepseek-reasoner', { in: 0.55, out: 2.19, cacheRead: 0.14, cacheWrite: 0, ws: 0 }],
+  ['deepseek-chat', { in: 0.27, out: 1.10, cacheRead: 0.07, cacheWrite: 0, ws: 0 }],
+  ['deepseek', { in: 0.27, out: 1.10, cacheRead: 0.07, cacheWrite: 0, ws: 0 }],
+  ['gpt-4o-mini', { in: 0.15, out: 0.60, cacheRead: 0.075, cacheWrite: 0, ws: 0 }],
+  ['gpt-4o', { in: 2.50, out: 10.00, cacheRead: 1.25, cacheWrite: 0, ws: 0 }],
+  ['gpt-4.1-mini', { in: 0.40, out: 1.60, cacheRead: 0.10, cacheWrite: 0, ws: 0 }],
+  ['gpt-4.1', { in: 2.00, out: 8.00, cacheRead: 0.50, cacheWrite: 0, ws: 0 }],
+  ['o3', { in: 2.00, out: 8.00, cacheRead: 0.50, cacheWrite: 0, ws: 0 }],
+  ['o1', { in: 15.00, out: 60.00, cacheRead: 7.50, cacheWrite: 0, ws: 0 }],
+  ['gpt', { in: 0.50, out: 1.50, cacheRead: 0.25, cacheWrite: 0, ws: 0 }],
+];
+const LLM_RATE_FALLBACK = { in: 1.0, out: 5.0, cacheRead: 0.1, cacheWrite: 1.25, ws: 10 };
+
+// Exact-id match via longest prefix (avoids gpt/haiku-version collisions).
+function ratesFor(model) {
+  const m = String(model || '').toLowerCase();
+  let best = null;
+  for (const [key, r] of LLM_PRICING) {
+    if (m.includes(key) && (!best || key.length > best.key.length)) best = { key, r };
+  }
+  return best ? best.r : LLM_RATE_FALLBACK;
+}
+
+function costOf(model, b) {
+  const r = ratesFor(model);
+  return (b.inputTokens * r.in + b.outputTokens * r.out
+        + b.cacheReadTokens * r.cacheRead + b.cacheWriteTokens * r.cacheWrite) / 1e6
+        + (b.webSearchRequests / 1000) * r.ws;
+}
+
+const LLM_BUCKETS = ['Calls', 'InputTokens', 'OutputTokens', 'CacheReadTokens', 'CacheWriteTokens', 'WebSearchRequests'];
+const zeroBuckets = () => ({ calls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, webSearchRequests: 0, estCostUSD: 0 });
+
+export async function llmSpendByProvider({ from, to }) {
+  const { CloudWatchClient, GetMetricDataCommand, ListMetricsCommand } = await import('@aws-sdk/client-cloudwatch');
+  const cw = new CloudWatchClient({ region: REGION });
+  const period = Math.max(60, Math.ceil((to - from) / 60000) * 60);
+
+  // 1. Discover the exact (Provider, Model) pairs actually emitting.
+  const pairMap = new Map();
+  let token;
+  do {
+    const lm = await cw.send(new ListMetricsCommand({ Namespace: LLM_NS, MetricName: 'Calls', NextToken: token }));
+    for (const m of lm.Metrics || []) {
+      const dims = Object.fromEntries((m.Dimensions || []).map((d) => [d.Name, d.Value]));
+      if (dims.Provider && dims.Model) pairMap.set(`${dims.Provider}|${dims.Model}`, { provider: dims.Provider, model: dims.Model });
+    }
+    token = lm.NextToken;
+  } while (token);
+  const pairs = [...pairMap.values()];
+  const empty = { currency: 'USD', range: { from: from.toISOString(), to: to.toISOString() }, byProvider: {}, byModel: [], bySource: {}, combined: zeroBuckets() };
+  if (!pairs.length) return empty;
+
+  // 2. Sum every bucket per pair (chunked — GetMetricData caps at 500 queries).
+  const specs = [];
+  pairs.forEach((p, pi) => LLM_BUCKETS.forEach((b, bi) => specs.push({ id: `q${pi}_${bi}`, pi, name: b })));
+  const totalById = {};
+  for (let i = 0; i < specs.length; i += 450) {
+    const chunk = specs.slice(i, i + 450);
+    const res = await cw.send(new GetMetricDataCommand({
+      StartTime: from, EndTime: to, ScanBy: 'TimestampAscending',
+      MetricDataQueries: chunk.map((s) => ({
+        Id: s.id,
+        MetricStat: {
+          Metric: { Namespace: LLM_NS, MetricName: s.name, Dimensions: [{ Name: 'Provider', Value: pairs[s.pi].provider }, { Name: 'Model', Value: pairs[s.pi].model }] },
+          Period: period, Stat: 'Sum',
+        },
+      })),
+    }));
+    for (const r of res.MetricDataResults || []) totalById[r.Id] = (r.Values || []).reduce((a, v) => a + v, 0);
+  }
+
+  // 3. Per-model buckets → per-model cost → aggregate to provider + combined.
+  const key = (name) => ({ Calls: 'calls', InputTokens: 'inputTokens', OutputTokens: 'outputTokens', CacheReadTokens: 'cacheReadTokens', CacheWriteTokens: 'cacheWriteTokens', WebSearchRequests: 'webSearchRequests' }[name]);
+  const byModel = [];
+  const byProvider = {};
+  const combined = zeroBuckets();
+  pairs.forEach((p, pi) => {
+    const b = zeroBuckets();
+    LLM_BUCKETS.forEach((name, bi) => { b[key(name)] = totalById[`q${pi}_${bi}`] || 0; });
+    b.estCostUSD = costOf(p.model, b);
+    byModel.push({ provider: p.provider, model: p.model, ...b });
+    const pv = (byProvider[p.provider] ||= zeroBuckets());
+    for (const k of Object.keys(b)) pv[k] += b[k];
+    for (const k of Object.keys(b)) combined[k] += b[k];
+  });
+  // Only providers with real traffic; models sorted by cost.
+  const active = Object.fromEntries(Object.entries(byProvider).filter(([, v]) => v.calls > 0));
+  byModel.sort((a, x) => x.estCostUSD - a.estCostUSD);
+  // Per-front-end split (saas | index | unknown), priced the same way. Queried on
+  // the [Source, Provider] dimension set so each source's models price correctly.
+  const bySource = await llmBySource(cw, { from, to, period });
+  return { currency: 'USD', range: { from: from.toISOString(), to: to.toISOString() }, byProvider: active, byModel, bySource, combined };
+}
+
+// Split LLM usage per originating front-end. Uses the [Source, Provider] set (not
+// [Source] alone) so per-provider rates apply; models within a provider are close
+// enough in mix that provider-level rates are a fair approximation here.
+async function llmBySource(cw, { from, to, period }) {
+  const { GetMetricDataCommand, ListMetricsCommand } = await import('@aws-sdk/client-cloudwatch');
+  const combos = new Map();
+  let token;
+  do {
+    const lm = await cw.send(new ListMetricsCommand({ Namespace: LLM_NS, MetricName: 'Calls', NextToken: token }));
+    for (const m of lm.Metrics || []) {
+      const d = Object.fromEntries((m.Dimensions || []).map((x) => [x.Name, x.Value]));
+      if (d.Source && d.Provider && !d.Model) combos.set(`${d.Source}|${d.Provider}`, { source: d.Source, provider: d.Provider });
+    }
+    token = lm.NextToken;
+  } while (token);
+  if (!combos.size) return {};
+  const list = [...combos.values()];
+  const specs = [];
+  list.forEach((c, ci) => LLM_BUCKETS.forEach((b, bi) => specs.push({ id: `s${ci}_${bi}`, ci, name: b })));
+  const totals = {};
+  for (let i = 0; i < specs.length; i += 450) {
+    const chunk = specs.slice(i, i + 450);
+    const res = await cw.send(new GetMetricDataCommand({
+      StartTime: from, EndTime: to, ScanBy: 'TimestampAscending',
+      MetricDataQueries: chunk.map((s) => ({
+        Id: s.id,
+        MetricStat: {
+          Metric: { Namespace: LLM_NS, MetricName: s.name, Dimensions: [{ Name: 'Source', Value: list[s.ci].source }, { Name: 'Provider', Value: list[s.ci].provider }] },
+          Period: period, Stat: 'Sum',
+        },
+      })),
+    }));
+    for (const r of res.MetricDataResults || []) totals[r.Id] = (r.Values || []).reduce((a, v) => a + v, 0);
+  }
+  const keyOf = (name) => ({ Calls: 'calls', InputTokens: 'inputTokens', OutputTokens: 'outputTokens', CacheReadTokens: 'cacheReadTokens', CacheWriteTokens: 'cacheWriteTokens', WebSearchRequests: 'webSearchRequests' }[name]);
+  const out = {};
+  list.forEach((c, ci) => {
+    const b = zeroBuckets();
+    LLM_BUCKETS.forEach((name, bi) => { b[keyOf(name)] = totals[`s${ci}_${bi}`] || 0; });
+    // Price with the provider's representative model rate.
+    b.estCostUSD = costOf(c.provider === 'deepseek' ? 'deepseek-chat' : c.provider === 'openai' ? 'gpt-4o-mini' : 'claude-haiku', b);
+    const row = (out[c.source] ||= zeroBuckets());
+    for (const k of Object.keys(b)) row[k] += b[k];
+  });
+  return out;
+}
+
+// ── Optional: reconcile against Anthropic's authoritative cost report ─────────
+// The metric above is a token-based ESTIMATE; Anthropic's org Cost/Usage Admin
+// API is the real bill. Reads an Admin key (sk-ant-admin-…) from Secrets Manager
+// (`digimetrics-saas/anthropic-admin-key`) — a DIFFERENT key from the regular
+// message key. Returns { configured:false } when absent, so the panel simply
+// shows the estimate until the key is added. DeepSeek exposes no comparable cost
+// API, so only Anthropic is reconciled.
+export async function anthropicCostReport({ from, to }) {
+  let key;
+  try {
+    const { SecretsManagerClient, GetSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+    const sm = new SecretsManagerClient({ region: REGION });
+    const s = await sm.send(new GetSecretValueCommand({ SecretId: 'digimetrics-saas/anthropic-admin-key' }));
+    key = (s.SecretString || '').trim();
+  } catch { return { configured: false }; }
+  if (!key) return { configured: false };
+  // The report is PAGINATED (daily buckets, ~7/page by default). Summing only the
+  // first page silently truncates long windows — a 30-day total came back SMALLER
+  // than the 7-day one until this followed `next_page` to the end.
+  let totalUSD = 0;
+  let buckets = 0;
+  const byModelCost = {};
+  let page = null;
+  let guard = 0;
+  let truncated = false;
+  // Daily cost buckets are day-aligned: floor the start to UTC midnight and push
+  // the end to the next midnight, or the API rejects the window (400) — an
+  // arbitrary intra-day `starting_at` is not a valid 1d bucket boundary.
+  const DAY_MS = 86400000;
+  const startUtc = new Date(Math.floor(new Date(from).getTime() / DAY_MS) * DAY_MS);
+  const endUtc = new Date(Math.ceil(new Date(to).getTime() / DAY_MS) * DAY_MS);
+  do {
+    const params = new URLSearchParams({
+      starting_at: startUtc.toISOString(),
+      ending_at: endUtc.toISOString(),
+      bucket_width: '1d',
+      limit: '31',
+    });
+    // The cost report only supports these two groupings (not model).
+    params.append('group_by[]', 'description');
+    params.append('group_by[]', 'workspace_id');
+    if (page) params.set('page', page);
+    const res = await fetch(`https://api.anthropic.com/v1/organizations/cost_report?${params}`, {
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    });
+    if (!res.ok) {
+      // Surface the API's own reason — a bare status code made a malformed-window
+      // 400 indistinguishable from an auth/permission problem.
+      const detail = await res.text().catch(() => '');
+      let msg = '';
+      try { msg = JSON.parse(detail)?.error?.message || ''; } catch { msg = detail.slice(0, 200); }
+      return { configured: true, error: `Anthropic cost API ${res.status}${msg ? `: ${msg}` : ''}` };
+    }
+    const data = await res.json().catch(() => ({}));
+    for (const bucket of data.data || []) {
+      buckets += 1;
+      for (const item of bucket.results || []) {
+        // `amount` is in CENTS despite the row's `currency: "USD"` — proven by
+        // cross-checking against the usage report: Haiku output billed 4895.77
+        // for 9,791,542 tokens, and 9.79M x $5/Mtok = $48.96 = 4895.77/100.
+        // Taking it at face value overstated spend by 100x ($32k/mo vs ~$308/mo).
+        const amt = Number(item.amount || item.cost || 0) / 100;
+        totalUSD += amt;
+        // Grouped by model, so we can show WHERE the bill actually goes — the
+        // ungrouped total alone can't tell a runaway workload from broad usage.
+        const label = item.description || item.model || 'unattributed';
+        byModelCost[label] = (byModelCost[label] || 0) + amt;
+      }
+    }
+    page = data.has_more ? data.next_page : null;
+    if (page && ++guard >= 24) { truncated = true; break; } // safety stop
+  } while (page);
+  const byModel = Object.entries(byModelCost).map(([model, costUSD]) => ({ model, costUSD })).sort((a, b) => b.costUSD - a.costUSD);
+  return { configured: true, provider: 'claude', totalCostUSD: totalUSD, currency: 'USD', buckets, byModel, ...(truncated ? { truncated: true } : {}) };
+}
+
+/** Read a Secrets Manager string, or null when absent/unreadable. */
+async function readSecret(id) {
+  try {
+    const { SecretsManagerClient, GetSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+    const sm = new SecretsManagerClient({ region: REGION });
+    const s = await sm.send(new GetSecretValueCommand({ SecretId: id }));
+    return (s.SecretString || '').trim() || null;
+  } catch { return null; }
+}
+
+// ── Anthropic usage report — AUTHORITATIVE token counts, grouped by model ─────
+// The cost report can only group by description/workspace_id, so it can't tell
+// you which model burned the tokens. The usage report CAN group by model, which
+// is how we attribute output-token volume precisely. Same paging + day-alignment
+// rules as the cost report. Token buckets come back split by cache type.
+export async function anthropicUsageReport({ from, to }) {
+  const key = await readSecret('digimetrics-saas/anthropic-admin-key');
+  if (!key) return { configured: false };
+  const DAY_MS = 86400000;
+  const startUtc = new Date(Math.floor(new Date(from).getTime() / DAY_MS) * DAY_MS);
+  const endUtc = new Date(Math.ceil(new Date(to).getTime() / DAY_MS) * DAY_MS);
+  const byModel = {};
+  const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  let page = null;
+  let guard = 0;
+  let truncated = false;
+  do {
+    const params = new URLSearchParams({
+      starting_at: startUtc.toISOString(),
+      ending_at: endUtc.toISOString(),
+      bucket_width: '1d',
+      limit: '31',
+    });
+    params.append('group_by[]', 'model');
+    if (page) params.set('page', page);
+    const res = await fetch(`https://api.anthropic.com/v1/organizations/usage_report/messages?${params}`, {
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      let msg = '';
+      try { msg = JSON.parse(detail)?.error?.message || ''; } catch { msg = detail.slice(0, 200); }
+      return { configured: true, error: `Anthropic usage API ${res.status}${msg ? `: ${msg}` : ''}` };
+    }
+    const data = await res.json().catch(() => ({}));
+    for (const bucket of data.data || []) {
+      for (const r of bucket.results || []) {
+        const model = r.model || 'unattributed';
+        const cw = r.cache_creation
+          ? Object.values(r.cache_creation).reduce((a, v) => a + (Number(v) || 0), 0)
+          : Number(r.cache_creation_input_tokens || 0);
+        const row = (byModel[model] ||= { model, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+        const inp = Number(r.uncached_input_tokens ?? r.input_tokens ?? 0);
+        const out = Number(r.output_tokens || 0);
+        const cr = Number(r.cache_read_input_tokens || 0);
+        row.inputTokens += inp; row.outputTokens += out; row.cacheReadTokens += cr; row.cacheWriteTokens += cw;
+        totals.inputTokens += inp; totals.outputTokens += out; totals.cacheReadTokens += cr; totals.cacheWriteTokens += cw;
+      }
+    }
+    page = data.has_more ? data.next_page : null;
+    if (page && ++guard >= 24) { truncated = true; break; }
+  } while (page);
+  // Price the authoritative token counts with the same central table, so this
+  // line is directly comparable to (and should beat) our own metric's estimate.
+  const rows = Object.values(byModel).map((r) => ({ ...r, estCostUSD: costOf(r.model, { ...r, webSearchRequests: 0 }) }))
+    .sort((a, b) => b.estCostUSD - a.estCostUSD);
+  return {
+    configured: true,
+    byModel: rows,
+    totals: { ...totals, estCostUSD: rows.reduce((a, r) => a + r.estCostUSD, 0) },
+    ...(truncated ? { truncated: true } : {}),
+  };
+}
+
+// ── DeepSeek balance — actual remaining credit (not spend) ────────────────────
+// DeepSeek exposes a balance endpoint, so unlike Anthropic we CAN show real
+// remaining credit. Returns { configured:false } when no key is stored.
+export async function deepseekBalance() {
+  const key = await readSecret('digimetrics-saas/deepseek-key');
+  if (!key) return { configured: false };
+  const res = await fetch('https://api.deepseek.com/user/balance', {
+    headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    return { configured: true, error: `DeepSeek balance API ${res.status}${detail ? `: ${detail.slice(0, 160)}` : ''}` };
+  }
+  const data = await res.json().catch(() => ({}));
+  return {
+    configured: true,
+    isAvailable: !!data.is_available,
+    balances: (data.balance_infos || []).map((b) => ({
+      currency: b.currency,
+      total: Number(b.total_balance || 0),
+      granted: Number(b.granted_balance || 0),
+      toppedUp: Number(b.topped_up_balance || 0),
+    })),
+  };
+}
+
 // ── Build / deploy activity (Amplify list-jobs) ──────────────────────────────
 // Build minutes never hit Cost Explorer while under the free tier, so we derive
 // them from the branch's job history: count + summed duration + pass/fail.

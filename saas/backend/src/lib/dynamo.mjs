@@ -266,7 +266,7 @@ export function totalCredits(user) {
   return (user.credits || 0) + (user.topupCredits || 0);
 }
 
-async function writeLedger({ userId, delta, balanceAfter, action, tool, meta = {} }) {
+async function writeLedger({ userId, delta, balanceAfter, action, tool, meta = {}, source = 'saas' }) {
   const now = new Date().toISOString();
   await ddb.send(
     new PutCommand({
@@ -283,6 +283,9 @@ async function writeLedger({ userId, delta, balanceAfter, action, tool, meta = {
         delta,
         balanceAfter,
         meta,
+        // Front-end surface that drove this ledger entry (saas vs index) — lets a
+        // ledger scan attribute spend per product without a schema migration.
+        source,
       },
     })
   );
@@ -293,7 +296,7 @@ async function writeLedger({ userId, delta, balanceAfter, action, tool, meta = {
  * locking (condition on both bucket values) and retries on contention.
  * Returns { credits, topupCredits, total }.
  */
-export async function spendCredits({ userId, cost, action = 'spend', tool, meta = {} }) {
+export async function spendCredits({ userId, cost, action = 'spend', tool, meta = {}, source = 'saas' }) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const user = await getUser(userId);
     if (!user) throw new Error('User not found');
@@ -332,7 +335,7 @@ export async function spendCredits({ userId, cost, action = 'spend', tool, meta 
       );
       const credits = res.Attributes.credits;
       const topupCredits = res.Attributes.topupCredits;
-      await writeLedger({ userId, delta: -cost, balanceAfter: credits + topupCredits, action, tool, meta });
+      await writeLedger({ userId, delta: -cost, balanceAfter: credits + topupCredits, action, tool, meta, source });
       return { credits, topupCredits, total: credits + topupCredits };
     } catch (e) {
       if (e.name !== 'ConditionalCheckFailedException') throw e;
@@ -821,13 +824,14 @@ function deriveTarget(inputs = {}) {
   }
 }
 
-export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0, projectId = null, scheduleId = null }) {
+export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0, projectId = null, scheduleId = null, source = 'saas' }) {
   const ts = new Date().toISOString();
   const runId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
   const preview = result?.text ? result.text.slice(0, 90)
     : Array.isArray(result?.rows) ? `${result.rows.length} rows`
     : result?.html ? 'report' : '';
-  const Item = { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, target: deriveTarget(inputs), creditsUsed, projectId, ts };
+  // `source` = front-end surface (saas vs index) for per-product run attribution.
+  const Item = { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, target: deriveTarget(inputs), creditsUsed, projectId, source, ts };
   // Tag schedule-driven runs so they're queryable via the sparse `scheduleIndex`
   // GSI (period-over-period comparison). MUST be omitted — not null — when absent:
   // a null-typed GSI key attribute would make the whole PutItem fail validation.

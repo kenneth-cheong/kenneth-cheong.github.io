@@ -2,7 +2,10 @@
 
 const CORS = {
   'Access-Control-Allow-Origin': process.env.APP_ORIGIN || '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+  // X-Source lets the front-end label which surface a call came from (saas vs the
+  // legacy index.html tools) for per-product run/spend attribution — must be in
+  // the allow-list or the browser preflight strips it.
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Source',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Credentials': 'true',
 };
@@ -77,4 +80,15 @@ export function parseBody(event) {
 /** The JWT-authorizer puts the verified claims here on HTTP API payload v2. */
 export function claims(event) {
   return event.requestContext?.authorizer?.lambda || null;
+}
+
+// Which front-end surface a request came from: the SaaS dashboard ('saas') vs the
+// legacy index.html agency tools ('index'). Read from the X-Source header — a
+// plain label for attribution, NEVER trusted for auth or access decisions.
+// Unknown/missing → `fallback` (the SaaS backend defaults to 'saas'). Used to
+// split runs + vendor spend per product across the shared metering backend.
+export function sourceOf(event, fallback = 'saas') {
+  const h = event?.headers || {};
+  const raw = String(h['x-source'] || h['X-Source'] || '').trim().toLowerCase();
+  return raw === 'saas' || raw === 'index' ? raw : fallback;
 }

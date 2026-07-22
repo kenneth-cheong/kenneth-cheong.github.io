@@ -7,6 +7,7 @@ import { getUser, totalCredits, spendCredits, saveConversation } from '../lib/dy
 import { verify } from '../lib/jwt.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { CREDIT_COSTS } from '../../../shared/catalog.mjs';
+import { emitLlmMetric } from '../lib/llm-metric.mjs';
 
 const KEY = process.env.ANTHROPIC_KEY;
 const MODEL = 'claude-haiku-4-5';
@@ -63,6 +64,13 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
   });
   let full = '';
   let truncated = false;
+  // Token usage streams in on the message_start (input + cache buckets) and
+  // message_delta (output) events; capture it to meter Claude spend in the
+  // shared Digimetrics/LLM metric.
+  let usageIn = 0;
+  let usageOut = 0;
+  let usageCacheRead = 0;
+  let usageCacheWrite = 0;
   try {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -99,6 +107,15 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
         // UI showed it as complete. Say so instead, and tell the user how to get
         // the rest, since we can't continue the message ourselves.
         if (ev.type === 'message_delta' && ev.delta?.stop_reason === 'max_tokens') truncated = true;
+        // Anthropic emits input_tokens on message_start and cumulative
+        // output_tokens on each message_delta — keep the latest of each.
+        if (ev.type === 'message_start' && ev.message?.usage) {
+          const mu = ev.message.usage;
+          if (mu.input_tokens != null) usageIn = mu.input_tokens;
+          if (mu.cache_read_input_tokens != null) usageCacheRead = mu.cache_read_input_tokens;
+          if (mu.cache_creation_input_tokens != null) usageCacheWrite = mu.cache_creation_input_tokens;
+        }
+        if (ev.type === 'message_delta' && ev.usage?.output_tokens != null) usageOut = ev.usage.output_tokens;
       }
     }
     if (truncated) {
@@ -112,6 +129,10 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
     try { if (!full) rs.write('Sorry — the assistant ran into an error. Please try again.'); rs.end(); } catch { /* already closed */ }
     return;
   }
+
+  // Per-provider LLM usage metric (Claude). Emitted for any real completion so
+  // assistant-chat token spend rolls up alongside the tool AI calls.
+  if (full.trim() || usageOut) emitLlmMetric({ provider: 'claude', model: MODEL, inputTokens: usageIn, outputTokens: usageOut, cacheReadTokens: usageCacheRead, cacheWriteTokens: usageCacheWrite, fn: 'chatstream', source: 'saas' });
 
   // Charge + persist after delivery (best-effort — the user already has the reply).
   if (full.trim()) {
