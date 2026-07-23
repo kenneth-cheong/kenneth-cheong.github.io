@@ -62,6 +62,35 @@ export function useMediaQuery(query) {
   return match;
 }
 
+// True while the page is being exported to PDF.
+//
+// CSS alone can unclip a scroller, but it cannot bring back what React never
+// rendered — a paged table has only the current page in the DOM, so the export
+// would silently print rows 1–25 of 400. Components that hide content behind
+// state (paging, collapsed rows) read this and render everything instead.
+//
+// Two triggers, because there are two ways to print. `beforeprint` covers the
+// browser's own Cmd+P. Our own button dispatches `dm-print` FIRST and then waits
+// two frames before calling window.print() (see PdfExport.printReport), since
+// state set inside beforeprint may not have painted by the time the synchronous
+// print() snapshots the document.
+export function usePrinting() {
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const on = () => setPrinting(true);
+    const off = () => setPrinting(false);
+    window.addEventListener('dm-print', on);
+    window.addEventListener('beforeprint', on);
+    window.addEventListener('afterprint', off);
+    return () => {
+      window.removeEventListener('dm-print', on);
+      window.removeEventListener('beforeprint', on);
+      window.removeEventListener('afterprint', off);
+    };
+  }, []);
+  return printing;
+}
+
 export function fmtNum(v) {
   if (v == null || v === '') return '—';
   const n = Number(String(v).replace(/[^0-9.-]/g, ''));

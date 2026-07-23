@@ -1087,6 +1087,37 @@ select:focus-visible,
   /* Paper can't scroll — release the screen height cap or the PDF would silently
      drop the tail of every long audience/structure cell. */
   .dm-report table.mp-exec-table td.mp-wrap .mp-cell { max-height: none !important; overflow: visible !important; }
+  /* ── Paper doesn't scroll ────────────────────────────────────────────────
+     Every result surface caps its own height and scrolls: SortableTable's
+     32rem frame, the code card's max-h-96 <pre>, the embedded-HTML panels. On
+     screen that's the point; in a PDF it exported an empty bordered box with
+     the rows stranded below the fold — the On-Page alt-text table printed as a
+     header and 30 invisible rows.
+     Written against how a scroller is actually expressed in this app rather
+     than tagging each one: a Tailwind overflow or max-h utility, an inline
+     max-height/overflow (SortableTable, server-rendered report HTML), or the
+     explicit `dm-print-open` marker. `!important` is what beats the inline
+     style="max-height:32rem". */
+  [class*="overflow-"], [class*="max-h-"],
+  [style*="max-height"], [style*="overflow"],
+  .dm-print-open, pre {
+    max-height: none !important;
+    max-block-size: none !important;
+    overflow: visible !important;
+  }
+  /* Ellipsis truncation relies on overflow:hidden, which the rule above just
+     released — without this the clipped text would spill across its
+     neighbours instead of simply wrapping onto a second line. */
+  .truncate, [class*="line-clamp-"] {
+    white-space: normal !important; text-overflow: clip !important;
+    -webkit-line-clamp: none !important;
+  }
+  /* Long tables: repeat the header on every sheet, never split a row across
+     the fold, and drop the sticky header (it prints twice — once in place and
+     once pinned over the first rows). */
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  th { position: static !important; }
   [style*="margin-right"] { margin-right: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
   body { background: #fff !important; }

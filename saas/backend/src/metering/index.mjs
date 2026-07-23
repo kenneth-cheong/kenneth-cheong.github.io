@@ -1092,7 +1092,10 @@ function renderFunnel(f) {
 // ── On-Page Optimisation: extract → meta/heading recs + content recs + images ──
 // index.html ran 5 sub-analyses; the SaaS adapter shipped only the content
 // recommender. Restore the page extraction (getImages) → meta/heading
-// recommendations (onPageRecommendations) pipeline alongside the content recs.
+// recommendations (onPageRecommendations) pipeline alongside the content recs,
+// plus the vision pass that proposes alt text per image (altTextGenerator) —
+// image_data is stripped from the recommender payload, so the alt suggestions
+// have never had anywhere else to come from.
 async function onpageRun(body) {
   const url = (body.input || body.url || '').trim();
   if (!url) throw new Error('A page URL is required.');
@@ -1128,33 +1131,173 @@ async function onpageRun(body) {
     }));
   } catch (e) { console.error('onpage_content_failed', e.message); }
 
-  const sections = sectionsOnpage(url, recs, extraction, contentRows);
-  if (sections.length <= 1) return { text: 'No on-page recommendations were returned. Check the URL and target keywords.' };
+  // 4. Proposed alt text per image (vision endpoint, same as index.html).
+  const images = onpageImages(extraction, url);
+  const altBySrc = await onpageAltText(images, keywords, extraction);
+
+  const sections = sectionsOnpage(url, recs, extraction, contentRows, images, altBySrc, keywords);
+  // The snapshot stats render from whatever came back, including nothing — so
+  // "did this run find anything" is a question about the tables, not the
+  // section count.
+  if (!sections.some((s) => s.type === 'table')) return { text: 'No on-page recommendations were returned. Check the URL and target keywords.' };
   return { sections };
 }
 
-function sectionsOnpage(url, recs, extraction, contentRows) {
+// Page images as { src, alt }, absolute-URL only (the vision endpoint has to be
+// able to fetch them) and de-duplicated — a sprite or logo repeated in the
+// header, body and footer is one recommendation, not five.
+function onpageImages(extraction, pageUrl) {
+  let origin = '';
+  try { origin = new URL(pageUrl.startsWith('http') ? pageUrl : `https://${pageUrl}`).origin; } catch { /* leave relative srcs out */ }
+  const seen = new Set();
+  const out = [];
+  for (const it of extraction.image_data || []) {
+    let src = it && Object.keys(it)[0];
+    if (!src || src.startsWith('data:')) continue;
+    if (!/^https?:/i.test(src)) {
+      if (!origin) continue;
+      try { src = new URL(src, origin).href; } catch { continue; }
+    }
+    if (seen.has(src)) continue;
+    seen.add(src);
+    out.push({ src, alt: String(it[Object.keys(it)[0]] || '').trim() });
+  }
+  return out;
+}
+
+// One vision call per image is the only way to propose alt text (image_data is
+// stripped from the recommendations payload for token budget), so the fan-out is
+// bounded on both axes: at most ALT_MAX images, at most ALT_CONCURRENCY in
+// flight. Beyond the cap the image still appears in the table with its current
+// alt — the report never silently drops a row, it just doesn't propose one.
+const ALT_MAX = 30;
+const ALT_CONCURRENCY = 4;
+
+async function onpageAltText(images, keywords, extraction) {
+  const bySrc = new Map();
+  const targets = images.slice(0, ALT_MAX);
+  if (!targets.length) return bySrc;
+  const page_context = [extraction.meta_title, extraction.meta_description].filter(Boolean).join(' — ');
+  let next = 0;
+  const worker = async () => {
+    for (let i = next++; i < targets.length; i = next++) {
+      const img = targets[i];
+      try {
+        const raw = deepBody(await postUpstream(UPSTREAMS.altTextGenerator, {
+          page_context,
+          image_placement: 'Within page content',
+          primary_keyword: keywords[0] || '',
+          secondary_keywords: keywords.slice(1).join(', '),
+          image_url: img.src,
+        }, { timeoutMs: 45000 }));
+        const alt = typeof raw === 'string' ? raw : (raw?.result || raw?.alt_text || '');
+        if (alt && String(alt).trim()) bySrc.set(img.src, String(alt).trim());
+      } catch (e) { console.error('onpage_alt_failed', img.src, e.message); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(ALT_CONCURRENCY, targets.length) }, worker));
+  return bySrc;
+}
+
+// Why a given alt row reads the way it does. Deterministic on purpose: the
+// alternative is a second LLM round-trip per image to explain a suggestion the
+// first one already made.
+function altRationale(current, proposed) {
+  if (!proposed) return 'No suggestion generated for this image — describe what it shows, in plain language.';
+  if (!current) return 'Image has no alt text: screen readers and image search have nothing to go on. The proposal describes it in keyword-aware plain language.';
+  if (current.toLowerCase() === proposed.toLowerCase()) return 'Existing alt text is already appropriate — no change needed.';
+  if (/^(image|img|photo|picture|logo|icon|banner)[\s\-_0-9]*$/i.test(current)) return 'Current alt text is a placeholder that describes nothing. The proposal says what the image actually shows.';
+  return 'The proposal describes the image more specifically and works the page\'s target keywords in naturally.';
+}
+
+function sectionsOnpage(url, recs, extraction, contentRows, images = [], altBySrc = new Map(), keywords = []) {
   const out = [{ type: 'heading', text: `On-page optimisation — ${url}` }];
-  const metaItem = (label, o) => (o && (o.suggested_value || o.current_value))
-    ? { Item: label, Current: o.current_value || '—', Suggested: o.suggested_value || '—', Rationale: o.rationale || '' } : null;
-  const metaRows = [metaItem('Meta title', recs.meta_title), metaItem('Meta description', recs.meta_description), metaItem('Canonical URL', recs.canonical_url)].filter(Boolean);
+  const len = (s) => String(s || '').length;
+  const headingsOf = (lvl) => (extraction.headings?.[lvl] || []).filter((h) => String(h || '').trim());
+
+  // Without target keywords the recommender has nothing to optimise towards, so
+  // the report would arrive as a bare inventory. Say so rather than letting the
+  // user conclude the tool only checks images.
+  if (!keywords.length) {
+    out.push({ type: 'callout', text: 'No target keywords were given, so this run reports what the page currently has without suggested rewrites. Re-run with your target keywords to get title, heading, content and alt-text recommendations.' });
+  }
+
+  // ── Page snapshot ────────────────────────────────────────────────────────
+  // The counts every on-page review starts from, and the two length checks
+  // (Google truncates a title past ~60 chars and a description past ~155).
+  const titleLen = len(extraction.meta_title);
+  const descLen = len(extraction.meta_description);
+  const missingAlt = images.filter((i) => !i.alt).length;
+  const h1s = headingsOf('h1');
+  out.push({ type: 'stats', items: [
+    { label: 'Title length', value: titleLen ? `${titleLen} chars` : 'Missing', tone: titleLen >= 30 && titleLen <= 60 ? 'green' : titleLen ? 'amber' : 'red' },
+    { label: 'Meta description', value: descLen ? `${descLen} chars` : 'Missing', tone: descLen >= 70 && descLen <= 155 ? 'green' : descLen ? 'amber' : 'red' },
+    { label: 'H1 headings', value: String(h1s.length), tone: h1s.length === 1 ? 'green' : 'amber' },
+    { label: 'Headings total', value: String(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].reduce((n, l) => n + headingsOf(l).length, 0)) },
+    { label: 'Images', value: String(images.length) },
+    { label: 'Missing alt text', value: String(missingAlt), tone: missingAlt === 0 ? 'green' : missingAlt > images.length / 2 ? 'red' : 'amber' },
+  ] });
+
+  // ── Meta & canonical ─────────────────────────────────────────────────────
+  // Built from the EXTRACTION, with the recommendation merged in — driving it
+  // off `recs` alone meant a run with no keywords (or a recommender hiccup)
+  // dropped the whole section, and the report came back as images only.
+  const metaItem = (label, current, o) => {
+    const cur = o?.current_value || current;
+    if (!cur && !o?.suggested_value) return null;
+    return { Item: label, Current: cur || '(missing)', Suggested: o?.suggested_value || '—', Rationale: o?.rationale || '' };
+  };
+  const metaRows = [
+    metaItem('Meta title', extraction.meta_title, recs.meta_title),
+    metaItem('Meta description', extraction.meta_description, recs.meta_description),
+    metaItem('Canonical URL', extraction.canonical_url, recs.canonical_url),
+  ].filter(Boolean);
   if (metaRows.length) out.push({ type: 'table', title: 'Meta & canonical', columns: ['Item', 'Current', 'Suggested', 'Rationale'], rows: metaRows });
 
+  // ── Headings ─────────────────────────────────────────────────────────────
+  // Same merge: every heading on the page is listed, and a suggestion is
+  // attached where the recommender returned one (matched on the current text,
+  // falling back to position — the recommender answers in page order).
   const headRows = [];
   for (const lvl of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) {
-    for (const h of (recs.headings?.[lvl] || [])) {
-      if (!h || (!h.suggested_value && !h.current_value)) continue;
-      headRows.push({ Level: lvl.toUpperCase(), Current: h.current_value || '—', Suggested: h.suggested_value || '—', Rationale: h.rationale || '' });
+    const current = headingsOf(lvl);
+    const suggested = (recs.headings?.[lvl] || []).filter(Boolean);
+    current.forEach((text, i) => {
+      const r = suggested.find((s) => s && String(s.current_value || '').trim() === String(text).trim()) || suggested[i];
+      headRows.push({ Level: lvl.toUpperCase(), Current: text, Suggested: r?.suggested_value || '—', Rationale: r?.rationale || '' });
+    });
+    // A missing H1/H2 is the finding — the recommender is asked to draft one,
+    // and that row has no counterpart in the extraction to merge onto.
+    if (!current.length && (lvl === 'h1' || lvl === 'h2')) {
+      const r = suggested.find((s) => s?.suggested_value);
+      if (r) headRows.push({ Level: lvl.toUpperCase(), Current: '(missing)', Suggested: r.suggested_value, Rationale: r.rationale || `This page has no ${lvl.toUpperCase()} — add one.` });
     }
   }
   if (headRows.length) out.push({ type: 'table', title: 'Headings (H1–H6)', columns: ['Level', 'Current', 'Suggested', 'Rationale'], rows: headRows });
 
-  // Current alt text per image (AI-suggested alt is a separate vision pass).
-  const imgs = (extraction.image_data || [])
-    .map((it) => { const src = Object.keys(it)[0]; return { src, alt: it[src] }; })
-    .filter((x) => x.src && /^https?:/.test(x.src));
-  if (imgs.length) out.push({ type: 'table', title: `Images — alt text (${imgs.length})`, columns: ['Image', 'Current alt'],
-    rows: imgs.slice(0, 30).map((x) => ({ Image: x.src.split('/').pop().slice(0, 60), 'Current alt': x.alt || '(missing)' })) });
+  // ── Images ───────────────────────────────────────────────────────────────
+  // Every image on the page, not a sample: the old 30-row slice under a header
+  // that counted all 52 read as data loss.
+  if (images.length) {
+    const rows = images.map((x) => {
+      const proposed = altBySrc.get(x.src) || '';
+      return {
+        Image: x.src.split('/').pop().split('?')[0].slice(0, 70) || x.src,
+        'Current alt': x.alt || '(missing)',
+        'Proposed alt': proposed || '—',
+        Why: proposed || x.alt ? altRationale(x.alt, proposed) : 'Image has no alt text — describe what it shows.',
+      };
+    });
+    out.push({
+      type: 'table',
+      title: `Images — alt text (${images.length})`,
+      columns: ['Image', 'Current alt', 'Proposed alt', 'Why'],
+      rows,
+    });
+    if (images.length > ALT_MAX) {
+      out.push({ type: 'text', text: `Alt text was proposed for the first ${ALT_MAX} images on the page; the remaining ${images.length - ALT_MAX} are listed with their current alt text so nothing is hidden.` });
+    }
+  }
 
   if (contentRows.length) out.push({ type: 'table', title: 'Content recommendations', columns: ['Element', 'Current', 'Suggested', 'Why'], rows: contentRows });
   return out;
@@ -5553,7 +5696,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor };
+export const __test = { cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

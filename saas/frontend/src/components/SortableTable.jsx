@@ -1,6 +1,7 @@
 import { useState, useMemo, cloneElement, isValidElement } from 'react';
 import { Search } from 'lucide-react';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
+import { usePrinting } from '../lib/ui.js';
 
 // Shared data table with a STICKY header (stays put while the body scrolls) and
 // CLICK-TO-SORT columns. Used everywhere a <table> renders tabular data so the
@@ -136,9 +137,13 @@ export default function SortableTable({
   // the whole result set and then shows page 1 of it. Sorting only the current
   // page would be a lie: "sort by credits" would surface the biggest run on this
   // page, not the biggest run.
+  // Paper has no "next page" button, so a PDF export renders every row. The
+  // height cap is released by the print stylesheet; the rows themselves have to
+  // come back here, because a paged table only ever has one page in the DOM.
+  const printing = usePrinting();
   const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
   const current = Math.min(page, pageCount - 1); // stay in range when rows shrink
-  const visible = pageSize > 0 ? sorted.slice(current * pageSize, current * pageSize + pageSize) : sorted;
+  const visible = pageSize > 0 && !printing ? sorted.slice(current * pageSize, current * pageSize + pageSize) : sorted;
 
   // Any change to what's being paged sends you back to the first page —
   // otherwise filtering a 400-row list while on page 12 shows an empty table.
@@ -164,7 +169,9 @@ export default function SortableTable({
   return (
     <>
       {(filterable || exportName) && (
-        <div className="mb-2 flex items-center gap-2">
+        // Search box and CSV button are controls, not findings — they printed
+        // as a dead input and a dead button at the top of every exported table.
+        <div className="dm-no-print mb-2 flex items-center gap-2">
           {filterable && (
             // "Search", not "Filter rows": it matches across every column and
             // narrows to the hits, which is what people mean by search. Calling
@@ -182,7 +189,10 @@ export default function SortableTable({
           {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400">CSV</button>}
         </div>
       )}
-      <div className="overflow-auto rounded-xl border border-line" style={{ maxHeight }}>
+      {/* dm-print-open: paper can't scroll, so the print stylesheet releases the
+          height cap here — otherwise the PDF showed an empty bordered box where
+          a 50-row table should have been. */}
+      <div className="dm-print-open overflow-auto rounded-xl border border-line" style={{ maxHeight }}>
       <table className={`${stickyFirstCol ? 'min-w-full' : 'w-full'} text-left text-sm ${className}`}>
         <thead>
           <tr>
@@ -215,7 +225,7 @@ export default function SortableTable({
             // Absolute index across all pages — a page-local one would collide
             // as a fallback key, and any `render` that numbers rows would
             // restart at 1 on every page.
-            const i = current * (pageSize || 0) + pi;
+            const i = (pageSize > 0 && !printing ? current * pageSize : 0) + pi;
             return (
             <tr
               key={rowKey ? rowKey(row, i) : i}
@@ -241,7 +251,7 @@ export default function SortableTable({
       </table>
       </div>
       {pageSize > 0 && sorted.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        <div className="dm-no-print mt-2 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted tabular-nums">
             {(current * pageSize + 1).toLocaleString()}–{Math.min((current + 1) * pageSize, sorted.length).toLocaleString()} of {sorted.length.toLocaleString()}
           </span>

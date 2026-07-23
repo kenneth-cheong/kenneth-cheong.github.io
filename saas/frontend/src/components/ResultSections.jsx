@@ -100,7 +100,7 @@ function Section({ s, context }) {
               className="dm-no-print rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-dim hover:text-brand-600 dark:hover:text-brand-400"
             >Copy text</button>
           </div>
-          <div className="mt-1 max-h-[560px] overflow-auto rounded-xl border border-line bg-surface p-4">
+          <div className="dm-print-open mt-1 max-h-[560px] overflow-auto rounded-xl border border-line bg-surface p-4">
             <ReportHtml html={s.html} />
           </div>
         </Block>
@@ -334,7 +334,7 @@ function AccordionRow({ it, open, onToggle }) {
             </ul>
           )}
           {it.html && (
-            <div className="mt-3 max-h-[420px] overflow-auto rounded-lg border border-line bg-sunken/40 p-3">
+            <div className="dm-print-open mt-3 max-h-[420px] overflow-auto rounded-lg border border-line bg-sunken/40 p-3">
               <ReportHtml html={it.html} />
             </div>
           )}
@@ -365,12 +365,12 @@ function CodeBlock({ title, filename, content }) {
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
           </span>
           <span className="ml-1 font-mono text-xs text-faint">{filename || 'file.txt'}</span>
-          <div className="ml-auto flex gap-1.5">
+          <div className="dm-no-print ml-auto flex gap-1.5">
             <button onClick={() => copyText(content).then(() => toast('Copied to clipboard', 'success'))} className={btn}>Copy</button>
             <button onClick={download} className={btn}>Download</button>
           </div>
         </div>
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-[13px] leading-relaxed text-slate-200">{content}</pre>
+        <pre className="dm-print-open max-h-96 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-[13px] leading-relaxed text-slate-200">{content}</pre>
       </div>
     </Block>
   );

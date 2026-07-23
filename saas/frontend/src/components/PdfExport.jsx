@@ -59,6 +59,12 @@ export function printReport(el) {
   if (flipped) setPreference('light');
 
   const marked = root ? markPath(root) : [];
+  // Tell the report's components to render for paper BEFORE the frames below:
+  // paged tables have to swap to "all rows" and collapsed detail has to open,
+  // and neither is something the print stylesheet can do — the rows simply
+  // aren't in the DOM. Doing it in `beforeprint` is too late: that fires inside
+  // the synchronous window.print(), with no frame left for React to paint.
+  window.dispatchEvent(new Event('dm-print'));
   let cleaned = false;
   const done = () => {
     if (cleaned) return;
@@ -66,6 +72,10 @@ export function printReport(el) {
     if (root) unmarkPath(marked, root);
     if (flipped) setPreference(pref);
     window.removeEventListener('afterprint', done);
+    // Fold paged tables and collapsed rows back to their screen state. On the
+    // timer path below the browser never fired afterprint, so nothing else
+    // would tell them printing had ended.
+    window.dispatchEvent(new Event('afterprint'));
   };
   window.addEventListener('afterprint', done);
   // Safari has shipped versions that never fire afterprint; a timer is the

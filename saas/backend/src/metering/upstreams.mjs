@@ -18,6 +18,11 @@ export const UPSTREAMS = {
   // On-Page: page element extraction (headings/meta/images) + meta & heading recs.
   getImages: 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages',
   onPageRecommendations: 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations',
+  // On-Page: proposed alt text per image (vision). image_data is stripped from
+  // the onPageRecommendations payload for token budget, so — exactly as
+  // index.html does it — the alt suggestions come from this endpoint instead,
+  // one call per image.
+  altTextGenerator: 'https://ty3ndlwcnk.execute-api.ap-southeast-1.amazonaws.com/altTextGenerator',
   serpCompetitors: 'https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors',
   checkContent: 'https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent',
   // Content Pillar Framework uses its own Lambda (action 'pillar_framework').

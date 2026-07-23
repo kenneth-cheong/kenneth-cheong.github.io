@@ -211,7 +211,10 @@ export function costPerRun(tool, inputs) {
 // so users abandoned legit long runs and distrusted fast ones. Any slow tool
 // not listed falls back to the generic band.
 const TOOL_ETA = {
-  'content-check': [10, 45], onpage: [10, 45], 'perf-marketing': [30, 150],
+  // On-Page now also runs a vision pass for proposed alt text (up to 30 images,
+  // 4 at a time) on top of the extraction and the two recommenders, so the old
+  // 10–45s band described a version of the tool that no longer exists.
+  'content-check': [10, 45], onpage: [45, 180], 'perf-marketing': [30, 150],
   'page-speed': [10, 60],
   backlinks: [10, 45], 'ai-discovery': [15, 60], 'page-analysis': [15, 75],
   'landing-audit': [15, 75], 'anchor-cleaner': [15, 75], 'keyword-analysis': [20, 90],
@@ -1108,7 +1111,10 @@ export const INPUTS = {
   ],
   onpage: [
     { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/page', required: true },
-    { name: 'keywords', label: 'Target keywords', type: 'tags', placeholder: 'add a keyword and press Enter' },
+    // Required: without keywords there is nothing to optimise TOWARDS, and the
+    // run degrades to an inventory of what the page already has — which reads
+    // like a broken tool rather than a missing input.
+    { name: 'keywords', label: 'Target keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
