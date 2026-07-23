@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, cloneElement, isValidElement } from 'react';
 import { Search } from 'lucide-react';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
 
@@ -32,9 +32,25 @@ const toNum = (v) => parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
 // makes it useful, because on a wide table "this row matches somewhere" is not
 // an answer.
 //
-// Deliberately ONLY applied to default cells. A column with its own `render`
-// returns a node (a link, a badge, a chart), and rebuilding that from its text
-// would throw the markup away.
+// Applied to plain cells, and to the ONE custom-render shape that is still just
+// text: an element whose children is a string, e.g.
+// `<span className="text-dim">{r.target}</span>`. That pattern turns out to be
+// the norm rather than the exception — every column in the Runs table uses it
+// purely for styling — so skipping all custom renders meant the highlight never
+// fired on the table people search most. Cloning the element preserves its
+// styling and swaps only the text.
+//
+// Anything else (a link, a chart, nested nodes) is left exactly as the column
+// built it: rebuilding those from their text would throw the markup away.
+function highlightNode(node, q) {
+  if (!q.trim()) return node;
+  if (typeof node === 'string' || typeof node === 'number') return highlight(node, q);
+  if (isValidElement(node) && typeof node.props?.children === 'string') {
+    return cloneElement(node, undefined, highlight(node.props.children, q));
+  }
+  return node;
+}
+
 function highlight(text, q) {
   const s = String(text);
   const t = q.trim();
@@ -212,7 +228,7 @@ export default function SortableTable({
                   className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
                 >
                   {c.render
-                    ? c.render(row, i)
+                    ? highlightNode(c.render(row, i), q)
                     : (accessorOf(c)(row) == null || accessorOf(c)(row) === ''
                         ? '—'
                         : highlight(accessorOf(c)(row), q))}
