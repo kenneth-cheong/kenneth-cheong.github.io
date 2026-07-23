@@ -4876,11 +4876,12 @@ async function keywordAnalysisRun(body) {
     map = deepBody(await postUpstream(UPSTREAMS.keywordsForSite, { location, language, target, skip_ai: false }));
     cols = ['volume', 'competition', 'intent', 'reason'];
   } else {
-    // Default: keyword metrics (mangoolsKeywords → volume + cpc only; no KD).
+    // Default: keyword metrics (mangoolsKeywords → volume + cpc + real KD,
+    // backfilled from DataForSEO Labs when the volume provider omits it).
     const keywords = splitItems(body.input).slice(0, 25);
     if (!keywords.length) throw new Error('Add at least one keyword.');
     map = deepBody(await postUpstream(UPSTREAMS.mangoolsKeywords, { keywords, location, language }));
-    cols = ['volume', 'cpc'];
+    cols = ['volume', 'difficulty', 'cpc'];
   }
 
   // An upstream Lambda error envelope ({errorType,errorMessage}) must not be
@@ -4944,9 +4945,9 @@ function kwRows(map, cols) {
     m = m || {};
     const row = { keyword };
     if (cols.includes('volume')) row.volume = m.search_volume ?? m.search_vol ?? m.volume ?? 0;
-    // Real SEO keyword difficulty only (DataForSEO `difficulty`, in ranking mode).
-    // Mangools/Keyword-metrics has no KD, so it omits this column entirely rather
-    // than showing a dead "—"; Google-Ads paid competition gets its own column.
+    // Real SEO keyword difficulty (0-100) only — never paid competition, which
+    // gets its own column. The keyword-metrics upstream backfills KD from
+    // DataForSEO Labs, so both metrics and ranking modes can carry this.
     if (cols.includes('difficulty')) row.difficulty = m.difficulty ?? '—';
     if (cols.includes('competition')) row.competition = fmtCompetition(m.competition ?? m.competition_index);
     if (cols.includes('cpc')) row.cpc = m.cpc != null ? `S$${Number(m.cpc).toFixed(2)}` : '—';

@@ -6,6 +6,50 @@ from pymongo.server_api import ServerApi
 from datetime import datetime
 from pytz import timezone
 
+def difficulty_band(kd):
+    """Keyword difficulty (0-100) -> the Mangools wording our UIs already use.
+    Both providers score on the same scale, so they share one band table."""
+    try:
+        kd = float(kd)
+    except (TypeError, ValueError):
+        return None
+    if kd <= 14:
+        return "easy"
+    if kd <= 29:
+        return "still easy"
+    if kd <= 49:
+        return "possible"
+    if kd <= 69:
+        return "hard"
+    if kd <= 84:
+        return "very hard"
+    return "don't do it"
+
+
+def fetch_keyword_difficulty(keywords, location, language):
+    """Real SEO keyword difficulty (0-100) from DataForSEO Labs.
+    Returns {keyword: difficulty}; keywords Labs has no score for are omitted."""
+    res = requests.request(
+        "POST",
+        "https://api.dataforseo.com/v3/dataforseo_labs/google/bulk_keyword_difficulty/live",
+        headers={
+            'Authorization': os.environ.get("API_KEY"),
+            'Content-Type': 'application/json',
+        },
+        json=[{"keywords": keywords,
+               "location_name": location,
+               "language_name": language}],
+        timeout=55,
+    )
+    data = res.json()
+    tasks = data.get('tasks') or []
+    result = (tasks[0].get('result') if tasks else None) or []
+    items = (result[0].get('items') if result else None) or []
+    return {i['keyword']: i['keyword_difficulty']
+            for i in items
+            if i.get('keyword') and i.get('keyword_difficulty') is not None}
+
+
 def lambda_handler(event, context):
     keywords = event["keywords"]
     language = event['language']
@@ -355,21 +399,14 @@ def lambda_handler(event, context):
             output[keyword['kw']]['cpc'] = keyword['cpc'] 
             output[keyword['kw']]['ppc'] = keyword['ppc']
             output[keyword['kw']]['difficulty'] = keyword['seo']
-
-            if 0 <= keyword['seo'] <= 14:
-                output[keyword['kw']]['difficulty_text'] =  "easy"
-            elif 15 <= keyword['seo'] <= 29:
-                output[keyword['kw']]['difficulty_text'] =   "still easy"
-            elif 30 <= keyword['seo'] <= 49:
-                output[keyword['kw']]['difficulty_text'] =   "possible"
-            elif 50 <= keyword['seo'] <= 69:
-                output[keyword['kw']]['difficulty_text'] =   "hard"
-            elif 70 <= keyword['seo'] <= 84:
-                output[keyword['kw']]['difficulty_text'] =   "very hard"
-            elif 85 <= keyword['seo'] <= 100:
-                output[keyword['kw']]['difficulty_text'] =   "don't do it"
+            output[keyword['kw']]['difficulty_text'] = difficulty_band(keyword['seo'])
         print("used mangools")
-    except:
+    except Exception as e:
+        # Log why Mangools was skipped — a bare `except` hid a dead Mangools
+        # subscription for weeks, and the fallback silently dropped keyword
+        # difficulty from every downstream tool (Time to Rank showed "—").
+        print("mangools failed, falling back to dataforseo:", repr(e))
+
         apikey = os.environ.get("API_KEY")
         keywords = event['keywords']
         location = event['location']
@@ -406,6 +443,24 @@ def lambda_handler(event, context):
             output[kw]['search_volume'] = i.get('search_volume')
 
         print("used dataforseo")
+
+    # Neither volume source reliably carries SEO difficulty: the Ads endpoint has
+    # no such field, and Mangools' `seo` comes back null whenever KWFinder hasn't
+    # computed it for the import. Backfill from DataForSEO Labs, which scores on
+    # the same 0-100 scale. Best-effort — volume/CPC must still return if this
+    # call fails or the Labs plan lapses.
+    missing = [kw for kw, m in output.items() if m.get('difficulty') is None]
+    if missing:
+        try:
+            for kw, kd in fetch_keyword_difficulty(missing, location, language).items():
+                # A keyword can have difficulty but no volume, so seed the row
+                # rather than assuming the volume pass already created it.
+                output.setdefault(kw, {})
+                output[kw]['difficulty'] = kd
+                output[kw]['difficulty_text'] = difficulty_band(kd)
+            print("backfilled difficulty for", len(missing), "keywords")
+        except Exception as kd_err:
+            print("keyword difficulty backfill failed:", repr(kd_err))
 
     return {
         'statusCode': 200,
