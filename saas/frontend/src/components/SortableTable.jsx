@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Search } from 'lucide-react';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
 
 // Shared data table with a STICKY header (stays put while the body scrolls) and
@@ -22,6 +23,38 @@ import InfoTip, { glossaryFor } from './InfoTip.jsx';
 // `defaultSort` ({key, dir}) seeds the initial order.
 const humanise = (k) => String(k).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const toNum = (v) => parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
+
+// Mark every occurrence of `q` inside a plain-text cell.
+//
+// The box was labelled "Filter rows" but behaved like a search — it hid
+// non-matching rows and then left you to find the match yourself in the rows
+// that survived. Naming it Search settles what it is; marking the hit is what
+// makes it useful, because on a wide table "this row matches somewhere" is not
+// an answer.
+//
+// Deliberately ONLY applied to default cells. A column with its own `render`
+// returns a node (a link, a badge, a chart), and rebuilding that from its text
+// would throw the markup away.
+function highlight(text, q) {
+  const s = String(text);
+  const t = q.trim();
+  if (!t) return s;
+  const i = s.toLowerCase().indexOf(t.toLowerCase());
+  if (i < 0) return s;
+  const out = [];
+  let at = 0, n = 0;
+  for (let j = i; j >= 0; j = s.toLowerCase().indexOf(t.toLowerCase(), at)) {
+    if (j > at) out.push(s.slice(at, j));
+    out.push(
+      <mark key={n++} className="rounded-[3px] bg-amber-200 px-0.5 text-inherit dark:bg-amber-400/30">
+        {s.slice(j, j + t.length)}
+      </mark>,
+    );
+    at = j + t.length;
+  }
+  if (at < s.length) out.push(s.slice(at));
+  return out;
+}
 
 export default function SortableTable({
   columns,
@@ -117,10 +150,17 @@ export default function SortableTable({
       {(filterable || exportName) && (
         <div className="mb-2 flex items-center gap-2">
           {filterable && (
-            <input
-              value={q} onChange={(e) => { setQ(e.target.value); reset(); }} placeholder="Filter rows…"
-              className="w-full max-w-xs rounded-lg border border-edge px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
-            />
+            // "Search", not "Filter rows": it matches across every column and
+            // narrows to the hits, which is what people mean by search. Calling
+            // it a filter set up the expectation of pickable facets.
+            <div className="relative w-full max-w-xs">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" aria-hidden />
+              <input
+                value={q} onChange={(e) => { setQ(e.target.value); reset(); }}
+                placeholder="Search this table…" aria-label="Search this table"
+                className="w-full rounded-lg border border-edge py-1.5 pl-8 pr-2.5 text-sm focus:border-brand-500 focus:outline-none"
+              />
+            </div>
           )}
           {filterable && q && <span className="text-xs text-faint tabular-nums">{sorted.length.toLocaleString()} match{sorted.length === 1 ? '' : 'es'}</span>}
           {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400">CSV</button>}
@@ -171,7 +211,11 @@ export default function SortableTable({
                   key={c.key}
                   className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
                 >
-                  {c.render ? c.render(row, i) : (accessorOf(c)(row) ?? '—')}
+                  {c.render
+                    ? c.render(row, i)
+                    : (accessorOf(c)(row) == null || accessorOf(c)(row) === ''
+                        ? '—'
+                        : highlight(accessorOf(c)(row), q))}
                 </td>
               ))}
             </tr>

@@ -149,7 +149,16 @@ export default function SiteAudit() {
               </li>
             ))}
           </ul>
-          {running && !report && <p className="mt-3 text-xs text-faint">Building your report…</p>}
+          {running && !report && (
+            <p className="mt-3 text-xs text-faint">
+              Building your report…{' '}
+              {/* Said out loud because it has always been true and never looked
+                  it: the run lives outside this page (lib/siteAuditRun.js), so
+                  navigating away keeps it going. Without this line the only
+                  safe-looking option is to sit and watch for three minutes. */}
+              <span className="text-muted">Carry on using the platform if you like — this keeps running, and the report will be here when you come back.</span>
+            </p>
+          )}
         </div>
       )}
 

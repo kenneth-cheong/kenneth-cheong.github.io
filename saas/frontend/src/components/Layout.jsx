@@ -6,6 +6,7 @@ import ChatDrawer from './ChatDrawer.jsx';
 import Mascot from './Mascot.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import PlanWidget from './PlanWidget.jsx';
+import RunningChip from './RunningChip.jsx';
 import PlanBreadcrumb from './PlanBreadcrumb.jsx';
 import Toaster from './Toaster.jsx';
 import DialogHost from './DialogHost.jsx';
@@ -212,6 +213,9 @@ export default function Layout({ children }) {
             </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+              {/* Only visible while a Site Health Check is in flight, and never
+                  on the audit page itself. */}
+              <RunningChip />
               <PlanWidget />
               <NotificationBell />
 

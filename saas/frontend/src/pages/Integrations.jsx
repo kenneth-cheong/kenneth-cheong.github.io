@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Check, AlertTriangle } from 'lucide-react';
+import { Check, AlertTriangle, ExternalLink } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { FAMILY_META } from '@shared/catalog.mjs';
 import { RETURN_KEY } from '../components/ConnectPrompt.jsx';
@@ -113,6 +113,12 @@ export default function Integrations() {
       <p className="mt-1 text-dim">
         Connect your ad &amp; analytics accounts to pull your own performance data — free of credits, and queryable by the assistant.
       </p>
+      {/* Connecting hands you to the provider's own sign-in and back again. Said
+          up front, because the button used to redirect straight off the platform
+          with nothing to suggest it would. */}
+      <p className="mt-1.5 text-sm text-muted">
+        Connecting sends you to the provider to sign in, then brings you straight back here.
+      </p>
 
       {returnTo?.provider && TOOL_FOR[returnTo.provider] && (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-4 py-2.5 text-sm text-brand-800 dark:text-brand-300">
@@ -148,7 +154,10 @@ export default function Integrations() {
                       <button onClick={() => disconnectFamily(fam)} disabled={redirecting} className="text-sm text-muted hover:text-red-600 dark:hover:text-red-400">Disconnect</button>
                     </>
                   ) : (
-                    <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-primary px-3 py-1.5 text-sm">{redirecting ? 'Redirecting…' : `Connect ${shortName(fam)}`}</button>
+                    <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
+                      title={`Takes you to ${fam.meta.label || 'the provider'} to sign in, then brings you back here`}>
+                      {redirecting ? 'Redirecting…' : <>Connect {shortName(fam)}<ExternalLink size={13} aria-hidden /></>}
+                    </button>
                   )}
                 </div>
               </div>
@@ -177,7 +186,10 @@ export default function Integrations() {
                             ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300"><Check size={12} aria-hidden /> Active</span>
                             : <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">Pick an account</span>}
                         {!srcConn ? (
-                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="btn-primary px-3 py-1.5 text-sm">{busy === p.id ? '…' : `Connect ${p.name}`}</button>
+                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"
+                            title={`Takes you to ${p.name} to sign in, then brings you back here`}>
+                            {busy === p.id ? '…' : <>Connect {p.name}<ExternalLink size={13} aria-hidden /></>}
+                          </button>
                         ) : (
                           <>
                             <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
