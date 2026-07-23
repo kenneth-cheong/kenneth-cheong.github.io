@@ -27,6 +27,25 @@ export const TERMS_VERSION = '2026-07-25';
  */
 export const NDA_VERSION = '2026-06-29.2';
 
+/**
+ * Account access policy. A Free account is a time-limited trial, not a
+ * permanent tier: it opens for `freeTrialDays` from sign-up and then locks
+ * until the user subscribes. A paying account whose renewal fails keeps working
+ * for `pastDueGraceDays` from the first failed charge (Stripe dunning has that
+ * long to recover the card) and then locks until payment lands.
+ *
+ * Locking NEVER deletes anything — projects, runs, rankings and history stay on
+ * the account exactly as they were, and come straight back on payment. The lock
+ * is an access gate only. See lib/access.mjs for the single evaluator both the
+ * API and the UI read.
+ */
+export const ACCESS = {
+  freeTrialDays: 7,
+  pastDueGraceDays: 7,
+  /** Show a countdown banner once the remaining window is this short. */
+  warnDays: 3,
+};
+
 /** Tier ordering — index = rank. Used for `userTier >= requiredTier` checks. */
 export const TIER_ORDER = ['free', 'starter', 'pro', 'expert'];
 

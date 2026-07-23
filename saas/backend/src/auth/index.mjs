@@ -25,7 +25,8 @@ import {
 import { hashPassword, verifyPassword, isValidPassword } from '../lib/password.mjs';
 import { sendNotice } from '../lib/email.mjs';
 import { sendWelcomeEmail } from '../lib/welcome-email.mjs';
-import { PLANS } from '../../../shared/catalog.mjs';
+import { PLANS, ACCESS } from '../../../shared/catalog.mjs';
+import { accessState } from '../lib/access.mjs';
 import { ok, badRequest, unauthorized, forbidden, tooManyRequests, parseBody, isEmail, isUsername, clampStr } from '../lib/http.mjs';
 import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
@@ -36,6 +37,10 @@ const APP_ORIGIN = (process.env.APP_ORIGIN || '').replace(/\/$/, '');
 // A tighter per-email budget on top of the per-IP AUTH_LIMITS, so a targeted
 // brute-force/spam attempt against one address can't hide behind rotating IPs.
 const EMAIL_LIMITS = [{ n: 8, seconds: 600 }, { n: 30, seconds: 86400 }];
+
+// End of the free trial, counted from the moment the account became usable.
+const trialEndsAt = (fromIso) =>
+  new Date(Date.parse(fromIso) + ACCESS.freeTrialDays * 86_400_000).toISOString();
 
 // A friendly device label from the User-Agent, for the "Active sessions" list.
 function deviceLabel(ua = '') {
@@ -131,6 +136,13 @@ async function applyProvision(user, email) {
 
 // Register a login session and mint the token pair. Caller must have already
 // rejected blocked accounts.
+//
+// An account whose trial has expired or whose payment failed past the grace
+// window DOES still get a session — deliberately. Signing in is how someone
+// reaches the plan picker and the card form, so refusing the token would leave
+// them with no route back to paying, and every API call that matters is gated
+// server-side by `accessLocked` regardless. `user.access` tells the frontend to
+// render the paywall instead of the app.
 async function issueSession(user, meta = {}) {
   const sid = randomUUID();
   await addSession({ userId: user.userId, sid, device: meta.device, ip: meta.ip });
@@ -192,6 +204,10 @@ async function handleGoogle({ idToken }, meta = {}) {
       topupCredits: 0,
       emailVerified: true,
       freeCreditsGranted: true,
+      // Free is a 7-day trial (shared ACCESS). Stamped at creation so the
+      // deadline is a fact on the record rather than a recomputation, and so an
+      // admin can extend one account without touching the policy.
+      freeAccessEndsAt: trialEndsAt(now),
       stripeCustomerId: null,
       periodEnd: null,
       welcomedAt: now,
@@ -255,6 +271,9 @@ async function handleSignup({ email, password }) {
       pendingPasswordHash,
       emailVerified: false,
       freeCreditsGranted: false,
+      // Trial clock starts when the account is actually usable (verification),
+      // not here — an unconfirmed signup that sits in an inbox for a week must
+      // not burn the trial before its owner has run anything.
       stripeCustomerId: null,
       periodEnd: null,
       createdAt: now,
@@ -312,6 +331,10 @@ async function handleVerify({ token }, meta = {}) {
   if (patch.freeCreditsGranted === false) {
     patch.credits = PLANS.free.monthlyCredits;
     patch.freeCreditsGranted = true;
+    // Same moment the account becomes usable → same moment its 7-day trial
+    // starts. Only for accounts that have never had one; a returning user
+    // confirming a new password keeps whatever deadline they already had.
+    if (!patch.freeAccessEndsAt) patch.freeAccessEndsAt = trialEndsAt(patch.updatedAt);
   }
   if (welcome) patch.welcomedAt = patch.updatedAt;
   await putUser(patch);
@@ -473,6 +496,9 @@ function publicUser(u) {
     monthlyCredits: u.credits || 0,
     topupCredits: u.topupCredits || 0,
     periodEnd: u.periodEnd,
+    // Trial / past-due state — drives the paywall screen and the countdown banner.
+    access: accessState(u),
+    pastDue: !!u.pastDue,
     isAdmin: isStaff(u),
     // Which sign-in methods are wired up, for the Account page UI.
     hasPassword: !!u.passwordHash,

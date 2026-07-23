@@ -132,6 +132,15 @@ async function call(path, { method = 'GET', body, auth = true, base, signal, bac
     reportApiError(method, path, 429, 'Rate limited', background);
     throw new ApiError(429, { ...payload, error: `You're going a bit fast — try again in ${secs}s.` });
   }
+  // The account was locked while this tab was open — a trial that ran out
+  // mid-session, or a renewal that failed. Tell the app so it can re-read /me
+  // and swap in the explanation screen; otherwise the user sits in a UI where
+  // every action fails for reasons nothing on screen accounts for. Not a
+  // session denial: they're still signed in, and Pricing/Account/Support all
+  // keep working.
+  if (res.status === 403 && payload?.error === 'access_locked') {
+    try { window.dispatchEvent(new CustomEvent('dm:access-locked', { detail: payload })); } catch { /* non-browser */ }
+  }
   if (!res.ok) {
     reportApiError(method, path, res.status, payload?.error || `HTTP ${res.status}`, background);
     throw new ApiError(res.status, payload);
@@ -369,6 +378,8 @@ export const api = {
     call('/admin/credits', { method: 'POST', body: { userId, monthlyDelta, topupDelta, reason } }),
   adminTier: (userId, tier) => call('/admin/tier', { method: 'POST', body: { userId, tier } }),
   adminStatus: (userId, status) => call('/admin/status', { method: 'POST', body: { userId, status } }),
+  // Extend a Free account's trial by `days` FROM NOW (0 ends it immediately).
+  adminTrial: (userId, days) => call('/admin/trial', { method: 'POST', body: { userId, days } }),
   adminRole: (userId, role) => call('/admin/role', { method: 'POST', body: { userId, role } }),
   adminSettings: () => call('/admin/settings'),
   adminSetSettings: (patch) => call('/admin/settings', { method: 'POST', body: patch }),

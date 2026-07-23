@@ -460,7 +460,9 @@ export async function releaseStripeEvent(eventId) {
 export async function resetMonthlyAllowance({ userId, tier, monthlyCredits, periodEnd = null, previousCredits = 0 }) {
   const res = await ddb.send(new UpdateCommand({
     TableName: TABLES.users, Key: { userId },
-    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now REMOVE pastDue',
+    // `pastDueSince` goes with `pastDue` — a paid invoice ends the grace window
+    // as well as the flag, so a later failure starts a fresh 7 days.
+    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now REMOVE pastDue, pastDueSince, freeAccessEndsAt',
     ExpressionAttributeNames: { '#tier': 'tier' },
     ExpressionAttributeValues: { ':t': tier, ':c': monthlyCredits, ':p': periodEnd, ':now': new Date().toISOString() },
     ReturnValues: 'ALL_NEW',
@@ -470,12 +472,45 @@ export async function resetMonthlyAllowance({ userId, tier, monthlyCredits, peri
   return a;
 }
 
-/** Flag/clear an account as past-due (failed payment). Atomic, single attribute. */
+/** Flag/clear an account as past-due (failed payment). Atomic.
+ *
+ * Flagging also stamps `pastDueSince` — the start of the 7-day grace window the
+ * access gate measures from (lib/access.mjs). It is written only if absent, so
+ * each retry Stripe makes on the SAME failed renewal reports the original
+ * failure date instead of sliding the deadline forward every few days. Clearing
+ * removes both, so the next failure starts a fresh window. */
 export async function setPastDue(userId, value) {
+  const now = new Date().toISOString();
   await ddb.send(new UpdateCommand({
     TableName: TABLES.users, Key: { userId },
-    UpdateExpression: value ? 'SET pastDue = :v, updatedAt = :now' : 'REMOVE pastDue SET updatedAt = :now',
-    ExpressionAttributeValues: value ? { ':v': true, ':now': new Date().toISOString() } : { ':now': new Date().toISOString() },
+    UpdateExpression: value
+      ? 'SET pastDue = :v, pastDueSince = if_not_exists(pastDueSince, :now), updatedAt = :now'
+      : 'REMOVE pastDue, pastDueSince SET updatedAt = :now',
+    ExpressionAttributeValues: value ? { ':v': true, ':now': now } : { ':now': now },
+  }));
+}
+
+/** Remember which access-window warning we last sent (e.g. 'free_trial:3'), so
+ *  the daily job says each thing once. Cleared when the window resets. */
+export async function setAccessNotice(userId, stage) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: stage
+      ? 'SET accessNoticeStage = :s, updatedAt = :now'
+      : 'REMOVE accessNoticeStage SET updatedAt = :now',
+    ExpressionAttributeValues: stage ? { ':s': stage, ':now': new Date().toISOString() } : { ':now': new Date().toISOString() },
+  }));
+}
+
+/** Set (or clear) the date a Free account's trial closes. Powers the admin
+ *  "extend trial" control and the lock applied when a subscription ends. */
+export async function setFreeAccessEndsAt(userId, endsAtIso) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: endsAtIso
+      ? 'SET freeAccessEndsAt = :e, updatedAt = :now'
+      : 'REMOVE freeAccessEndsAt SET updatedAt = :now',
+    ExpressionAttributeValues: endsAtIso ? { ':e': endsAtIso, ':now': new Date().toISOString() } : { ':now': new Date().toISOString() },
   }));
 }
 
@@ -659,7 +694,10 @@ export async function applyTierChange({ userId, tier, monthlyCredits }) {
     try {
       const res = await ddb.send(new UpdateCommand({
         TableName: TABLES.users, Key: { userId },
-        UpdateExpression: 'SET #tier = :t, credits = :c, updatedAt = :now',
+        // A live subscription retires the trial deadline: leaving a stale
+        // `freeAccessEndsAt` behind would re-lock them the day they cancel-and-
+        // resubscribe, before their first invoice clears it.
+        UpdateExpression: 'SET #tier = :t, credits = :c, updatedAt = :now REMOVE freeAccessEndsAt',
         ConditionExpression: 'attribute_not_exists(credits) OR credits = :oc',
         ExpressionAttributeNames: { '#tier': 'tier' },
         ExpressionAttributeValues: { ':t': tier, ':c': credits, ':oc': prev, ':now': new Date().toISOString() },
@@ -674,8 +712,19 @@ export async function applyTierChange({ userId, tier, monthlyCredits }) {
 }
 
 /** Subscription cancelled → drop to free and clamp credits down to the free
- * allowance, atomically (optimistic lock). */
-export async function applyDowngrade({ userId, monthlyCredits }) {
+ * allowance, atomically (optimistic lock).
+ *
+ * `freeAccessEndsAt` is stamped at the same moment. Stripe fires
+ * customer.subscription.deleted when the paid period actually ends, so this is
+ * the first instant the account is genuinely unpaid — and a Free account is a
+ * 7-day trial they already used long ago. Without the stamp the trial deadline
+ * would be recomputed from `createdAt`, which for a former subscriber is months
+ * in the past: identical outcome, but arrived at by accident. Their data is
+ * untouched either way and returns the moment they resubscribe.
+ *
+ * To hand cancelled subscribers a fresh grace period instead, pass an ISO date
+ * here — that is the one line that decides it. */
+export async function applyDowngrade({ userId, monthlyCredits, freeAccessEndsAt = new Date().toISOString() }) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const user = await getUser(userId);
     if (!user) return null;
@@ -684,10 +733,10 @@ export async function applyDowngrade({ userId, monthlyCredits }) {
     try {
       const res = await ddb.send(new UpdateCommand({
         TableName: TABLES.users, Key: { userId },
-        UpdateExpression: 'SET #tier = :t, credits = :c, updatedAt = :now',
+        UpdateExpression: 'SET #tier = :t, credits = :c, freeAccessEndsAt = :fa, updatedAt = :now REMOVE pastDue, pastDueSince',
         ConditionExpression: 'attribute_not_exists(credits) OR credits = :oc',
         ExpressionAttributeNames: { '#tier': 'tier' },
-        ExpressionAttributeValues: { ':t': 'free', ':c': credits, ':oc': prev, ':now': new Date().toISOString() },
+        ExpressionAttributeValues: { ':t': 'free', ':c': credits, ':fa': freeAccessEndsAt, ':oc': prev, ':now': new Date().toISOString() },
         ReturnValues: 'ALL_NEW',
       }));
       const a = res.Attributes;

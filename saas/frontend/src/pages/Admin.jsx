@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw, Info, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw, Info, Plus, Pencil, Trash2, X, ShieldCheck } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, CURRENCY, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -1005,6 +1005,23 @@ function AdminUsers() {
     catch (e) { setError(e?.payload?.error || 'Could not update status.'); }
     load();
   }
+  // Give a Free account more trial time (or end it now). Counted from today, so
+  // this also un-locks an account whose 7 days already ran out. Never touches
+  // their data — only the date the access gate opens until.
+  async function extendTrial(u) {
+    const raw = await promptDialog({
+      title: 'Extend free trial',
+      message: `How many more days should ${u.email} have? Counted from today — 0 ends the trial immediately. Their projects, runs and history are unaffected either way.`,
+      label: 'Days',
+      defaultValue: '7',
+    });
+    if (raw === null) return;
+    const days = parseInt(raw, 10);
+    if (Number.isNaN(days) || days < 0 || days > 365) { setError('Enter a whole number of days between 0 and 365.'); return; }
+    try { await api.adminTrial(u.userId, days); flash(days ? `${u.email} → ${days} more day${days === 1 ? '' : 's'}` : `${u.email} → trial ended`); }
+    catch (e) { setError(e?.payload?.error || 'Could not update the trial.'); }
+    load();
+  }
   async function adjust(u, bucket) {
     const raw = await promptDialog({ title: `Adjust ${bucket} credits`, message: `Adjust ${bucket} credits for ${u.email} (use a negative number to deduct):`, label: 'Amount', defaultValue: '100' });
     if (raw === null) return;
@@ -1176,7 +1193,14 @@ function AdminUsers() {
         </div>
       )}
 
-      <div className="card mt-3">
+      {/* Sits directly above the table, collapsed: the Access / Days left rules
+          are what staff get asked about on a support call, so they belong next
+          to the columns they explain. */}
+      <div className="mt-3">
+        <AccessLegend />
+      </div>
+
+      <div className="card">
         <SortableTable
           rows={rows}
           rowKey={(u) => u.userId}
@@ -1216,6 +1240,38 @@ function AdminUsers() {
                 <select value={u.tier} onChange={(e) => setTier(u, e.target.value)} className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
                   {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name}</option>)}
                 </select>) },
+            // Billing access, which is NOT the Status column: an account can be
+            // 'active' and still locked out by an expired trial or an unpaid
+            // invoice. Pairs with the Days left column beside it: this one says
+            // what state the account is in, that one says how long is left.
+            { key: 'access', label: 'Access', sortable: true,
+              tip: 'Free-trial and payment state. A locked account keeps all of its data; it just can’t use the app until it’s on a paid plan. “Extend” gives a Free account more trial days from today.',
+              // One source for the words, so the CSV export and the pill can't
+              // drift apart. Sorting by urgency is the Days left column's job —
+              // that's the one to click when chasing lapses.
+              accessor: (u) => accessLabel(u).text,
+              render: (u) => {
+                if (u.status === 'invited') return <span className="text-faint">—</span>;
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <AccessPill u={u} />
+                    {u.tier === 'free' && u.role !== 'staff' && (
+                      <button className="btn-ghost px-1.5 py-0.5 text-xs" onClick={() => extendTrial(u)}>Extend</button>
+                    )}
+                  </div>
+                );
+              } },
+            // How long until this account is locked out. Sorts with the most
+            // urgent first: already-locked, then fewest days, then the accounts
+            // with no clock at all (paid and current) — so one sort on this
+            // column is the "who needs chasing today" list.
+            { key: 'daysLeft', label: 'Days left', align: 'right', numeric: true,
+              tip: 'Days until the account is locked out — a free trial ending, or a failed payment running out its grace period. “Locked” means it already has (the data is all still there). “—” means there’s no clock: a paid, up-to-date subscription.',
+              // Sentinels rather than nulls so the sort is total: -1 pulls locked
+              // accounts above "1 day left", and the no-clock rows sink to the
+              // bottom. (Same trick as the Paid column's -1 for "never billable".)
+              accessor: (u) => (u.status === 'invited' ? 99999 : u.access?.locked ? -1 : (u.access?.daysLeft ?? 9999)),
+              render: (u) => <DaysLeftCell u={u} /> },
             { key: 'monthlyCredits', label: 'Monthly', align: 'right', numeric: true, render: (u) => (u.monthlyCredits ?? 0).toLocaleString() },
             { key: 'topupCredits', label: 'Top-up', align: 'right', numeric: true, render: (u) => <span className="text-brand-600 dark:text-brand-400">{(u.topupCredits ?? 0).toLocaleString()}</span> },
             { key: 'credits', label: 'Total', align: 'right', numeric: true, render: (u) => <span className="font-semibold">{(u.credits ?? 0).toLocaleString()}</span> },
@@ -1244,10 +1300,156 @@ function AdminUsers() {
         />
       </div>
       <p className="mt-3 text-xs text-faint">
-        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. Any staff can revoke another staff member's access, but only an admin can grant it; you can't change your own role. All changes are written to the credit ledger. Check the boxes on the left to select multiple users and apply a status, tier, role, or credit change to all of them at once.
+        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. <strong>Access</strong> and <strong>Days left</strong> are the billing gate — see “How Access and Days left work” above the table. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. Any staff can revoke another staff member's access, but only an admin can grant it; you can't change your own role. All changes are written to the credit ledger. Check the boxes on the left to select multiple users and apply a status, tier, role, or credit change to all of them at once.
       </p>
       {activityUser && <AdminUserActivity user={activityUser} onClose={() => setActivityUser(null)} />}
     </div>
+  );
+}
+
+// Billing-access state as a word + a pill colour, for the Users table's Access
+// column. This is NOT the Status column: an account can be 'active' and still be
+// locked out by an expired trial or an unpaid invoice. A lock only withholds
+// access — the account's data is untouched throughout.
+function accessLabel(u) {
+  const a = u.access;
+  if (u.status === 'invited') return { text: 'Invited', cls: 'bg-slate-100 dark:bg-white/10 text-muted' };
+  const green = 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300';
+  const red = 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300';
+  const amber = 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300';
+  const grey = 'bg-slate-100 dark:bg-white/10 text-muted';
+  if (!a || !a.reason) return { text: u.tier === 'free' ? 'Open' : 'Paid', cls: green };
+  if (a.locked) return { text: a.reason === 'payment_overdue' ? 'Unpaid' : 'Trial ended', cls: red };
+  return {
+    text: a.reason === 'past_due_grace' ? 'Payment failed' : 'On trial',
+    cls: a.warn ? amber : grey,
+  };
+}
+
+// The Access pill, as one component so the table and the legend below it can
+// never show a state two different ways.
+function AccessPill({ u }) {
+  const { text, cls } = accessLabel(u);
+  return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{text}</span>;
+}
+
+// The Days left cell: a countdown, "Locked" once it's run out, or "—" for an
+// account with no clock at all. The exact deadline is on hover — "3" is what you
+// act on, but when someone asks "until when?" the answer shouldn't need
+// arithmetic.
+function DaysLeftCell({ u }) {
+  const a = u.access;
+  if (u.status === 'invited') return <span className="text-faint">—</span>;
+  const when = a?.endsAt ? new Date(a.endsAt).toLocaleString() : '';
+  if (a?.locked) {
+    return <span className="font-semibold tabular-nums text-red-600 dark:text-red-400" title={when && `Locked since ${when}`}>Locked</span>;
+  }
+  if (!a?.reason) return <span className="text-faint">—</span>;
+  return (
+    <span className={`tabular-nums ${a.warn ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted'}`} title={when && `Locks on ${when}`}>
+      {a.daysLeft}
+    </span>
+  );
+}
+
+// Every state the Access / Days left pair can be in, rendered with the REAL
+// components rather than a drawing of them — so if the pill logic changes, the
+// legend changes with it or not at all.
+const ACCESS_EXAMPLES = [
+  { u: { tier: 'free', access: { reason: 'free_trial', daysLeft: 5, warn: false, endsAt: null } },
+    means: 'Day 2 of a 7-day free trial.',
+    sees: 'The full app, on the Free allowance.' },
+  { u: { tier: 'free', access: { reason: 'free_trial', daysLeft: 2, warn: true, endsAt: null } },
+    means: 'Trial nearly up — amber from 3 days out.',
+    sees: 'A countdown banner, plus an email at 3 days and 1 day.' },
+  { u: { tier: 'free', access: { reason: 'free_trial_expired', locked: true, daysLeft: 0, endsAt: null } },
+    means: 'Trial over. Locked until they subscribe.',
+    sees: 'A “trial has ended” screen. They can still reach Plans, Account and Support — nothing else.' },
+  { u: { tier: 'pro', access: { reason: null, daysLeft: null, warn: false, endsAt: null } },
+    means: 'Paid and up to date. No clock.',
+    sees: 'The full app.' },
+  { u: { tier: 'starter', access: { reason: 'past_due_grace', daysLeft: 3, warn: true, endsAt: null } },
+    means: 'A renewal failed; 7-day grace period running.',
+    sees: 'The full app, plus an “update your card” banner while Stripe retries.' },
+  { u: { tier: 'pro', access: { reason: 'payment_overdue', locked: true, daysLeft: 0, endsAt: null } },
+    means: 'Grace period elapsed with no payment. Locked.',
+    sees: 'An “account on hold” screen with a link to update their card.' },
+];
+
+// Collapsed explainer above the Users table. The Access rules are a policy, not
+// a widget: which accounts get locked, when, and what happens to their data are
+// questions staff will be asked by the customer on the phone, so the answers
+// belong on the screen they'll be looking at — not only in the deploy notes.
+function AccessLegend() {
+  return (
+    <details className="mb-4 rounded-2xl border border-line bg-raised">
+      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-strong marker:content-none">
+        <span className="mr-1.5 text-muted" aria-hidden>▸</span>
+        How Access and Days left work — free trials, failed payments, and what “Locked” means
+      </summary>
+      <div className="border-t border-line px-4 py-4 text-sm text-muted">
+        <p>
+          <strong className="text-strong">Free is a 7-day trial</strong>, counted from the day the account
+          is confirmed. <strong className="text-strong">A failed subscription payment gets a 7-day grace
+          period</strong>, counted from the first failed charge, which is the window Stripe retries the card in.
+          When either runs out the account is <strong className="text-strong">locked</strong>: it can still
+          sign in, but only to Plans, Account and Support, so there is always a route back to paying.
+        </p>
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <p className="text-emerald-900 dark:text-emerald-200">
+            <strong>A lock never deletes anything.</strong> Projects, saved runs, tracked keywords, ranking
+            history and connected accounts all stay exactly as they were, and come back the moment the
+            account is paid. Scheduled runs and daily rank checks pause rather than stop, and resume on
+            their own. If a customer asks whether they've lost their work, the answer is no.
+          </p>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left">
+            <thead>
+              <tr className="text-xs uppercase tracking-wide text-faint">
+                <th className="pb-2 pr-3 font-semibold">Access</th>
+                <th className="pb-2 pr-3 font-semibold">Days left</th>
+                <th className="pb-2 pr-3 font-semibold">What it means</th>
+                <th className="pb-2 font-semibold">What the user sees</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ACCESS_EXAMPLES.map((ex, i) => (
+                <tr key={i} className="border-t border-line align-top">
+                  <td className="py-2 pr-3"><AccessPill u={ex.u} /></td>
+                  <td className="py-2 pr-3"><DaysLeftCell u={ex.u} /></td>
+                  <td className="py-2 pr-3">{ex.means}</td>
+                  <td className="py-2 text-faint">{ex.sees}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <ul className="mt-4 list-disc space-y-1.5 pl-5">
+          <li>
+            <strong className="text-strong">Access is not Status.</strong> Status is your switch (Active /
+            Paused / Inactive); Access is the billing clock. An account can be Active and still locked out
+            because it hasn't paid.
+          </li>
+          <li>
+            <strong className="text-strong">Extend</strong> gives a Free account more trial days
+            <em> from today</em>, so it also unlocks one whose trial already ran out. Entering 0 ends the
+            trial immediately. It changes the deadline only — never their data or credits.
+          </li>
+          <li>
+            <strong className="text-strong">Sort by Days left</strong> to get the chase list: already-locked
+            accounts first, then the ones closest to lapsing, with paid-and-current accounts last.
+          </li>
+          <li>
+            Cancelling a subscription locks the account when the paid period ends. Staff accounts are never
+            put on a billing clock.
+          </li>
+        </ul>
+      </div>
+    </details>
   );
 }
 

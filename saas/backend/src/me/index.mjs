@@ -17,6 +17,7 @@ import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, forbidden, serverError, claims, parseBody, isUsername, clampStr } from '../lib/http.mjs';
 import { isStaff, isAdmin, accountBlocked } from '../lib/admin.mjs';
 import { hashPassword, verifyPassword, isValidPassword, MIN_PASSWORD_LEN } from '../lib/password.mjs';
+import { accessState } from '../lib/access.mjs';
 
 export const handler = async (event) => {
   try {
@@ -149,6 +150,10 @@ export const handler = async (event) => {
         // subscription to switch, so they could never subscribe at all.
         hasSubscription: !!user.stripeCustomerId && user.tier !== 'free',
         pastDue: !!user.pastDue, // surfaced as an "update card" banner in the UI
+        // Trial / grace-window state. /me is deliberately NOT gated on this: the
+        // paywall screen is rendered from this very payload, so the one endpoint
+        // that tells the client it's locked has to keep answering.
+        access: accessState(user),
         isAdmin: isStaff(user),
         // True permanent admin (ADMIN_EMAILS allowlist), distinct from `isAdmin`
         // above (which is really "is staff"). Gates who can grant staff access.

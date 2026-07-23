@@ -41,6 +41,7 @@ import {
   sourceOf,
 } from '../lib/http.mjs';
 import { accountBlocked, isStaff } from '../lib/admin.mjs';
+import { accessLocked, accessLockedResponse } from '../lib/access.mjs';
 import { verify } from '../lib/jwt.mjs';
 import { rateLimit, RUN_LIMITS } from '../lib/ratelimit.mjs';
 
@@ -111,6 +112,9 @@ export const handler = async (event, context) => {
   const user = await getUser(c.userId);
   if (!user) return unauthorized('User not found');
   if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
+  // Expired trial / unpaid subscription past its grace window — no tool runs,
+  // and nothing is spent. Their saved runs stay exactly where they are.
+  if (accessLocked(user)) return forbidden(accessLockedResponse(user));
 
   const body = parseBody(event);
   // Front-end surface that drove this run (saas dashboard vs legacy index.html),

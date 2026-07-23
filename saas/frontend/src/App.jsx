@@ -9,6 +9,9 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import Unsubscribe from './pages/Unsubscribe.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
+// Not lazy: it is the whole app for a locked account, so a chunk fetch would be
+// one more thing to fail in front of someone already seeing something go wrong.
+import Locked from './pages/Locked.jsx';
 
 // Route-level code-splitting — keeps the initial bundle small; heavier pages
 // (tool runner, reports, admin) load on demand.
@@ -95,6 +98,30 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="*" element={<Login />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // Trial expired, or a subscription payment that never landed past its grace
+  // window. The backend refuses the app's routes outright (403 access_locked),
+  // so rendering the normal shell would just paint a dashboard of failed
+  // requests. Instead: the explanation screen, plus the handful of pages that
+  // exist precisely to resolve it — Pricing and Account (where the card lives),
+  // Support, and the legal texts. Nothing here deletes anything; the moment
+  // /me reports an unlocked account the full app returns on its own.
+  if (user.access?.locked) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route path="/pricing" element={<Layout><Pricing /></Layout>} />
+          <Route path="/account" element={<Layout><Account /></Layout>} />
+          <Route path="/support" element={<Layout><Support /></Layout>} />
+          <Route path="/support/:ticketId" element={<Layout><Support /></Layout>} />
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/privacy" element={<Privacy />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
+          <Route path="*" element={<Locked />} />
         </Routes>
       </Suspense>
     );

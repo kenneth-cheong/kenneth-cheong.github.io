@@ -35,6 +35,7 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 import { sendEmail, sendRawEmail, sendSmtpEmail, sendNotice, smtpConfigured, SUPPORT_INBOX, noticeFrom } from '../lib/email.mjs';
 import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
+import { accessLocked, accessLockedResponse } from '../lib/access.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
 import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 
@@ -202,6 +203,24 @@ function pullStatus(preview) {
 // match requirement holds; it's also what must be registered in the console.
 const oauthRedirectUri = (event) => `https://${event.requestContext?.domainName}/oauth/callback`;
 
+// Routes that keep working for an account locked out by an expired trial or an
+// unpaid invoice. The test is "can they still sort this out, and does it expose
+// none of their marketing data?" — so: raising and reading support tickets (the
+// billing problem often IS the ticket), notification and email preferences,
+// signing other devices out, and deleting the account. Everything else — runs,
+// projects, tracking, metrics, the assistant, integrations — is closed until
+// they pay. Notably NOT here: /me/export, which is a bulk read of the very data
+// the lock withholds.
+const ACCESS_LOCK_ALLOW = [
+  '/support/tickets', '/support/attachments',
+  '/me/notifications', '/me/notifications/read', '/me/notifications/delete', '/me/notifications/clear',
+  '/me/email-prefs', '/me/sessions/revoke', '/me/delete', '/me/nda', '/me/onboarding',
+  // Staff data-access consent (unrelated to this gate despite the path): granting
+  // and especially REVOKING staff access must never depend on being paid up.
+  '/me/access', '/me/access/respond',
+];
+const allowedWhileLocked = (path) => ACCESS_LOCK_ALLOW.some((p) => path.endsWith(p));
+
 export const handler = async (event) => {
   const method = event.requestContext?.http?.method || event.httpMethod;
   if (method === 'OPTIONS') return preflight();
@@ -233,6 +252,12 @@ export const handler = async (event) => {
   }
   if (!user) return unauthorized('User not found');
   if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
+  // Expired trial / unpaid subscription: every route below is closed except the
+  // handful a locked user must still reach (see ACCESS_LOCK_ALLOW). Their data
+  // is untouched behind the gate — this refuses to SERVE it, never removes it.
+  if (!allowedWhileLocked(path) && accessLocked(user)) {
+    return forbidden(accessLockedResponse(user));
+  }
   const body = parseBody(event);
 
   try {

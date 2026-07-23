@@ -39,7 +39,15 @@ export function ProjectProvider({ children }) {
       });
     } catch { /* ignore */ }
   }, []);
-  useEffect(() => { if (user) reload(); else setProjects([]); }, [user, reload]);
+  // A locked account (expired trial / unpaid invoice) gets a 403 on /projects by
+  // design, and this provider mounts above the locked screen — firing it anyway
+  // would report a fault for a refusal we already know about and are showing the
+  // user a proper explanation for. The projects themselves are untouched and
+  // load normally the moment access returns.
+  useEffect(() => {
+    if (user && !user.access?.locked) reload();
+    else setProjects([]);
+  }, [user, reload]);
 
   // Passing null means "none, on purpose" — persist that so it survives reload.
   const setActive = useCallback((id) => {

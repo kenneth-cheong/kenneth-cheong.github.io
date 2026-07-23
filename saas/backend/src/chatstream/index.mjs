@@ -8,6 +8,7 @@ import { verify } from '../lib/jwt.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { CREDIT_COSTS } from '../../../shared/catalog.mjs';
 import { emitLlmMetric } from '../lib/llm-metric.mjs';
+import { accessLocked, accessLockedResponse } from '../lib/access.mjs';
 
 const KEY = process.env.ANTHROPIC_KEY;
 const MODEL = 'claude-haiku-4-5';
@@ -39,6 +40,10 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
 
   const user = await getUser(claims.sub);
   if (!user) return json(401, { error: 'User not found' });
+  // Expired trial / unpaid invoice past its grace window. Checked before credits:
+  // a locked account may still hold a healthy balance, and the reason it can't
+  // chat is the lock, not the money.
+  if (accessLocked(user)) return json(403, accessLockedResponse(user));
   if (totalCredits(user) < COST) return json(402, { error: "You're out of credits — top up or upgrade to keep chatting." });
 
   let body = {};

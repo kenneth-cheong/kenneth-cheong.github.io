@@ -78,6 +78,18 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('dm:session-expired', onExpired);
   }, []);
 
+  // A gated call came back `access_locked` — the trial ran out or a renewal
+  // failed while this tab was open. Re-read /me (which is never gated, exactly
+  // so it can answer here) and let the authoritative access state swap the app
+  // for the explanation screen. Signing them out instead would be wrong twice
+  // over: they'd lose the route to the payment page, and being locked is not
+  // being logged out.
+  useEffect(() => {
+    const onLocked = () => { refresh(); };
+    window.addEventListener('dm:access-locked', onLocked);
+    return () => window.removeEventListener('dm:access-locked', onLocked);
+  }, [refresh]);
+
   // Lowest balance any in-flight spend has reported. Kept in a ref (not state)
   // so several responses landing in the same tick compare against each other
   // rather than against the last committed render.

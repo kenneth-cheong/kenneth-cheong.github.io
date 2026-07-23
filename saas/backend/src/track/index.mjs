@@ -5,8 +5,9 @@
 // worth hearing about — broke into the top 3 / page 1 (celebrate), slipped off
 // page 1, or moved 10+ spots. The bell polls these, so ranking movement reaches
 // the user without them re-opening the tracking page.
-import { scanTracked, appendSnapshot, addNotification } from '../lib/dynamo.mjs';
+import { scanTracked, appendSnapshot, addNotification, getUser } from '../lib/dynamo.mjs';
 import { rankPosition } from '../lib/rank.mjs';
+import { accessLocked } from '../lib/access.mjs';
 
 // Positions are 1..100, or 0 for "unranked" (see lib/rank normPos).
 const onPage1 = (p) => p >= 1 && p <= 10;
@@ -33,9 +34,22 @@ function rankAlert(keyword, domain, prev, curr) {
 
 export const handler = async () => {
   const all = await scanTracked();
-  let updated = 0, alerts = 0;
+  let updated = 0, alerts = 0, held = 0;
+  // Owner lookups, memoised per run: one user typically owns many keywords, and
+  // this loop can be thousands of rows long.
+  const owners = new Map();
+  const owner = async (userId) => {
+    if (!owners.has(userId)) owners.set(userId, await getUser(userId).catch(() => null));
+    return owners.get(userId);
+  };
   for (const t of all) {
     try {
+      // Expired trial / unpaid subscription → hold the keyword, don't drop it.
+      // Each check is a paid upstream SERP call, so refreshing rankings for an
+      // account that can't view them spends real money on nothing. The keyword
+      // and its whole history stay put; the daily updates simply resume on the
+      // first tick after payment (with a gap in the chart for the unpaid days).
+      if (accessLocked(await owner(t.userId))) { held++; continue; }
       // Baseline BEFORE this run's append. `lastPosition` is set by the previous
       // appendSnapshot; it's undefined only on a keyword never checked before —
       // skip alerting on that first snapshot (no baseline to compare against).
@@ -54,6 +68,6 @@ export const handler = async () => {
       }
     } catch (e) { console.error('track_failed', t.trackId, e.message); }
   }
-  console.log(JSON.stringify({ metric: 'tracking_run', tracked: all.length, updated, alerts }));
-  return { updated, alerts };
+  console.log(JSON.stringify({ metric: 'tracking_run', tracked: all.length, updated, alerts, held }));
+  return { updated, alerts, held };
 };

@@ -52,8 +52,41 @@ function TicketBadge({ count }) {
   );
 }
 
+// The banner copy for an account whose access window is closing — an ending
+// trial, or a failed payment inside its grace period. Returns null when there's
+// nothing to say (paid and current, or still early in the window: the server
+// only sets `warn` for the last few days).
+//
+// A failed payment warns whether or not `warn` is set, because a card that
+// stopped working is worth knowing about on day one — the difference is that the
+// deadline only appears once it's close.
+function accessBanner(user) {
+  const a = user?.access;
+  const on = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  if (a?.reason === 'past_due_grace' || (user?.pastDue && !a?.locked)) {
+    return {
+      text: a?.warn
+        ? `Your last payment failed — update your card by ${on(a.endsAt)} to keep your account open. Nothing is deleted either way.`
+        : 'Your last payment failed — update your card to keep your plan active.',
+      cta: 'Update billing',
+      to: '/account',
+    };
+  }
+  if (a?.reason === 'free_trial' && a.warn) {
+    return {
+      text: a.daysLeft === 1
+        ? 'Your free trial ends tomorrow. Choose a plan to keep your projects and reports available.'
+        : `Your free trial ends in ${a.daysLeft} days (${on(a.endsAt)}). Choose a plan to keep your projects and reports available.`,
+      cta: 'Choose a plan',
+      to: '/pricing',
+    };
+  }
+  return null;
+}
+
 export default function Layout({ children }) {
   const { user, logout, setOnboarding } = useAuth();
+  const accessWarning = accessBanner(user);
   const { unanswered } = useSupportTickets();
   const location = useLocation();
   const { fromProjectId, fromProjectName } = location.state || {};
@@ -343,11 +376,18 @@ export default function Layout({ children }) {
           )}
 
         </header>
-        {user?.pastDue && (
+        {/* Access countdown. Both windows end in a hard lock, and neither is
+            visible anywhere else in the UI, so the last few days say so plainly
+            — with the deadline, not a vague "soon". The past-due variant
+            supersedes the old standalone banner: same warning, now with the
+            date the account actually stops working. */}
+        {accessWarning && (
           <div className="border-b border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10">
             <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-300">
-              <span>⚠️ Your last payment failed — update your card to keep your plan active.</span>
-              <Link to="/account" className="ml-auto font-semibold text-amber-900 dark:text-amber-200 underline">Update billing</Link>
+              <span>⚠️ {accessWarning.text}</span>
+              <Link to={accessWarning.to} className="ml-auto font-semibold text-amber-900 dark:text-amber-200 underline">
+                {accessWarning.cta}
+              </Link>
             </div>
           </div>
         )}

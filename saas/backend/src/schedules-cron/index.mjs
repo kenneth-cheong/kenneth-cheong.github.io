@@ -21,6 +21,7 @@ import {
 import { nextRunAt } from '../../../shared/schedule.mjs';
 import { TOOLS, CREDIT_COSTS, isSchedulable } from '../../../shared/catalog.mjs';
 import { accountBlocked } from '../lib/admin.mjs';
+import { accessLocked } from '../lib/access.mjs';
 
 const METERING_FN = process.env.METERING_FN;
 
@@ -74,6 +75,10 @@ export const handler = async () => {
     const user = await getUser(s.userId).catch(() => null);
     if (!user) { await updateSchedule(s.userId, s.scheduleId, { enabled: false }).catch(() => {}); disabled++; continue; }
     if (accountBlocked(user)) { skipped++; continue; } // suspended — silently hold
+    // Expired trial / unpaid subscription: hold the schedule the same way rather
+    // than disabling it. The schedule and its history survive the lock intact and
+    // resume on the next tick after payment, with no re-setup.
+    if (accessLocked(user)) { skipped++; continue; }
 
     // Credit precheck — the gateway would 402 anyway (and never save the run), so
     // catch it here to record an honest "skipped" + nudge the user to top up.

@@ -267,6 +267,41 @@ don't use it to rotate this.
 
 ---
 
+## 4b. ⚠️ Trial + past-due access gate — one-time backfill
+
+Free is a **7-day trial** and a failed subscription payment has a **7-day grace
+period** (`ACCESS` in `shared/catalog.mjs`); past either, the account is locked
+out of the app until it's on a paid plan. **No data is ever deleted** — the lock
+only refuses to serve it, and everything returns on payment.
+
+The gate derives a Free account's deadline from `freeAccessEndsAt`, falling back
+to `createdAt + 7 days`. **Every Free account that predates this feature signed
+up more than 7 days ago**, so shipping the gate without a backfill locks all of
+them out simultaneously, with no warning email (the daily job can only warn
+about a window that's still open).
+
+Run this against the live table **before or alongside** the deploy:
+
+```bash
+USERS_TABLE=<UsersTable name> AWS_REGION=ap-southeast-1 node saas/backend/scripts/backfill-trial-deadline.mjs --days 14 --dry-run
+```
+
+Check the counts, then re-run without `--dry-run`. It skips paid accounts and any
+account that already has a deadline; it never touches projects, runs or credits.
+
+Also note:
+
+- `RefillFn` now sends the pre-lock warning emails (3 days out, 1 day out, and on
+  lock), so it needs the SMTP/SES env + the notifications table — both are in
+  `template.yaml`, but this means the **daily job must actually be running**.
+- Cancelling a subscription locks the account at the end of the paid period
+  (`applyDowngrade` stamps `freeAccessEndsAt`). To give cancelled subscribers a
+  fresh free window instead, pass a future date at that one call site.
+- Admin → Users has an **Access** column and an **Extend** button (`POST
+  /admin/trial`) for granting a Free account more days from today.
+
+---
+
 ## 5. Deploy the frontend (Amplify Hosting — manual deploy)
 
 The React app is a **manual-deploy** Amplify app (app id `d1q0hza133u0y9`, branch

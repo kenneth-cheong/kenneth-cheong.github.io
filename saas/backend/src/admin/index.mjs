@@ -39,9 +39,12 @@ import {
   backfillActivity,
   scanAllUsers,
   creditsConsumed,
+  setFreeAccessEndsAt,
+  setAccessNotice,
 } from '../lib/dynamo.mjs';
 import { PLANS, NDA_VERSION, TERMS_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
+import { accessState } from '../lib/access.mjs';
 import { amplifyUsage, amplifyAccessLogs, toolSpendBySource, llmSpendByProvider, anthropicCostReport, anthropicUsageReport, deepseekBalance, toolCostBreakdown } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
 import { listPromos, createPromo, updatePromo } from '../lib/promos.mjs';
@@ -479,6 +482,24 @@ export const handler = async (event) => {
     const user = await adminSetStatus({ userId: body.userId, status: body.status, adminEmail: c.email });
     return ok({ user: shape(user) });
   }
+  // Extend (or end) a Free account's trial window. `days` is counted from NOW,
+  // not from the original deadline, so re-extending an already-expired trial
+  // gives the full period rather than a window that's still in the past. `days:
+  // 0` closes it immediately. Nothing here touches the account's data either
+  // way — it only moves the date the gate opens until.
+  if (path.endsWith('/trial')) {
+    if (!body.userId) return badRequest('userId required');
+    const days = Number(body.days);
+    if (!Number.isInteger(days) || days < 0 || days > 365) return badRequest('days must be a whole number between 0 and 365.');
+    const target = await getUser(body.userId);
+    if (!target) return badRequest('User not found');
+    const endsAt = new Date(Date.now() + days * 86400000).toISOString();
+    await setFreeAccessEndsAt(body.userId, endsAt);
+    // A fresh window should be able to warn again as it closes.
+    await setAccessNotice(body.userId, null);
+    console.log(JSON.stringify({ audit: 'admin_trial', admin: c.email, userId: body.userId, days, endsAt, at: new Date().toISOString() }));
+    return ok({ user: shape(await getUser(body.userId)) });
+  }
   // Promote/demote a user between 'client' and 'staff'. Any staff member can
   // demote another staff account to client, but granting staff access requires
   // a true admin (ADMIN_EMAILS) — prevents staff from escalating each other (or
@@ -658,5 +679,10 @@ function shape(u) {
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt || null,
     lastToolUseAt: u.lastToolUseAt || null,
+    // Trial / past-due window: whether this account is locked out right now, and
+    // when its clock runs out. Distinct from `status`, which is the admin's own
+    // suspension switch — an account can be 'active' and still locked on billing.
+    access: invited ? null : accessState(u),
+    pastDue: !!u.pastDue,
   };
 }

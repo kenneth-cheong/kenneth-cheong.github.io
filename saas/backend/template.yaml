@@ -864,6 +864,10 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref TrackedTable }
         # Rank-change alerts write to the notification bell.
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        # Each keyword's owner is read (once per user per run) to skip accounts
+        # locked by an expired trial / unpaid invoice — every check is a paid
+        # upstream SERP call.
+        - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
       Events:
         Daily:
           Type: Schedule
@@ -901,9 +905,26 @@ Resources:
       CodeUri: .build/refill/
       Handler: index.handler
       Timeout: 300
+      Environment:
+        Variables:
+          # This job also sends the "trial ending" / "payment failed" warnings
+          # before an account is locked out (see src/refill/index.mjs), so it
+          # needs the same mail config as the other notifying functions.
+          # Empty SMTP_USER falls back to SES.
+          SES_FROM: !Ref SesFrom
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        - Statement:
+            - Effect: Allow
+              Action: ['ses:SendEmail', 'ses:SendRawEmail']
+              Resource: '*'
       Events:
         Daily:
           Type: Schedule
