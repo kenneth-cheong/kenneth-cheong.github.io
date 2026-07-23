@@ -897,6 +897,9 @@ function firstTable(sections) { return (sections || []).find((s) => s.type === '
 // the guided tour's sample results skip it). Cached per run so re-renders and
 // remounts never refetch. Fails silently: the raw result is still on screen.
 const tldrCache = new Map();
+// Tools whose output is already the finished deliverable — a written caption
+// needs no "what this means" gloss on top of it.
+const NO_TLDR_TOOLS = new Set(['caption']);
 function TldrPanel({ tool, r, runId }) {
   const [state, setState] = useState(() => tldrCache.get(runId) || { loading: true, text: '' });
   useEffect(() => {
@@ -1128,7 +1131,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
           </div>
         )}
 
-        {out.runId && hasContent && !out.teaser && <TldrPanel tool={tool} r={r} runId={out.runId} />}
+        {out.runId && hasContent && !out.teaser && !NO_TLDR_TOOLS.has(tool.id) && <TldrPanel tool={tool} r={r} runId={out.runId} />}
 
         {isSchema ? (
           <SchemaResult json={r.text} />
