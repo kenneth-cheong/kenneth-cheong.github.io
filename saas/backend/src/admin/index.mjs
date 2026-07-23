@@ -654,3 +654,9 @@ function shape(u) {
     lastToolUseAt: u.lastToolUseAt || null,
   };
 }
+    username: u.username || null,
+    // Lifetime money paid to us, net of refunds. Null (not 0) when the account
+    // has never been linked to Stripe, so the table can show "—" for accounts
+    // that were never billable instead of an authoritative-looking $0.00.
+    lifetimePaidUsd: u.stripeCustomerId ? Math.round(u.lifetimePaidCents || 0) / 100 : null,
+    lifetimePaidCurrency: (u.lifetimePaidCurrency || 'usd').toUpperCase(),

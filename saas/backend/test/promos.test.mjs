@@ -68,6 +68,7 @@ vi.mock('../src/lib/dynamo.mjs', () => ({
   resetMonthlyAllowance: async () => {}, applyTierChange: async () => {},
   applyDowngrade: async () => {}, linkStripeCustomer: async () => {},
   setPastDue: async () => {}, debitTopupCredits: async () => {},
+  addLifetimePaid: async () => {}, refundDeltaCents: async (_id, c) => c,
 }));
 vi.mock('../src/lib/ratelimit.mjs', () => ({ rateLimit: async () => ({ allowed: true }) }));
 

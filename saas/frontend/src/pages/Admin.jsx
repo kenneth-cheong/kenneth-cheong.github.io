@@ -1073,7 +1073,7 @@ function AdminUsers() {
   const fromMs = fromDate ? Date.parse(fromDate) : null;
   const toMs = toDate ? Date.parse(toDate) + 86399999 : null;
   const rows = (users || []).filter((u) => {
-    if (q && !((u.email || '') + (u.name || '')).toLowerCase().includes(q.toLowerCase())) return false;
+    if (q && !((u.email || '') + (u.name || '') + (u.username || '')).toLowerCase().includes(q.toLowerCase())) return false;
     if (roleFilter !== 'all' && (u.role || 'client') !== roleFilter) return false;
     if (statusFilter !== 'all' && (u.status || 'active') !== statusFilter) return false;
     if (fromMs != null || toMs != null) {
@@ -1091,7 +1091,7 @@ function AdminUsers() {
     <div>
       <div className="mt-4 flex items-center justify-between gap-3">
         <button onClick={() => setCreating(true)} className="btn-primary px-3 py-2 text-sm">+ New user</button>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email / name…"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email / name / username…"
           className="w-64 rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
       </div>
 
@@ -1192,7 +1192,12 @@ function AdminUsers() {
                   checked={selected.has(u.userId)} onChange={() => toggleOne(u.userId)} />
               ) },
             { key: 'user', label: 'User', accessor: (u) => u.name || u.email || '',
-              render: (u) => (<><div className="font-medium">{u.name || '—'}</div><div className="text-xs text-faint">{u.email}</div></>) },
+              render: (u) => (<>
+                <div className="font-medium">{u.name || '—'}</div>
+                <div className="text-xs text-faint">{u.email}</div>
+                {/* Usernames are opt-in, so most rows won't have one — only show the handle when it exists. */}
+                {u.username ? <div className="text-xs text-muted">@{u.username}</div> : null}
+              </>) },
             { key: 'role', label: 'Role', accessor: (u) => u.role || 'client',
               render: (u) => (u.userId === me.userId
                 ? (u.role === 'staff'
@@ -1216,6 +1221,12 @@ function AdminUsers() {
             { key: 'credits', label: 'Total', align: 'right', numeric: true, render: (u) => <span className="font-semibold">{(u.credits ?? 0).toLocaleString()}</span> },
             { key: 'creditsSpent', label: 'Used', align: 'right', numeric: true, tip: 'Lifetime credits this user has spent on tool runs.',
               render: (u) => <span className="text-muted tabular-nums">{(u.creditsSpent ?? 0).toLocaleString()}</span> },
+            { key: 'lifetimePaidUsd', label: 'Paid', align: 'right', numeric: true,
+              tip: 'Lifetime money this user has paid us — subscription invoices plus one-time top-ups, net of refunds. Accounts that never reached Stripe show “—”.',
+              accessor: (u) => u.lifetimePaidUsd ?? -1,
+              render: (u) => (u.lifetimePaidUsd == null
+                ? <span className="text-faint">—</span>
+                : <span className="font-semibold tabular-nums">{u.lifetimePaidUsd.toLocaleString(undefined, { style: 'currency', currency: u.lifetimePaidCurrency || 'USD' })}</span>) },
             { key: 'lastLoginAt', label: 'Last login', numeric: false, accessor: (u) => u.lastLoginAt || '',
               render: (u) => <span className="whitespace-nowrap text-xs text-muted">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</span> },
             { key: 'lastToolUseAt', label: 'Last tool use', numeric: false, accessor: (u) => u.lastToolUseAt || '',

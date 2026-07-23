@@ -362,6 +362,66 @@ export async function grantTopupCredits({ userId, amount, action = 'topup', meta
   return res.Attributes.topupCredits;
 }
 
+// ── Lifetime revenue per user ────────────────────────────────────────────────
+// What this user has actually paid us, in cents, accumulated by the billing
+// webhook (Admin → Users shows it as "Paid"). Kept as a running total on the
+// user record rather than queried live: Stripe has no "sum all invoices for a
+// customer" call, so a live figure would mean a paginated API walk PER ROW of
+// the admin table. `ADD` so concurrent invoice + top-up events can't clobber
+// each other, and so the attribute doesn't need to pre-exist.
+//
+// Negative `cents` (a refund) is allowed and can legitimately drive a user
+// slightly below zero if their original charge predates this counter — the
+// backfill script fixes that; we don't clamp, because silently flooring at 0
+// would hide a real accounting mismatch.
+export async function addLifetimePaid({ userId, cents, currency = 'usd' }) {
+  if (!userId || !cents) return null;
+  const res = await ddb.send(new UpdateCommand({
+    TableName: TABLES.users,
+    Key: { userId },
+    UpdateExpression: 'ADD lifetimePaidCents :c SET lifetimePaidCurrency = :ccy, updatedAt = :now',
+    ExpressionAttributeValues: {
+      ':c': Math.round(cents),
+      ':ccy': String(currency || 'usd').toLowerCase(),
+      ':now': new Date().toISOString(),
+    },
+    ReturnValues: 'UPDATED_NEW',
+  }));
+  return res.Attributes?.lifetimePaidCents ?? null;
+}
+
+/** Overwrite the lifetime-paid total outright (backfill only). */
+export async function setLifetimePaid({ userId, cents, currency = 'usd' }) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users,
+    Key: { userId },
+    UpdateExpression: 'SET lifetimePaidCents = :c, lifetimePaidCurrency = :ccy, updatedAt = :now',
+    ExpressionAttributeValues: {
+      ':c': Math.round(cents), ':ccy': String(currency || 'usd').toLowerCase(), ':now': new Date().toISOString(),
+    },
+  }));
+}
+
+// A refunded charge fires `charge.refunded` on EVERY partial refund, and each
+// event carries the cumulative `amount_refunded` — not the increment. Event-id
+// idempotency only stops duplicate deliveries of the same event, so subtracting
+// the cumulative figure twice would over-refund a partially-refunded charge.
+// We remember the last cumulative total we booked per charge and return only
+// what's new. Same 30-day TTL as the event claims.
+export async function refundDeltaCents(chargeId, cumulativeCents) {
+  if (!chargeId) return cumulativeCents;
+  const key = `stripe_refund:${chargeId}`;
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.cache, Key: { key } }));
+  const seen = Item?.cents || 0;
+  const delta = Math.round(cumulativeCents) - seen;
+  if (delta <= 0) return 0;
+  await ddb.send(new PutCommand({
+    TableName: TABLES.cache,
+    Item: { key, cents: Math.round(cumulativeCents), expireAt: Math.floor(Date.now() / 1000) + STRIPE_EVENT_TTL },
+  }));
+  return delta;
+}
+
 // ── Stripe webhook idempotency ───────────────────────────────────────────────
 // Stripe delivers at-least-once and retries on any non-2xx, so the same event id
 // can arrive multiple times. We claim each event id once (conditional write into

@@ -16,6 +16,7 @@ import {
   claimStripeEvent, releaseStripeEvent,
   resetMonthlyAllowance, applyTierChange, applyDowngrade, linkStripeCustomer,
   setPastDue, debitTopupCredits, unlinkStripeCustomer,
+  addLifetimePaid, refundDeltaCents,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
 import { findPromoByCode, promoProblem, appliesToProduct, normalizePromo, hydrateCoupon } from '../lib/promos.mjs';
@@ -568,6 +569,10 @@ async function onCheckoutComplete(session) {
     if (amount > 0) {
       await grantTopupCredits({ userId, amount, action: 'topup_purchase', meta: { packId: session.metadata.packId } });
     }
+    // Top-ups are invoice-less, so this is the only place their revenue lands.
+    if (session.amount_total) {
+      await addLifetimePaid({ userId, cents: session.amount_total, currency: session.currency });
+    }
   }
 }
 
@@ -602,13 +607,23 @@ async function tierForInvoice(invoice, user) {
 
 // Billing-cycle anchor: set tier + RESET the monthly credit allowance.
 async function onInvoicePaid(invoice) {
+  const user = await getUserByStripeCustomer(invoice.customer);
+  if (!user) return;
+
+  // Book the money FIRST, and for every billing_reason. A proration invoice is
+  // real revenue even though it must not reset the allowance, so this has to sit
+  // above the cycle-anchor gate below or mid-cycle upgrades would never be
+  // counted. One-time top-ups are booked from the Checkout session instead —
+  // they have no invoice, so there's no double count.
+  if (invoice.amount_paid) {
+    await addLifetimePaid({ userId: user.userId, cents: invoice.amount_paid, currency: invoice.currency });
+  }
+
   // Only the cycle-anchoring invoices reset the allowance. Proration / one-off
   // invoices (billing_reason 'subscription_update', 'manual', etc.) must NOT
   // wipe a user's mid-cycle balance back to full.
   const reason = invoice.billing_reason;
   if (reason && reason !== 'subscription_create' && reason !== 'subscription_cycle') return;
-  const user = await getUserByStripeCustomer(invoice.customer);
-  if (!user) return;
   const tier = await tierForInvoice(invoice, user);
   const plan = PLANS[tier];
   const periodEnd = invoice.lines?.data?.[0]?.period?.end
@@ -671,6 +686,19 @@ async function onPaymentFailed(invoice) {
 // Refunded charge → claw back any top-up credits that charge granted. We map the
 // refunded charge back to its Checkout Session (which carries the credit amount).
 async function onChargeRefunded(charge) {
+  // Money first, and for ANY refunded charge — a refunded subscription invoice
+  // grants no top-up credits but is still revenue going back out the door. The
+  // charge's own customer is the link; the credit clawback below needs the
+  // Checkout session and only applies to top-ups.
+  const refunded = charge.amount_refunded || 0;
+  if (refunded > 0 && charge.customer) {
+    const delta = await refundDeltaCents(charge.id, refunded);
+    if (delta > 0) {
+      const owner = await getUserByStripeCustomer(charge.customer);
+      if (owner) await addLifetimePaid({ userId: owner.userId, cents: -delta, currency: charge.currency });
+    }
+  }
+
   if (!charge.payment_intent) return;
   let credits = 0, userId = null;
   try {
@@ -691,6 +719,6 @@ export const __test = {
   isMissingCustomer, activeSubscription, promoteNewCard,
   handlePaymentMethod, handleSubscriptionChange, handleSubscriptionCancel,
   handleCheckout, handleTopup, handlePromoValidate, resolvePromo,
-  onInvoicePaid, onSubscriptionUpdated, tierForInvoice,
+  onInvoicePaid, onSubscriptionUpdated, tierForInvoice, onCheckoutComplete, onChargeRefunded,
   priceIdFromLine, subscriptionIdFromInvoice, periodEndOfSubscription,
 };

@@ -52,6 +52,7 @@ vi.mock('../src/lib/dynamo.mjs', () => ({
   applyTierChange: async () => {}, applyDowngrade: async () => {},
   linkStripeCustomer: async () => {}, setPastDue: async () => {},
   debitTopupCredits: async () => {},
+  addLifetimePaid: async () => {}, refundDeltaCents: async (_id, c) => c,
 }));
 
 // Rate limiting is orthogonal — always allow.
