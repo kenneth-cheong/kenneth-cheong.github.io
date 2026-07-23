@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { PLANS, TOOLS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, CREDIT_COSTS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
 
 // ── driver.js base config (brand-themed via the .dm-tour popover class) ──────
 function run(steps, { onDone } = {}) {
@@ -765,6 +765,7 @@ function fieldHint(field) {
 // `hooks.clear()`    — reset the form and remove the result (called on exit).
 export function startToolTour(tool, fields, hooks = {}) {
   const steps = [];
+  const cost = CREDIT_COSTS[tool?.cost] ?? 0;
 
   steps.push({
     popover: {
@@ -858,6 +859,7 @@ export function startToolTour(tool, fields, hooks = {}) {
 // genuine run. `hooks.clear()` resets the whole form + both results on exit (Done,
 // ✕, Esc or click-away). Steps whose target isn't on-screen are dropped.
 export function startSocialAuditTour(tool, hooks = {}) {
+  const cost = CREDIT_COSTS[tool?.cost] ?? 0;
   const steps = [
     {
       popover: {
@@ -976,6 +978,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
 
 // ── Performance Marketing Audit (bespoke page) ───────────────────────────────
 export function startPerfMarketingTour(tool, hooks = {}) {
+  const cost = CREDIT_COSTS[tool?.cost] ?? 0;
   const steps = [
     {
       popover: {
