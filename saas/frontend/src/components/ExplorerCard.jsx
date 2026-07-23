@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import { getRecent, toast } from '../lib/ui.js';
 import { stepTarget } from '../lib/planner.js';
-import PeekMascot from './PeekMascot.jsx';
 
 // The Explorer breadth checklist: a guided "try one of everything" tour that
 // steers trial users across every discipline so their feedback covers the whole
@@ -91,16 +90,7 @@ export default function ExplorerCard({ googleConnected = false, projects = [] })
   const pct = prog.full.total ? Math.round((prog.full.done / prog.full.total) * 100) : 0;
 
   return (
-    <div className="relative mt-8">
-      {/* Koala peeks over the card's top edge, waving the user on to try one
-          more area. Decorative; stands on the edge (small overlap tucks its
-          baseline behind the border) so it never ghosts through the card. */}
-      <PeekMascot
-        name="koala"
-        width={104}
-        className="absolute right-8 bottom-full z-10 hidden translate-y-[7px] drop-shadow-[0_6px_10px_rgba(4,30,60,.28)] sm:block"
-      />
-    <section className="relative overflow-hidden rounded-2xl border border-brand-200 dark:border-brand-500/30 bg-gradient-to-br from-brand-50/80 to-surface dark:from-brand-500/10 dark:to-surface">
+    <section className="relative mt-8 overflow-hidden rounded-2xl border border-brand-200 dark:border-brand-500/30 bg-gradient-to-br from-brand-50/80 to-surface dark:from-brand-500/10 dark:to-surface">
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-600 text-white">
@@ -190,7 +180,6 @@ export default function ExplorerCard({ googleConnected = false, projects = [] })
       )}
       {prog.locked.length === 0 && <div className="pb-5" />}
     </section>
-    </div>
   );
 }
 
