@@ -165,8 +165,8 @@ export default function Cockpit({ googleConnected }) {
       <TopMovers tracked={tracked} onOpen={() => setDetail({ kind: 'keywords', mode: 'movers', title: 'Top movers' })} />
 
       {/* ── Credits gauge ──────────────────────────────────────────────────── */}
-      <button type="button" onClick={() => setDetail({ kind: 'credits', title: 'AI credits' })} className="card card-hover flex w-full flex-col p-[18px] text-left">
-        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">AI Credits</span>
+      <button type="button" onClick={() => setDetail({ kind: 'credits', title: 'Credits' })} className="card card-hover flex w-full flex-col p-[18px] text-left">
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Credits</span>
         <div className="grid flex-1 place-items-center py-3">
           <Gauge used={used} max={max} />
         </div>

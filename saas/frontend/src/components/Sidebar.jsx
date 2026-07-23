@@ -162,7 +162,7 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
       {/* Credits — the mockup's .sb-credits block. Same numbers CreditMeter shows. */}
       <Link to="/usage" data-tour="credits" className="dm-sb-credits !mt-1" onClick={onNavigate}>
         <div className="mb-2 flex justify-between text-[11px] font-semibold text-muted">
-          <span>AI Credits</span>
+          <span>Credits</span>
           <b className={low ? 'text-warn' : 'text-heading'}>{total.toLocaleString()} left</b>
         </div>
         <div className="dm-sb-bar"><i style={{ width: `${pct}%` }} /></div>
