@@ -30,6 +30,18 @@ describe('adapters → upstream request shapes', () => {
     expect(r.type).toBe('pillar_framework');
     expect(r.objectives).toEqual(['Brand authority']);
   });
+  // A caller that sends only `input` (Monty, a schedule, the raw API) used to
+  // blank every context field, and the upstream answered with a clarifying
+  // question instead of a framework.
+  it('pillars fills the commercial context from the form defaults', () => {
+    const r = ADAPTERS.pillars.request({ input: 'Digital marketing analytics SaaS for agencies' });
+    for (const k of ['business_model', 'audience_type', 'decision_complexity', 'risk_sensitivity', 'promotional_tolerance']) {
+      expect(r[k], k).toBeTruthy();
+    }
+    expect(r.objectives.length).toBe(1);
+    expect(r.platforms.length).toBe(1);
+    expect(r.additional_info).toBe('Digital marketing analytics SaaS for agencies');
+  });
   it('landing-audit shape', () => {
     expect(ADAPTERS['landing-audit'].request({ input: 'https://x', keyword: 'k' })).toMatchObject({ url: 'https://x', keyword: 'k', use_ai: true });
   });

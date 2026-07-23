@@ -10,6 +10,18 @@
 //
 // Tools without an adapter fall through to a raw pass-through.
 
+import { INPUTS } from '../../../shared/catalog.mjs';
+
+// The form seeds every select with its catalog default, but other callers don't:
+// Monty, a schedule and the raw API all send just `{ input }`. Mapping those
+// absent fields to '' blanks the upstream prompt's context block, and the model
+// then answers by ASKING for the missing brief instead of producing the report.
+// Fall back to the same default the form would have shown.
+const fieldDefault = (toolId, name) =>
+  (INPUTS[toolId] || []).find((f) => f.name === name)?.default ?? '';
+const withDefault = (body, toolId, name) =>
+  String(body[name] ?? '').trim() || fieldDefault(toolId, name);
+
 export const ADAPTERS = {
   // ── Caption Generator → aiOptimiser action 'luxury_copy' ────────────────
   // Mirrors the agency's _luxuryFields + buildLuxuryCopyPrompt() exactly.
@@ -62,13 +74,13 @@ export const ADAPTERS = {
   pillars: {
     request: (body) => ({
       type: 'pillar_framework',
-      business_model: (body.businessModel || '').trim(),
-      objectives: body.objectives ? [String(body.objectives).trim()] : [],
-      audience_type: (body.audienceType || '').trim(),
-      decision_complexity: (body.complexity || '').trim(),
-      platforms: body.platforms ? [String(body.platforms).trim()] : [],
-      risk_sensitivity: (body.sensitivity || '').trim(),
-      promotional_tolerance: (body.promoTolerance || '').trim(),
+      business_model: withDefault(body, 'pillars', 'businessModel'),
+      objectives: [withDefault(body, 'pillars', 'objectives')].filter(Boolean),
+      audience_type: withDefault(body, 'pillars', 'audienceType'),
+      decision_complexity: withDefault(body, 'pillars', 'complexity'),
+      platforms: [withDefault(body, 'pillars', 'platforms')].filter(Boolean),
+      risk_sensitivity: withDefault(body, 'pillars', 'sensitivity'),
+      promotional_tolerance: withDefault(body, 'pillars', 'promoTolerance'),
       reference_urls: {
         website: (body.website || '').trim(),
         brandGuide: (body.brandGuide || '').trim(),
