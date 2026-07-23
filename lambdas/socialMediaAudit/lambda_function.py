@@ -3906,10 +3906,16 @@ def _audience_breakdowns_for(proj, month):
             if token:
                 meta = _meta_resolve(proj, token)
                 if meta and meta.get('pageId'):
-                    bd = _fb_breakdowns(meta['pageId'], meta.get('pageToken') or token)
+                    why = {}
+                    bd = _fb_breakdowns(meta['pageId'], meta.get('pageToken') or token, why)
                     if bd:
                         out['facebook'] = {'breakdowns': bd,
                                            'asof': 'as of ' + datetime.now(timezone.utc).strftime('%d %b %Y')}
+                    elif why:
+                        # Not an outage — record WHY each metric came back empty so the
+                        # "Facebook has no demographics" claim stays evidence-backed.
+                        errors['facebook'] = '; '.join(
+                            '%s: %s' % (k, v) for k, v in sorted(why.items()))[:600]
     except Exception as e:
         errors['facebook'] = str(e)[:160]
     if errors:
@@ -6675,13 +6681,17 @@ _FB_FAN_METRICS = (
 _FB_GENDER = {'M': 'Men', 'F': 'Women', 'U': 'Unknown'}
 
 
-def _fb_fan_metric(page_id, token, metric):
+def _fb_fan_metric(page_id, token, metric, why=None):
     """One lifetime page_fans_* metric → sorted [{name,value}]. Returns [] when the
-    Page or the API version no longer serves it."""
+    Page or the API version no longer serves it, recording the reason in `why` so a
+    retired metric stays distinguishable from a permission or token problem —
+    otherwise every cause looks identical from the outside."""
     try:
         j = _meta_get('/' + page_id + '/insights', {
             'metric': metric, 'period': 'lifetime', 'access_token': token})
-    except Exception:
+    except Exception as e:
+        if why is not None:
+            why[metric] = str(e)[:200]
         return []
     rows = j.get('data') or []
     if not rows:
@@ -6704,13 +6714,15 @@ def _fb_fan_metric(page_id, token, metric):
     return sorted(out, key=lambda x: -x['value'])
 
 
-def _fb_breakdowns(page_id, token):
+def _fb_breakdowns(page_id, token, why=None):
     """Whatever page-level fan demographics this Page still serves."""
     out = {}
     for key, metric in _FB_FAN_METRICS:
-        rows = _fb_fan_metric(page_id, token, metric)
+        rows = _fb_fan_metric(page_id, token, metric, why)
         if rows:
             out[key] = rows[:10]
+        elif why is not None and metric not in why:
+            why[metric] = 'returned no data (accepted, but empty)'
     return out
 
 
