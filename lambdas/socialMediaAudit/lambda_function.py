@@ -2763,9 +2763,59 @@ def _compute_benchmark(brand, client_metrics, competitor_metrics):
             fmt.append({'name': name, 'is_brand': False, **cm})
 
     captions = [cap for m in brand_parts for cap in (m.get('captions') or [])]
-    return {'share_of_voice': sov, 'format_mix': fmt,
-            'word_cloud': _word_cloud(captions, brand),
-            'tracked_set': [e['name'] for e in entities]}
+    out = {'share_of_voice': sov, 'format_mix': fmt,
+           'word_cloud': _word_cloud(captions, brand),
+           'tracked_set': [e['name'] for e in entities]}
+    bp = _benchmark_by_platform(brand, client_metrics, competitor_metrics)
+    if bp:
+        out['by_platform'] = bp
+    return out
+
+
+def _benchmark_by_platform(brand, client_metrics, competitor_metrics):
+    """The same share-of-voice / format mix, computed WITHIN each platform.
+
+    The block above ranks every tracked account in one list, which silently
+    compares a Facebook Page against an Instagram profile — so an Instagram-only
+    report was reading a ranking led by a Facebook rival. That top-level block
+    stays (it is the correct all-platforms view); this adds the per-platform
+    split so a reader of the stored scorecard is not left to redo it."""
+    plats = set()
+    for p, m in (client_metrics or {}).items():
+        if m.get('found'):
+            plats.add(p)
+    for c in (competitor_metrics or []):
+        if c.get('platform') and c.get('followers') is not None:
+            plats.add(c.get('platform'))
+    out = {}
+    for plat in sorted(plats):
+        bm = (client_metrics or {}).get(plat)
+        ents = []
+        if bm and bm.get('found'):
+            ents.append(_entity_totals(brand, True, [bm]))
+        cs = [c for c in (competitor_metrics or [])
+              if c.get('platform') == plat and c.get('followers') is not None]
+        for c in cs:
+            ents.append(_entity_totals(c.get('name') or c.get('handle') or 'Competitor', False, [c]))
+        if len(ents) < 2:
+            continue          # nothing to compare against on this platform
+        fmt = []
+        if bm and bm.get('found'):
+            m = _mix_pct(_agg_mix([bm.get('content_mix')]))
+            if m:
+                fmt.append({'name': brand, 'is_brand': True, **m})
+        for c in cs:
+            m = _mix_pct(_agg_mix([c.get('content_mix')]))
+            if m:
+                fmt.append({'name': c.get('name') or c.get('handle') or '', 'is_brand': False, **m})
+        out[plat] = {
+            'share_of_voice': {'audience':   _sov(ents, 'followers'),
+                               'activity':   _sov(ents, 'posts'),
+                               'engagement': _sov(ents, 'engagement')},
+            'format_mix': fmt,
+            'tracked_set': [e['name'] for e in ents],
+        }
+    return out
 
 
 def _content_sentiment(brand, client_metrics):
