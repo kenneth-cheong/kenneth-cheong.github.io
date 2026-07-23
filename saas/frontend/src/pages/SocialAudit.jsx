@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -301,6 +301,53 @@ export default function SocialAudit() {
   // Prefill the website from the active project once it loads.
   useEffect(() => { if (!domain && active?.domain) setDomain(active.domain); /* eslint-disable-next-line */ }, [active]);
 
+  // Re-opening a saved run: /runs/:runId — where the "Social Audit finished"
+  // notification and the History rows point — hands off through ToolRunner,
+  // which redirects here with { values, result, runId }. Seed the form from the
+  // strategy inputs and re-render the saved report; the live scorecard comes
+  // back out of `live_social_data`, which the finalizer spliced into the inputs
+  // before saving. Nothing is re-run and nothing is charged.
+  const routeState = useLocation().state;
+  useEffect(() => {
+    const saved = routeState?.result;
+    if (!saved) return;
+    const v = routeState.values || {};
+    if (v.brand_name) setBrand(String(v.brand_name));
+    if (v.client_website) setDomain(String(v.client_website));
+    if (v.industry) setIndustry(String(v.industry));
+    if (v.target_audience) setAudience(String(v.target_audience));
+    if (v.campaign_goals) setGoals(String(v.campaign_goals));
+    if (v.content_calendars) setCalendars(String(v.content_calendars));
+    if (v.rfq_notes) setRfq(String(v.rfq_notes));
+    if (v.mode) setMode(String(v.mode));
+    if (v.social_profiles) {
+      // Stored as one "platform handle" line per selected profile.
+      const byKey = {};
+      for (const line of String(v.social_profiles).split('\n')) {
+        const [key, ...rest] = line.trim().split(/\s+/);
+        if (key && rest.length) byKey[key] = rest.join(' ');
+      }
+      if (Object.keys(byKey).length) {
+        setPlat(Object.fromEntries(SMA_PLATFORMS.map((p) => [p.key, { checked: !!byKey[p.key], handle: byKey[p.key] || '', source: '' }])));
+      }
+    }
+    setProText((s) => {
+      const next = { ...s };
+      for (const f of PRO_FIELDS) if (v[f.id]) next[f.id] = String(v[f.id]);
+      return next;
+    });
+
+    let scorecard = null;
+    if (v.live_social_data) { try { scorecard = JSON.parse(v.live_social_data); } catch { /* not re-renderable — the strategy report still is */ } }
+    if (!saved.sca) { setError("That result couldn't be re-opened — re-run the audit to see it again."); return; }
+    installSmaGlobals();
+    setError(''); setScaError(''); setEditingOut(false);
+    setScorecardHtml(scorecard ? renderSMAScorecard(scorecard) : null);
+    setScaHtml(renderSocialAudit(saved.sca));
+    setDoneJob({ scorecard, sca: saved.sca });
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }, [routeState]);
+
   // Guided tour: pre-fill a real asana.com worked example + render both result
   // scorecards on the page, then walk the form field-by-field; clear it all on
   // exit (Done, ✕, Esc or click-away) so the form is the user's to fill in.
@@ -340,7 +387,7 @@ export default function SocialAudit() {
 
   // First time a user opens this tool, auto-run its guided tour once.
   useEffect(() => {
-    if (!unlocked || hasSeen('tool:social-audit')) return;
+    if (!unlocked || routeState?.result || hasSeen('tool:social-audit')) return;
     const t = setTimeout(() => {
       if (hasSeen('tool:social-audit')) return;
       markSeen('tool:social-audit');

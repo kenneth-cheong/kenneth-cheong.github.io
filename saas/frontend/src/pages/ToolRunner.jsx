@@ -149,7 +149,12 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // route, not the generic runner — redirect if someone lands here directly.
   // (Embedded never gets a route tool — the card/palette navigate for those —
   // but if it somehow does, hand off to the page instead of rendering nothing.)
-  if (tool.route) { if (embedded) { onClose?.(); navigate(tool.route); return null; } return <Navigate to={tool.route} replace />; }
+  //
+  // Carry `location.state` across the hop: opening a saved run (/runs/:runId →
+  // OpenRun, which the "finished" notifications link at) hands off through here
+  // with { values, result, runId }, and dropping it on the redirect landed the
+  // user on an empty form with no output.
+  if (tool.route) { if (embedded) { onClose?.(); navigate(tool.route, { state: location.state }); return null; } return <Navigate to={tool.route} replace state={location.state} />; }
   const unlocked = tierMeets(user.tier, tool.minTier);
   // Fan-out aware, so per-keyword tools (rank-checker & friends) price the batch
   // the user actually typed rather than a flat unit.

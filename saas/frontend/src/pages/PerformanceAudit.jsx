@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -123,10 +123,53 @@ export default function PerformanceAudit() {
   useEffect(() => { installPmGlobals(); }, []);
   useEffect(() => { if (resultHtml) pmApplyInteractive(); }, [resultHtml]);
 
+  // Re-opening a saved run. A History row and the "Performance Marketing Audit
+  // finished" notification both go through /runs/:runId → ToolRunner, which
+  // redirects to this bespoke page carrying { values, result, runId }. Seed the
+  // form with the original inputs and render the saved audit — nothing is
+  // re-run and nothing is charged.
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state;
+    const saved = st?.result;
+    if (!saved) return;
+    const v = st.values || {};
+    const isPro = String(v.mode || '').toLowerCase() === 'pro';
+    setMode(isPro ? 'pro' : 'starter');
+    if (v.input) setWebsite(String(v.input));
+    if (v.category) setCategory(String(v.category));
+    if (v.country) setCountry(String(v.country));
+    if (v.products) setProducts(String(v.products));
+    if (v.audience) setAudience(String(v.audience));
+    if (v.currency) setCurrency(String(v.currency));
+    if (v.budget) setBudget(String(v.budget));
+    if (v.objectives) setObjectives(String(v.objectives));
+    if (v.competitors) setCompetitors(String(v.competitors));
+    if (v.rfqNotes) setRfqNotes(String(v.rfqNotes));
+    if (v.aiInstructions) setAiInstructions(String(v.aiInstructions));
+    if (Array.isArray(v.platforms)) {
+      const picked = new Set(v.platforms.map(String));
+      setPlatforms(Object.fromEntries(PLATFORMS.map((p) => [p, picked.has(p)])));
+    }
+    setPro((s) => {
+      const next = { ...s };
+      for (const f of [...PRO_FIELDS, ...PRO_EXPORT_FIELDS]) if (v[f.id]) next[f.id] = String(v[f.id]);
+      return next;
+    });
+
+    if (!saved.pm) { setError("That result couldn't be re-opened — re-run the audit to see it again."); return; }
+    installPmGlobals();
+    setError(''); setEditing(false);
+    setResultHtml(isPro ? renderPerfMarketingPro(saved.pm) : renderPerfMarketing(saved.pm));
+    setRanMode(isPro ? 'pro' : 'starter');
+    setLastRun({ runId: st.runId || null, out: pmShareOut(saved.pm, isPro ? 'pro' : 'starter') });
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }, [location.state]);
+
   function launchTour() { startPerfMarketingTour(TOOL); }
   // First visit: auto-run the guided tour once.
   useEffect(() => {
-    if (!unlocked || hasSeen('tool:perf-marketing')) return;
+    if (!unlocked || location.state?.result || hasSeen('tool:perf-marketing')) return;
     const t = setTimeout(() => { if (!hasSeen('tool:perf-marketing')) { markSeen('tool:perf-marketing'); startPerfMarketingTour(TOOL); } }, 500);
     return () => clearTimeout(t);
   }, [unlocked]);

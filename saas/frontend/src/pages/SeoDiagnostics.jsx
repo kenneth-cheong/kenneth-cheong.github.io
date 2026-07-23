@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { toolById, tierMeets, LOCATIONS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -80,13 +80,36 @@ export default function SeoDiagnostics() {
   const withBuckets = useMemo(() => keywords.map((k) => ({ ...k, bucket: bucketFor(k) })), [keywords]);
   const selectedCount = keywords.filter((k) => k._sel).length;
 
+  const routeState = useLocation().state;
+
   function launchTour() { startSeoDiagnosticsTour(TOOL); }
   // First visit: auto-run the guided tour once.
   useEffect(() => {
-    if (!unlocked || hasSeen('tool:seo-diagnostics')) return;
+    if (!unlocked || routeState?.result || hasSeen('tool:seo-diagnostics')) return;
     const t = setTimeout(() => { if (!hasSeen('tool:seo-diagnostics')) { markSeen('tool:seo-diagnostics'); startSeoDiagnosticsTour(TOOL); } }, 500);
     return () => clearTimeout(t);
   }, [unlocked]);
+
+  // Re-opening a saved run: /runs/:runId (what the "finished" notification and
+  // the History rows link at) hands off through ToolRunner, which redirects to
+  // this bespoke page with { values, result, runId }. Seed the wizard from the
+  // original inputs and jump straight to the diagnosis — nothing is re-run.
+  useEffect(() => {
+    const saved = routeState?.result;
+    if (!saved) return;
+    const v = routeState.values || {};
+    if (v.input) setDomain(String(v.input));
+    if (v.location) setLocation(String(v.location));
+    if (v.language) setLanguage(String(v.language));
+    if (v.mode) setMode(String(v.mode));
+    if (v.evidence) setEvidence(String(v.evidence));
+    if (Array.isArray(v.keywords)) setKeywords(v.keywords);
+    if (v.ga4) setGa4(String(v.ga4));
+    if (v.gsc) setGsc(String(v.gsc));
+    if (!saved.sections) { setError("That result couldn't be re-opened — re-run the diagnosis to see it again."); return; }
+    setError(''); setResult(saved); setRunId(routeState.runId || null); setStep(5);
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }, [routeState]);
 
   function loadKeywords() {
     const parsed = parseKeywordLines(kwText);
