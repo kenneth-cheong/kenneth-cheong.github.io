@@ -141,16 +141,19 @@ export default function Pricing() {
           const current = user.tier === id;
           const price = interval === 'annual' ? Math.round(p.priceMonthly * 0.8) : p.priceMonthly;
           return (
-            <div key={id} className={`card flex flex-col p-5 ${p.popular ? 'ring-2 ring-brand-500' : ''}`}>
+            <div key={id} className={`card flex flex-col p-5 ${current ? 'ring-2 ring-brand-500' : ''}`}>
               {/* The badge and the blurb both used to change the height of what
                   sits above the price, so the prices didn't line up across the
                   row. Reserve a badge slot on every card, and hold the blurb to
-                  two lines, so every price starts at the same offset. */}
+                  two lines, so every price starts at the same offset.
+                  Where you already are beats where the crowd is: the ring and
+                  badge mark the plan you're on, and MOST POPULAR only claims
+                  the badge slot on a card you aren't already sitting on. */}
               <span
-                aria-hidden={!p.popular}
-                className={`mb-2 w-fit rounded-full px-2 py-0.5 text-xs font-bold ${p.popular ? 'bg-brand-600 text-white' : 'invisible'}`}
+                aria-hidden={!current && !p.popular}
+                className={`mb-2 w-fit rounded-full px-2 py-0.5 text-xs font-bold ${current ? 'bg-brand-600 text-white' : p.popular ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' : 'invisible'}`}
               >
-                MOST POPULAR
+                {current ? 'YOUR PLAN' : 'MOST POPULAR'}
               </span>
               <h3 className="text-lg font-bold">{p.name}</h3>
               <p className="mt-1 min-h-[2.5rem] text-sm text-muted">{p.blurb}</p>
