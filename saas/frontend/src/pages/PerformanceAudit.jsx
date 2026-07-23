@@ -7,6 +7,7 @@ import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
+import ResultSections from '../components/ResultSections.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Microscope, ScanSearch, X, Plus, Pencil, Check, PlugZap, Compass } from 'lucide-react';
 import { renderPerfMarketing, renderPerfMarketingPro, installPmGlobals, pmApplyInteractive, PM_CURRENCIES } from '../lib/pmRender.js';
@@ -118,6 +119,10 @@ export default function PerformanceAudit() {
   const [ranMode, setRanMode] = useState(null);
   const [editing, setEditing] = useState(false);
   const [lastRun, setLastRun] = useState(null); // {runId, out} for share
+  // Runs saved before this page rendered bespoke `pm` HTML carry a generic
+  // `sections` payload instead; re-opening one falls back to the shared
+  // renderer rather than telling the user their result is gone.
+  const [savedSections, setSavedSections] = useState(null);
   const resultsRef = useRef(null);
 
   useEffect(() => { installPmGlobals(); }, []);
@@ -157,7 +162,15 @@ export default function PerformanceAudit() {
       return next;
     });
 
-    if (!saved.pm) { setError("That result couldn't be re-opened — re-run the audit to see it again."); return; }
+    if (!saved.pm) {
+      if (Array.isArray(saved.sections) && saved.sections.length) {
+        setError(''); setSavedSections(saved);
+        setLastRun({ runId: st.runId || null, out: { result: saved } });
+        setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+        return;
+      }
+      setError("That result couldn't be re-opened — re-run the audit to see it again."); return;
+    }
     installPmGlobals();
     setError(''); setEditing(false);
     setResultHtml(isPro ? renderPerfMarketingPro(saved.pm) : renderPerfMarketing(saved.pm));
@@ -234,7 +247,7 @@ export default function PerformanceAudit() {
       setError('Please fill in Website, Business category, Target audience, and Objectives.');
       return;
     }
-    setError(''); setBusy(true); setResultHtml(null); setEditing(false);
+    setError(''); setBusy(true); setResultHtml(null); setSavedSections(null); setEditing(false);
     try {
       // Extract any attached context files in the browser (reuses the shared
       // pdf.js / mammoth / XLSX extractor).
@@ -456,11 +469,13 @@ export default function PerformanceAudit() {
 
       {/* Results */}
       <div ref={resultsRef} className="mt-6 space-y-4">
-        {resultHtml && lastRun && (
+        {(resultHtml || savedSections) && lastRun && (
           <div className="dm-no-print flex justify-end gap-2">
-            <button type="button" onClick={() => setEditing((v) => !v)} className={SHARE_BTN}>
-              {editing ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit result</>}
-            </button>
+            {resultHtml && (
+              <button type="button" onClick={() => setEditing((v) => !v)} className={SHARE_BTN}>
+                {editing ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit result</>}
+              </button>
+            )}
             <PdfButton targetRef={resultsRef} className={SHARE_BTN} />
             {/* Shareable whenever we could distil headline numbers — the public
                 link is minted from that snapshot, so it doesn't need a saved run. */}
@@ -469,12 +484,15 @@ export default function PerformanceAudit() {
             )}
           </div>
         )}
-        {resultHtml && <PrintBrand title="Performance Marketing Audit" project={active} user={user} />}
+        {(resultHtml || savedSections) && <PrintBrand title="Performance Marketing Audit" project={active} user={user} />}
         {resultHtml && (
           <div contentEditable={editing} suppressContentEditableWarning
             className={editing ? 'rounded-lg outline outline-2 outline-brand-400 outline-offset-4' : ''}>
             <ReportHtml html={resultHtml} className="" />
           </div>
+        )}
+        {savedSections && (
+          <ResultSections sections={savedSections.sections} context={{ toolName: 'Performance Marketing Audit', domain: website, target: website }} />
         )}
       </div>
     </div>
