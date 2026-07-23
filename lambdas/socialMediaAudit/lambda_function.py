@@ -7426,7 +7426,11 @@ def _li_posts(oid, token, since, until):
             'shares': st.get('shares'), 'views': None,
             'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
-            'image': image, 'url': url}
+            'image': image, 'url': url,
+            # The URN is immutable. The public-scrape URL for the same post has a
+            # different shape (/posts/<slug>-activity-<id>) whose slug embeds the
+            # post's own text, so editing the post would move the key.
+            'post_id': pid}
         for k in ('impressions', 'reach', 'reactions', 'interactions', 'interaction_rate'):
             if st.get(k) is not None:
                 rec[k] = st[k]
@@ -7861,7 +7865,8 @@ def _tt_posts(token, since, until):
             'shares': _num(v.get('share_count')), 'views': _num(v.get('view_count')),
             'type': 'video', 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
-            'image': v.get('cover_image_url') or '', 'url': v.get('share_url') or ''})
+            'image': v.get('cover_image_url') or '', 'url': v.get('share_url') or '',
+            'post_id': str(v.get('id') or '')})     # stable key for tags/overrides
     return _meta_in_window(out, since, until)
 
 
