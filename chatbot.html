@@ -8526,28 +8526,53 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             console.log('[BOARD REGISTRY] Fetching all workspace boards...');
 
             try {
-                // In API version 2024-04+, the 'page' argument on the root boards query is removed.
-                // We'll use a single high-limit query to fetch boards efficiently.
-                const query = `{ boards (limit: 1000, state: active) { id name board_kind state } }`;
-                const res = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'get_monday_data', query })
-                });
+                // Monday returns boards newest-id-first, so a single limit:1000 call silently drops
+                // the oldest boards once an account passes 1,000 — and roughly half of what it does
+                // return is "Subitems of ..." boards that get discarded below, wasting the window.
+                // Page through instead, stopping on the first short page.
+                const PAGE_SIZE = 500;
+                const MAX_PAGES = 20; // backstop so a misbehaving API can't loop forever
+                const seen = new Set();
+                const boards = [];
+                let pagesFetched = 0;
+                let apiErrored = false;
 
-                const r = await res.json();
-                const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                for (let page = 1; page <= MAX_PAGES; page++) {
+                    const query = `{ boards (limit: ${PAGE_SIZE}, page: ${page}, state: active) { id name board_kind state } }`;
+                    const res = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'get_monday_data', query })
+                    });
 
-                if (mData.errors) {
-                    console.error('[BOARD REGISTRY] API Error:', mData.errors);
+                    const r = await res.json();
+                    const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+
+                    if (mData.errors) {
+                        console.error(`[BOARD REGISTRY] API Error on page ${page}:`, mData.errors);
+                        apiErrored = true;
+                    }
+
+                    const batch = mData.boards || [];
+                    pagesFetched++;
+                    batch.forEach(b => {
+                        if (b && b.id && !seen.has(b.id)) { seen.add(b.id); boards.push(b); }
+                    });
+                    if (batch.length < PAGE_SIZE) break;
                 }
 
-                const boards = mData.boards || [];
                 // Filter out sub-item boards and boards with 'Subitems' in name
                 const filtered = boards.filter(b => b.board_kind !== 'sub_items_board' && !(b.name || '').toLowerCase().includes('subitems'));
 
+                if (filtered.length === 0) {
+                    // Don't clobber a good registry with an empty result from a failed call.
+                    console.warn('[BOARD REGISTRY] No boards returned — keeping the previous registry.');
+                    return;
+                }
+
                 window.mondayBoardRegistry = filtered;
-                console.log(`[BOARD REGISTRY] Complete: ${filtered.length} active boards discovered (out of ${boards.length} total).`);
+                console.log(`[BOARD REGISTRY] Complete: ${filtered.length} active boards discovered (out of ${boards.length} total, ${pagesFetched} page(s)).`);
+                if (apiErrored) console.warn('[BOARD REGISTRY] One or more pages errored — the list may be incomplete.');
 
                 try {
                     localStorage.setItem('internal_board_registry_cache', JSON.stringify({
