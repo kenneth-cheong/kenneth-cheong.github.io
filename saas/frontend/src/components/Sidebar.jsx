@@ -36,7 +36,7 @@ const NAV_GROUPS = [
     // that one discipline (/tools?category=…), so you can go straight to the SEO
     // shelf without scrolling past everything else.
     { to: '/tools', label: 'Tools', icon: LayoutList, tour: 'tools', badge: TOOLS.length, subs: CATEGORIES },
-    { to: '/projects', label: 'Projects', icon: FolderKanban, tour: 'nav-/projects' },
+    { to: '/projects', label: 'Projects & Runs', icon: FolderKanban, tour: 'nav-/projects' },
     { to: '/schedules', label: 'Schedules', icon: CalendarClock, tour: 'nav-/schedules' },
   ] },
   { label: 'Setup', items: [
