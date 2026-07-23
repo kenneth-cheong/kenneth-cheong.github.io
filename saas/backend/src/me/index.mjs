@@ -2,6 +2,7 @@
 //   GET  /me           -> current user (tier, live credit balance, plan limits)
 //   GET  /me/usage     -> recent credit-ledger rows for the usage dashboard
 //   POST /me/username  -> claim / change the opt-in sign-in handle
+//   POST /me/password  -> set / change the account password (authed)
 //
 // /me/username lives here rather than next to /me/profile on AppFn because
 // AppFn's Lambda resource policy is at the hard 20KB ceiling — SAM adds a
@@ -15,6 +16,7 @@ import {
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, forbidden, serverError, claims, parseBody, isUsername, clampStr } from '../lib/http.mjs';
 import { isStaff, isAdmin, accountBlocked } from '../lib/admin.mjs';
+import { hashPassword, verifyPassword, isValidPassword, MIN_PASSWORD_LEN } from '../lib/password.mjs';
 
 export const handler = async (event) => {
   try {
@@ -65,6 +67,49 @@ export const handler = async (event) => {
       return ok({ username: desired });
     }
 
+    // ── Set / change the account password ───────────────────────────────────
+    // The signed-in counterpart to /auth/reset. Without this the only way to get
+    // a password is the login screen's "forgot" flow — which a Google-only user
+    // has to abuse to claim a password they never had, and which a user who
+    // simply wants to CHANGE a known password has to go through email for.
+    //
+    // Not gated on the passwordAuthEnabled setting, for the same reason the
+    // username claim isn't: handles and passwords must both be settable BEFORE
+    // an admin flips sign-in on, or the switch goes live with nobody able to use
+    // it. The setting gates the LOGIN path only.
+    //
+    // `currentPassword` is required only when one is already set. For an account
+    // that has none (Google sign-in), the bearer token IS the proof of identity —
+    // demanding a current password there would lock them out of the feature
+    // entirely. Changing an existing password always re-proves it, so a stolen
+    // session can't silently take the account over by swapping the password.
+    if (method === 'POST' && path.endsWith('/me/password')) {
+      const body = parseBody(event) || {};
+      const next = String(body.password || '');
+      if (!isValidPassword(next)) {
+        return badRequest(`Password must be at least ${MIN_PASSWORD_LEN} characters.`);
+      }
+      if (user.passwordHash) {
+        const current = String(body.currentPassword || '');
+        if (!current) return badRequest('Enter your current password.');
+        if (!verifyPassword(current, user.passwordHash)) {
+          return badRequest('That current password is not right.');
+        }
+        if (current === next) return badRequest('That is already your password.');
+      }
+      await putUser({
+        ...user,
+        passwordHash: hashPassword(next),
+        // Any outstanding emailed reset link dies here: the account holder has
+        // just proved themselves and set a password, so a link minted earlier
+        // (possibly by someone else fishing) must not still be redeemable.
+        pwReset: null,
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(JSON.stringify({ audit: 'me_password_set', userId: user.userId, replaced: !!user.passwordHash, at: new Date().toISOString() }));
+      return ok({ hasPassword: true });
+    }
+
     const plan = PLANS[user.tier];
     // Proactive-assistant config, admin-tuned (Admin → Assistant). Ship the master
     // switch + global caps, and only the ENABLED triggers so clients don't carry or
@@ -84,6 +129,13 @@ export const handler = async (event) => {
         email: user.email,
         // null until the user claims one — usernames are opt-in.
         username: user.username || null,
+        // Whether a password is set at all, so Account can offer "Set a password"
+        // to a Google-only account and "Change password" to everyone else. Never
+        // the hash itself. This matters for usernames specifically: a handle is
+        // only usable to sign in via the password form, so a Google user who
+        // claims one and has no password would otherwise get a handle that
+        // silently does nothing.
+        hasPassword: !!user.passwordHash,
         name: user.name,
         picture: user.picture,
         tier: user.tier,

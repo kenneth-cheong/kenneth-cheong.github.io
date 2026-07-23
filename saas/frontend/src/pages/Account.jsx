@@ -28,6 +28,9 @@ export default function Account() {
   const [emailBusy, setEmailBusy] = useState(false);
   const [uname, setUname] = useState(user.username || '');
   const [unameBusy, setUnameBusy] = useState(false);
+  const [curPw, setCurPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const plan = PLANS[user.tier];
@@ -82,6 +85,22 @@ export default function Account() {
       setUname(user.username || '');
     } finally {
       setUnameBusy(false);
+    }
+  }
+
+  async function savePassword(e) {
+    e.preventDefault();
+    setPwBusy(true);
+    try {
+      await api.savePassword(newPw, curPw);
+      await refresh(); // flips hasPassword, so the card re-reads as "Change"
+      setCurPw(''); setNewPw('');
+      toast(user.hasPassword ? 'Password changed.' : 'Password set — you can now sign in with it.', 'success');
+    } catch (err) {
+      // The backend owns the wrong-current-password / too-short wording.
+      toast(err?.payload?.error || err.message || 'Could not save password.', 'error');
+    } finally {
+      setPwBusy(false);
     }
   }
 
@@ -249,6 +268,51 @@ export default function Account() {
         <p id="uname-help" className="mt-2 text-xs text-faint">
           3–30 characters: letters, numbers, and . _ - — starting and ending with a letter or number.
         </p>
+        {/* Signing in with a handle goes through the password form, so a handle
+            on its own is inert for an account that has never set a password. Say
+            so here rather than letting them find out at the sign-in screen. */}
+        {!user.hasPassword && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            You’ll also need a password to sign in with a username — set one below.
+          </p>
+        )}
+      </form>
+
+      {/* ── Password ──────────────────────────────────────────────────────
+          Set (Google-only accounts have none) or change. The signed-in
+          counterpart to the login screen's "forgot password" flow, which is
+          otherwise the only way to get one. */}
+      <form className="card mt-4 p-5" onSubmit={savePassword}>
+        <h2 className="font-bold">Password</h2>
+        <p className="mt-1 text-sm text-muted">
+          {user.hasPassword
+            ? 'Change the password you use to sign in. Signing in with Google keeps working either way.'
+            : 'You sign in with Google, so there’s no password on this account yet. Set one to sign in with your email or username as well.'}
+        </p>
+        <div className="mt-4 flex flex-wrap items-start gap-3">
+          {user.hasPassword && (
+            <label className="min-w-[14rem] flex-1">
+              <span className="sr-only">Current password</span>
+              <input
+                type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)}
+                placeholder="Current password" className="field" autoComplete="current-password"
+                required
+              />
+            </label>
+          )}
+          <label className="min-w-[14rem] flex-1">
+            <span className="sr-only">New password</span>
+            <input
+              type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)}
+              placeholder={user.hasPassword ? 'New password' : 'Choose a password'} className="field"
+              autoComplete="new-password" minLength={8} required aria-describedby="pw-help"
+            />
+          </label>
+          <button type="submit" disabled={pwBusy || newPw.length < 8 || (user.hasPassword && !curPw)} className="btn-primary">
+            {pwBusy ? '…' : user.hasPassword ? 'Change' : 'Set password'}
+          </button>
+        </div>
+        <p id="pw-help" className="mt-2 text-xs text-faint">At least 8 characters.</p>
       </form>
 
       <div className="card mt-4 p-5">

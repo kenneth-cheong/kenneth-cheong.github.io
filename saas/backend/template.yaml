@@ -536,6 +536,10 @@ Resources:
         # policy is at the hard 20KB limit (SAM adds a statement per route), and
         # adding this one there failed the deploy at 20486/20480 bytes.
         Username: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/username, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        # Same reasoning as Username above — and the signed-in counterpart to the
+        # public /auth/reset, so a Google-only account can set a first password
+        # without going through "forgot password" for one it never had.
+        Password: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/password, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Share cards (authed): server-rendered branded PNG of a saved run ────
   # Rasterises the shared SVG generator with resvg-wasm + an embedded brand

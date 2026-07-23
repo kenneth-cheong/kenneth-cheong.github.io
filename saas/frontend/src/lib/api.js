@@ -216,6 +216,10 @@ export const api = {
   // Progressive-profiling answers; completing the whole profile pays a one-time bonus.
   saveProfile: (patch) => call('/me/profile', { method: 'POST', body: { patch } }),
   saveUsername: (username) => call('/me/username', { method: 'POST', body: { username } }),
+  // Set or change the password while signed in. `currentPassword` is required
+  // only when one is already set (user.hasPassword) — a Google-only account has
+  // none to re-prove.
+  savePassword: (password, currentPassword) => call('/me/password', { method: 'POST', body: { password, currentPassword } }),
   // Explorer breadth checklist: claim a completion reward ('core' | 'full'). The
   // server re-verifies completion and grants the credits at most once.
   claimExplorer: (milestone) => call('/me/explorer/claim', { method: 'POST', body: { milestone } }),
