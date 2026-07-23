@@ -23,13 +23,19 @@ export default function RunningChip() {
   if (!state.running || pathname === '/audit') return null;
 
   return (
+    // Shown at EVERY width. It was `hidden sm:inline-flex`, which is the reflex
+    // for a header nicety — but this is the only thing telling you a paid run is
+    // still alive, and being stuck watching it is worse on a small screen, not
+    // better. The label collapses below `sm` instead; the spinner and the tap
+    // target stay.
     <Link
       to="/audit"
-      className="hidden items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-2 pr-2.5 text-xs font-semibold text-brand-700 hover:border-brand-300 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300 sm:inline-flex"
+      className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700 hover:border-brand-300 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300 sm:pr-2.5"
       title="Your Site Health Check is still running — click to watch it finish"
+      aria-label="Site Health Check still running — open it"
     >
       <Loader2 size={13} className="animate-spin" aria-hidden />
-      Health check running
+      <span className="hidden sm:inline">Health check running</span>
     </Link>
   );
 }
