@@ -641,6 +641,7 @@ function shape(u) {
     userId: u.userId,
     email: u.email,
     name: u.name,
+    username: u.username || null,
     tier: u.tier,
     role: u.role || (isAdmin(u.email) ? 'staff' : 'client'),
     status: invited ? 'invited' : (u.status || 'active'),
@@ -649,14 +650,13 @@ function shape(u) {
     topupCredits: u.topupCredits || 0,
     creditsSpent: u.creditsSpentTotal || 0,
     hasSubscription: !!u.stripeCustomerId,
-    createdAt: u.createdAt,
-    lastLoginAt: u.lastLoginAt || null,
-    lastToolUseAt: u.lastToolUseAt || null,
-  };
-}
-    username: u.username || null,
     // Lifetime money paid to us, net of refunds. Null (not 0) when the account
     // has never been linked to Stripe, so the table can show "—" for accounts
     // that were never billable instead of an authoritative-looking $0.00.
     lifetimePaidUsd: u.stripeCustomerId ? Math.round(u.lifetimePaidCents || 0) / 100 : null,
     lifetimePaidCurrency: (u.lifetimePaidCurrency || 'usd').toUpperCase(),
+    createdAt: u.createdAt,
+    lastLoginAt: u.lastLoginAt || null,
+    lastToolUseAt: u.lastToolUseAt || null,
+  };
+}
