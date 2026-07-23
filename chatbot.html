@@ -4749,6 +4749,9 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="label-count" id="count-msBoardDropdown" style="font-size: 0.7rem; background: var(--dm-s-eff6ff); color: var(--dm-i-1e40af); padding: 2px 8px; border-radius: 10px; font-weight: 700;"></span>
                             <span id="syncRequiredBadge" style="display: none; font-size: 0.6rem; background: var(--dm-s-fff7ed); color: var(--dm-i-9a3412); border: 1px solid var(--dm-r-fed7aa); padding: 2px 8px; border-radius: 10px; font-weight: 700;"><i class="fas fa-clock"></i> Sync Required</span>
+                            <button type="button" id="boardRegistryRefreshBtn" onclick="refreshBoardRegistry()"
+                                title="Reload the board list from Monday.com (ignores the 1-hour cache)"
+                                style="border: 1px solid var(--dm-r-e2e8f0); background: transparent; color: var(--accent-blue); font-size: 0.7rem; line-height: 1; padding: 3px 7px; border-radius: 8px; cursor: pointer;"><i class="fas fa-sync-alt"></i></button>
                         </div>
                     </label>
                     <div style="display: flex; gap: 10px; align-items: center;">
@@ -8583,6 +8586,26 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
             // Fetch fresh if no valid cache
             fetchAllWorkspaceBoards();
+        }
+
+        // Manual refresh: drop the 1-hour cache and re-read the board list from Monday.
+        async function refreshBoardRegistry() {
+            const btn = document.getElementById('boardRegistryRefreshBtn');
+            const icon = btn ? btn.querySelector('i') : null;
+            if (btn) btn.disabled = true;
+            if (icon) icon.classList.add('fa-spin');
+            try {
+                localStorage.removeItem('internal_board_registry_cache');
+            } catch (e) {
+                console.warn('[BOARD REGISTRY] Cache clear failed:', e);
+            }
+            try {
+                await fetchAllWorkspaceBoards();
+                if (btn) btn.title = `Board list refreshed — ${(window.mondayBoardRegistry || []).length} boards. Click to reload again.`;
+            } finally {
+                if (icon) icon.classList.remove('fa-spin');
+                if (btn) btn.disabled = false;
+            }
         }
 
         function updateBoardRegistryBadge() {
