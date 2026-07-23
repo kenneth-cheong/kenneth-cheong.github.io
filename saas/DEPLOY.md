@@ -238,8 +238,18 @@ CLI's local translator. The template already works around both — don't reintro
 Stripe Dashboard → Developers → Webhooks → **Add endpoint**:
 
 - URL: `<ApiUrl>/billing/webhook`
-- Events: `checkout.session.completed`, `invoice.paid`,
-  `customer.subscription.updated`, `customer.subscription.deleted`
+- Events: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`,
+  `customer.subscription.created`, `customer.subscription.updated`,
+  `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`
+- `customer.subscription.created` is the backstop for the tier grant. Without it
+  the whole upgrade rides on `invoice.paid` resolving a price, and when the
+  account's API version moved that price out from under us (July 2026) every new
+  subscriber was written back to Free with the Free allowance — a paid upgrade
+  that changed nothing. Subscribe to it.
+- Leave the endpoint's **API version** on the account default, but know that this
+  is what the payloads are rendered at — NOT the version the Stripe SDK pins for
+  our own calls. The two drift apart on a new account, and the symptom is silent:
+  fields go undefined rather than erroring. `billing/index.mjs` reads both shapes.
 - Copy the **Signing secret** (`whsec_…`) and write it to the Secrets Manager secret
   the template resolves (`digimetrics-saas/stripe-webhook-secret`):
 

@@ -27,6 +27,22 @@ export const CODE_RE = /^[A-Z0-9][A-Z0-9_-]{2,39}$/;
 export const DURATIONS = ['once', 'repeating', 'forever'];
 export const SCOPES = ['all', 'plans', 'topups'];
 
+// A code may also carry a free trial. Stripe has no trial field on a coupon or a
+// promotion code — trials belong to the subscription — so we keep the number of
+// days in the promotion code's metadata and hand it to Checkout at redemption.
+// That makes "who gets a trial" an explicit, per-campaign decision with an owner
+// and an audit trail, rather than a constant buried in a request body.
+export const MAX_TRIAL_DAYS = 365;
+
+export function parseTrialDays(value) {
+  if (value == null || value === '') return null;
+  const days = Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > MAX_TRIAL_DAYS) {
+    throw new Error(`Free trial must be a whole number of days between 1 and ${MAX_TRIAL_DAYS}.`);
+  }
+  return days;
+}
+
 // ── Product scoping ──────────────────────────────────────────────────────────
 // Prices live in env (PRICE_<TIER>_<INTERVAL>, PRICE_TOPUP_<PACK>); coupons scope
 // by PRODUCT. Resolve one from the other, and cache — the set only changes on a
@@ -133,6 +149,9 @@ export function normalizePromo(pc, scope = 'all') {
     expiresAt: pc.expires_at ?? null,
     firstTimeOnly: !!pc.restrictions?.first_time_transaction,
     minimumAmount: pc.restrictions?.minimum_amount ?? null,
+    // Metadata is a free-text bag — anything could be in here, including a value
+    // hand-typed in the Stripe dashboard. Coerce, don't trust.
+    trialDays: Number(pc.metadata?.trialDays) > 0 ? Math.floor(Number(pc.metadata.trialDays)) : null,
     created: pc.created,
   };
 }
@@ -200,6 +219,13 @@ export async function createPromo(input) {
     throw new Error('A repeating code needs a number of months.');
   }
   const scope = SCOPES.includes(input.scope) ? input.scope : 'all';
+  const trialDays = parseTrialDays(input.trialDays);
+  if (trialDays && scope === 'topups') {
+    // A top-up is a one-off charge; there is no subscription to put a trial on,
+    // so this combination would take the customer's money and silently drop the
+    // headline promise of the campaign.
+    throw new Error('A free trial needs a subscription — it can’t apply to a top-ups-only code.');
+  }
 
   const currency = (input.currency || process.env.BILLING_CURRENCY || 'usd').toLowerCase();
   const products = await productsForScope(scope);
@@ -229,7 +255,7 @@ export async function createPromo(input) {
       ...(input.maxRedemptions ? { max_redemptions: Math.round(Number(input.maxRedemptions)) } : {}),
       ...(input.expiresAt ? { expires_at: Math.round(Number(input.expiresAt)) } : {}),
       ...(Object.keys(restrictions).length ? { restrictions } : {}),
-      metadata: { createdBy: input.createdBy || '' },
+      metadata: { createdBy: input.createdBy || '', ...(trialDays ? { trialDays: String(trialDays) } : {}) },
     });
   } catch (e) {
     // The coupon is already live at this point. Leaving it behind on a duplicate

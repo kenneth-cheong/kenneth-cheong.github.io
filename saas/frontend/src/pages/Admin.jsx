@@ -1992,6 +1992,7 @@ function blankPromo() {
     code: '', name: '', kind: 'percent', value: '',
     duration: 'once', durationInMonths: '3', scope: 'all',
     maxRedemptions: '', expiresAt: '', firstTimeOnly: false, minimumAmount: '',
+    trialDays: '',
   };
 }
 
@@ -2031,6 +2032,7 @@ function AdminPromos() {
         expiresAt: form.expiresAt ? Math.floor(new Date(`${form.expiresAt}T23:59:59`).getTime() / 1000) : null,
         firstTimeOnly: form.firstTimeOnly,
         minimumAmount: form.minimumAmount ? Math.round(Number(form.minimumAmount) * 100) : null,
+        trialDays: form.trialDays ? Number(form.trialDays) : null,
       });
       setPromos((list) => [promo, ...(list || [])]);
       setForm(blankPromo());
@@ -2154,6 +2156,23 @@ function AdminPromos() {
               onChange={(e) => set({ minimumAmount: e.target.value })} placeholder={`${CURRENCY.symbol}0.00`} className="field mt-1" />
           </label>
 
+          <label className="text-sm">
+            <span className="font-medium">Free trial <span className="font-normal text-muted">(optional)</span></span>
+            <div className="mt-1 flex gap-2">
+              <input type="number" min="1" step="1" max="365" value={form.trialDays}
+                onChange={(e) => set({ trialDays: e.target.value })}
+                placeholder="No trial" disabled={form.scope === 'topups'}
+                className="field flex-1 disabled:opacity-60" />
+              <span className="self-center text-sm text-muted">days</span>
+            </div>
+            <span className="mt-1 block text-xs text-muted">
+              {form.scope === 'topups'
+                ? 'Top-ups are one-off purchases — there’s no subscription to put a trial on.'
+                : 'Card collected up front, first charge deferred. Applies to a NEW subscription only: an existing subscriber redeeming this on a plan switch gets the discount, not the trial.'}
+            </span>
+          </label>
+          <div className="hidden sm:block" aria-hidden />
+
           <label className="flex items-start gap-2 text-sm sm:col-span-2">
             <input type="checkbox" checked={form.firstTimeOnly} onChange={(e) => set({ firstTimeOnly: e.target.checked })} className="mt-0.5" />
             <span>
@@ -2192,6 +2211,7 @@ function AdminPromos() {
                     {p.code}
                     {p.firstTimeOnly && <span className="ml-2 rounded bg-sunken px-1.5 py-0.5 text-[10px] font-sans font-medium text-muted">NEW ONLY</span>}
                     {p.minimumAmount ? <span className="ml-2 rounded bg-sunken px-1.5 py-0.5 text-[10px] font-sans font-medium text-muted">MIN {fmtMoney(p.minimumAmount / 100, p.currency || CURRENCY.code)}</span> : null}
+                    {p.trialDays ? <span className="ml-2 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-sans font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">{p.trialDays}-DAY TRIAL</span> : null}
                   </td>
                   <td className="py-2 pr-3">{discountOf(p)}</td>
                   <td className="py-2 pr-3 text-muted">{scopeLabel(p.scope)}</td>

@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const calls = [];
 let subscriptions = [];
 let missingCustomer = false;
+let subStatus = 'active';
 
 const MISSING = Object.assign(new Error("No such customer: 'cus_dead'"), {
   code: 'resource_missing', param: 'customer',
@@ -24,7 +25,12 @@ vi.mock('stripe', () => ({
           if (missingCustomer) throw MISSING;
           return { data: subscriptions };
         },
-        update: async (id, args) => { calls.push(['subscriptions.update', id, args]); return { ...args, id, current_period_end: 1800000000 }; },
+        update: async (id, args) => {
+          calls.push(['subscriptions.update', id, args]);
+          // The period end comes back on the ITEM on current API versions; the
+          // handler reads either shape. `subStatus` drives the trial copy.
+          return { ...args, id, status: subStatus, items: { data: [{ id: 'si_1', current_period_end: 1800000000 }] } };
+        },
         cancel: async (id) => { calls.push(['subscriptions.cancel', id]); return { id, status: 'canceled' }; },
       };
       this.checkout = { sessions: { create: async (args) => { calls.push(['checkout.create', args]); if (missingCustomer) throw MISSING; return { url: 'https://stripe.test/session' }; } } };
@@ -67,7 +73,7 @@ const find = (name) => calls.find((c) => c[0] === name);
 
 beforeEach(() => {
   calls.length = 0; unlinked.length = 0;
-  missingCustomer = false;
+  missingCustomer = false; subStatus = 'active';
   user = { userId: 'u1', email: 'a@b.co', tier: 'pro', stripeCustomerId: 'cus_1' };
   subscriptions = [{ id: 'sub_1', status: 'active', items: { data: [{ id: 'si_1', price: { id: 'price_pro_m' } }] } }];
 });
@@ -157,6 +163,22 @@ describe('POST /billing/subscription/change', () => {
     subscriptions = [];
     const res = await __test.handleSubscriptionChange(ev({ tier: 'expert' }));
     expect(res.statusCode).toBe(400);
+  });
+
+  it('reports a trial switch as a trial, not as a proration', async () => {
+    // Upgrading mid-trial produces no proration at all — the trial has no charge
+    // to prorate against, so the first invoice is one clean line at the new
+    // price on the trial end date. The old response gave the UI no way to know
+    // that, so it promised every switcher a prorated bill.
+    subStatus = 'trialing';
+    const res = await __test.handleSubscriptionChange(ev({ tier: 'expert' }));
+    expect(bodyOf(res)).toMatchObject({ changed: true, tier: 'expert', trialing: true });
+    expect(bodyOf(res).effectiveAt).toBe(1800000000);
+  });
+
+  it('reports a live subscription as not trialing', async () => {
+    const res = await __test.handleSubscriptionChange(ev({ tier: 'expert' }));
+    expect(bodyOf(res).trialing).toBe(false);
   });
 });
 

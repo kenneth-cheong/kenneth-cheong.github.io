@@ -69,12 +69,45 @@ function priceId(tier, interval) {
   return process.env[`PRICE_${tier.toUpperCase()}_${interval.toUpperCase()}`];
 }
 function tierForPrice(id) {
+  if (!id) return null;
   for (const tier of Object.keys(PLANS)) {
     for (const interval of ['MONTHLY', 'ANNUAL']) {
       if (process.env[`PRICE_${tier.toUpperCase()}_${interval}`] === id) return tier;
     }
   }
   return null;
+}
+
+// ── Webhook payload shapes ───────────────────────────────────────────────────
+// Stripe renders webhook payloads at the ACCOUNT's default API version, which is
+// NOT the version this SDK pins for its own outbound calls. Moving billing to the
+// (freshly created, therefore 2025-versioned) Apsolute.ai account silently
+// reshaped every incoming event while our own API reads kept the old shape — so
+// nothing failed loudly, fields just went undefined.
+//
+// Two fields we depend on moved. Read both shapes: the old one for anything
+// still arriving on a legacy version, the new one for what the account sends now.
+
+// Invoice line: `line.price` is gone; the id sits under `pricing.price_details`.
+// This is what broke plan upgrades — the price fell out, so tierForPrice returned
+// null and every new subscriber was written back as Free.
+function priceIdFromLine(line) {
+  return line?.price?.id || line?.pricing?.price_details?.price || null;
+}
+
+// The subscription id an invoice belongs to: `invoice.subscription` is gone,
+// replaced by `parent.subscription_details.subscription`.
+function subscriptionIdFromInvoice(invoice) {
+  const direct = invoice?.subscription;
+  if (direct) return typeof direct === 'string' ? direct : direct.id;
+  return invoice?.parent?.subscription_details?.subscription
+    || invoice?.lines?.data?.[0]?.parent?.subscription_item_details?.subscription
+    || null;
+}
+
+// Period end: no longer on the subscription, only on each item.
+function periodEndOfSubscription(sub) {
+  return sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? null;
 }
 
 // ── Promo codes ──────────────────────────────────────────────────────────────
@@ -133,6 +166,10 @@ async function handlePromoValidate(event) {
     amountOff: promo.amountOff,
     duration: promo.duration,
     durationInMonths: promo.durationInMonths,
+    // Only meaningful on a first subscription — an existing subscriber switching
+    // plans is already past the point a trial could start, so the pricing page
+    // must not promise them one.
+    trialDays: user?.stripeCustomerId ? null : promo.trialDays,
     // Minor units, matching Stripe. null when we weren't asked about a
     // specific plan (the code box on a page with no selection yet).
     amountDue: base == null ? null : Math.max(0, promo.percentOff != null
@@ -214,18 +251,24 @@ async function handleCheckout(event) {
   // Stripe rejects `discounts` and `allow_promotion_codes` together, so it's
   // one or the other: pre-applied when they brought a code, the Stripe-hosted
   // field when they didn't.
-  let discounts;
+  let discounts, trialDays = null;
   if (promoCode) {
     const { pc, error } = await resolvePromo(promoCode, price, user);
     if (error) return badRequest(error);
     discounts = [{ promotion_code: pc.id }];
+    // A code can carry a free trial as well as (or instead of) a discount.
+    trialDays = normalizePromo(pc).trialDays;
   }
 
   const session = await createCheckoutSession(user, {
     mode: 'subscription',
     line_items: [{ price, quantity: 1 }],
     client_reference_id: user.userId,
-    subscription_data: { trial_period_days: tier === 'pro' ? 7 : undefined },
+    // Trials come from the redeemed code, and only from there. They used to be a
+    // hardcoded `tier === 'pro' ? 7 : undefined` — an offer nothing advertised,
+    // nothing configured and nothing recorded, which meant it could neither be
+    // withdrawn nor pointed at a campaign. Admin → Promo codes owns it now.
+    subscription_data: { trial_period_days: trialDays || undefined },
     success_url: `${process.env.APP_ORIGIN}/account?checkout=success`,
     cancel_url: `${process.env.APP_ORIGIN}/pricing?checkout=cancelled`,
     ...(discounts ? { discounts } : { allow_promotion_codes: true }),
@@ -372,6 +415,10 @@ async function handleSubscriptionChange(event) {
     const { pc, error } = await resolvePromo(promoCode, price, user);
     if (error) return badRequest(error);
     discounts = [{ promotion_code: pc.id }];
+    // A trial on the code is deliberately ignored here. This caller already has
+    // a live subscription; handing them a fresh trial would either zero out a
+    // period they've paid for or hand a free month to anyone who subscribes and
+    // immediately switches. The discount still applies.
   }
 
   try {
@@ -381,7 +428,7 @@ async function handleSubscriptionChange(event) {
     if (!item) return badRequest('No active subscription to change.');
     if (item.price?.id === price && !discounts) return ok({ changed: false, tier });
 
-    await stripe.subscriptions.update(sub.id, {
+    const updated = await stripe.subscriptions.update(sub.id, {
       items: [{ id: item.id, price }],
       // Bill the difference now rather than silently swallowing it.
       proration_behavior: 'create_prorations',
@@ -392,7 +439,15 @@ async function handleSubscriptionChange(event) {
       // strip a discount they already have.
       ...(discounts ? { discounts } : {}),
     });
-    return ok({ changed: true, tier, discounted: !!discounts });
+    // Whether Stripe actually prorated anything is the caller's to say out loud.
+    // A trial has no charge to prorate, so switching during one produces exactly
+    // one clean line at the new price on the trial end date — telling that user
+    // "your next invoice is prorated" describes a bill they will never receive.
+    return ok({
+      changed: true, tier, discounted: !!discounts,
+      trialing: updated.status === 'trialing',
+      effectiveAt: periodEndOfSubscription(updated),
+    });
   } catch (e) {
     return forgetStrandedCustomer(user, e);
   }
@@ -410,7 +465,10 @@ async function handleSubscriptionCancel(event) {
     if (!sub) return badRequest('No active subscription to cancel.');
     if (atPeriodEnd) {
       const updated = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
-      return ok({ cancelled: true, atPeriodEnd: true, endsAt: updated.current_period_end });
+      // Same API-version move as the invoice line: the period end lives on the
+      // item now, so reading only the subscription returned undefined and the
+      // "you keep access until…" confirmation had no date to show.
+      return ok({ cancelled: true, atPeriodEnd: true, endsAt: periodEndOfSubscription(updated) });
     }
     await stripe.subscriptions.cancel(sub.id);
     return ok({ cancelled: true, atPeriodEnd: false });
@@ -449,6 +507,13 @@ async function handleWebhook(event) {
       case 'invoice.payment_failed':
         await onPaymentFailed(stripeEvent.data.object);
         break;
+      // `created` as well as `updated`: the tier used to ride entirely on
+      // invoice.paid, so anything that stopped that one event from resolving a
+      // price left the subscriber on their old tier with no second chance. The
+      // subscription object carries the price in its own right — one more
+      // independent path to the same grant. (Requires the endpoint to be
+      // subscribed to customer.subscription.created; see DEPLOY.md.)
+      case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await onSubscriptionUpdated(stripeEvent.data.object);
         break;
@@ -506,6 +571,35 @@ async function onCheckoutComplete(session) {
   }
 }
 
+// Which plan did this invoice actually buy? The line's price is the answer when
+// we can read it; the subscription is the fallback when we can't.
+//
+// The old code ended this with `|| user.tier` and nothing else, which reads as a
+// harmless default but isn't: an unreadable price on a subscription_create meant
+// a customer who had just paid for Pro was written back as Free, on the Free
+// allowance, with the new period end — a paid upgrade that looks like it worked
+// and changes nothing. Falling back to what Stripe says they're subscribed to
+// keeps that from turning on one field's shape, and the error line means the
+// next shape change is visible instead of silent.
+async function tierForInvoice(invoice, user) {
+  const line = invoice.lines?.data?.[0];
+  const fromLine = tierForPrice(priceIdFromLine(line));
+  if (fromLine) return fromLine;
+
+  const subId = subscriptionIdFromInvoice(invoice);
+  if (subId) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(subId);
+      const fromSub = tierForPrice(sub.items?.data?.[0]?.price?.id);
+      if (fromSub) return fromSub;
+    } catch (e) {
+      console.error('invoice_tier_sub_lookup', subId, e.message);
+    }
+  }
+  console.error('invoice_tier_unresolved', invoice.id, invoice.billing_reason, priceIdFromLine(line));
+  return user.tier;
+}
+
 // Billing-cycle anchor: set tier + RESET the monthly credit allowance.
 async function onInvoicePaid(invoice) {
   // Only the cycle-anchoring invoices reset the allowance. Proration / one-off
@@ -515,8 +609,7 @@ async function onInvoicePaid(invoice) {
   if (reason && reason !== 'subscription_create' && reason !== 'subscription_cycle') return;
   const user = await getUserByStripeCustomer(invoice.customer);
   if (!user) return;
-  const price = invoice.lines?.data?.[0]?.price?.id;
-  const tier = tierForPrice(price) || user.tier;
+  const tier = await tierForInvoice(invoice, user);
   const plan = PLANS[tier];
   const periodEnd = invoice.lines?.data?.[0]?.period?.end
     ? new Date(invoice.lines.data[0].period.end * 1000).toISOString()
@@ -598,4 +691,6 @@ export const __test = {
   isMissingCustomer, activeSubscription, promoteNewCard,
   handlePaymentMethod, handleSubscriptionChange, handleSubscriptionCancel,
   handleCheckout, handleTopup, handlePromoValidate, resolvePromo,
+  onInvoicePaid, onSubscriptionUpdated, tierForInvoice,
+  priceIdFromLine, subscriptionIdFromInvoice, periodEndOfSubscription,
 };

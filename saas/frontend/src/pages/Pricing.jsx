@@ -58,10 +58,18 @@ export default function Pricing() {
       // it into.
       if (user.hasSubscription) {
         const res = await api.changePlan(tier, interval, applied);
+        // Say what actually happens to their money. On a trial nothing is
+        // prorated — there's no charge yet to prorate against — so the old
+        // blanket "your next invoice is prorated" promised a bill that never
+        // arrives and buried the one fact that matters: the plan is live now.
+        const when = res.effectiveAt
+          ? new Date(res.effectiveAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+          : null;
+        const billing = res.trialing
+          ? `Your trial continues${when ? ` — first invoice on ${when}` : ''}.`
+          : 'Your next invoice is prorated.';
         toast(
-          res.discounted
-            ? `Switched to ${PLANS[tier].name} with ${applied} applied. Your next invoice is prorated.`
-            : `Switched to ${PLANS[tier].name}. Your next invoice is prorated.`,
+          `${PLANS[tier].name} is active${res.discounted ? ` with ${applied} applied` : ''}. ${billing}`,
           'success',
         );
         await refresh();
@@ -90,7 +98,10 @@ export default function Pricing() {
     `${promo.percentOff != null ? `${promo.percentOff}% off` : `${CURRENCY.symbol}${(promo.amountOff / 100).toFixed(2)} off`}`
     + (promo.duration === 'repeating' ? ` for ${promo.durationInMonths} months`
       : promo.duration === 'forever' ? ', for as long as you subscribe'
-      : ' on your first invoice');
+      : ' on your first invoice')
+    // A trial is the most valuable thing a code can carry, so say it out loud
+    // rather than letting the buyer discover it on Stripe's page — or never.
+    + (promo.trialDays ? `, after a ${promo.trialDays}-day free trial` : '');
 
   return (
     <div>

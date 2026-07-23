@@ -179,6 +179,87 @@ describe('POST /billing/checkout with a code', () => {
   });
 });
 
+describe('a free trial carried on the code', () => {
+  it('is the ONLY way a checkout gets a trial', async () => {
+    // Pro used to get a hardcoded 7 days that nothing advertised and nobody
+    // could switch off. No code → no trial, whatever the tier.
+    for (const tier of ['pro', 'expert']) {
+      calls.length = 0;
+      await __test.handleCheckout(ev({ tier }));
+      expect(find('checkout.create')[1].subscription_data.trial_period_days).toBeUndefined();
+    }
+  });
+
+  it('passes the code’s trial days to Checkout', async () => {
+    promotionCodes = [promo({ metadata: { trialDays: '14' } })];
+    await __test.handleCheckout(ev({ tier: 'pro', promoCode: 'LAUNCH20' }));
+    const [, args] = find('checkout.create');
+    expect(args.subscription_data.trial_period_days).toBe(14);
+    // The discount still rides along — a code can carry both.
+    expect(args.discounts).toEqual([{ promotion_code: 'promo_1' }]);
+  });
+
+  it('ignores junk in the metadata rather than sending it to Stripe', async () => {
+    // Metadata is free text and editable in the Stripe dashboard.
+    for (const trialDays of ['banana', '0', '-5', '']) {
+      calls.length = 0;
+      promotionCodes = [promo({ metadata: { trialDays } })];
+      await __test.handleCheckout(ev({ tier: 'pro', promoCode: 'LAUNCH20' }));
+      expect(find('checkout.create')[1].subscription_data.trial_period_days).toBeUndefined();
+    }
+  });
+
+  it('never grants one on an in-place plan switch', async () => {
+    // An existing subscriber is past the point a trial can start; granting one
+    // would zero out a period they already paid for.
+    user.stripeCustomerId = 'cus_1';
+    promotionCodes = [promo({ metadata: { trialDays: '30' } })];
+    const res = await __test.handleSubscriptionChange(ev({ tier: 'expert', promoCode: 'LAUNCH20' }));
+    expect(res.statusCode).toBe(200);
+    const [, , args] = find('subscriptions.update');
+    expect(args.trial_end).toBeUndefined();
+    expect(args.trial_period_days).toBeUndefined();
+    expect(args.discounts).toEqual([{ promotion_code: 'promo_1' }]);
+  });
+
+  it('does not promise a trial to someone who already has a customer record', async () => {
+    user.stripeCustomerId = 'cus_1';
+    promotionCodes = [promo({ metadata: { trialDays: '14' } })];
+    const res = await __test.handlePromoValidate(ev({ code: 'LAUNCH20', tier: 'pro' }));
+    expect(bodyOf(res).trialDays).toBeNull();
+  });
+
+  it('advertises it to a genuinely new buyer', async () => {
+    promotionCodes = [promo({ metadata: { trialDays: '14' } })];
+    const res = await __test.handlePromoValidate(ev({ code: 'LAUNCH20', tier: 'pro' }));
+    expect(bodyOf(res)).toMatchObject({ valid: true, trialDays: 14 });
+  });
+});
+
+describe('createPromo with a trial', () => {
+  it('stores the days on the promotion code', async () => {
+    await createPromo({ code: 'TRY30', percentOff: 20, duration: 'once', scope: 'plans', trialDays: 30 });
+    expect(find('promotionCodes.create')[1].metadata.trialDays).toBe('30');
+  });
+
+  it('omits the key entirely when there is no trial', async () => {
+    await createPromo({ code: 'PLAIN', percentOff: 20, duration: 'once' });
+    expect(find('promotionCodes.create')[1].metadata.trialDays).toBeUndefined();
+  });
+
+  it('refuses a fractional, zero or absurd number of days', async () => {
+    for (const trialDays of [0, -1, 1.5, 400, 'soon']) {
+      await expect(createPromo({ code: 'BAD', percentOff: 20, duration: 'once', trialDays }))
+        .rejects.toThrow(/whole number of days/);
+    }
+  });
+
+  it('refuses a trial on a top-ups-only code — there is no subscription', async () => {
+    await expect(createPromo({ code: 'TOPUP', percentOff: 20, duration: 'once', scope: 'topups', trialDays: 7 }))
+      .rejects.toThrow(/needs a subscription/);
+  });
+});
+
 describe('POST /billing/topup', () => {
   it('offers a code field — credit packs are a purchase too', async () => {
     const res = await __test.handleTopup(ev({ packId: 'topup_s' }));
