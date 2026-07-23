@@ -691,6 +691,7 @@ Resources:
         PaymentMethod: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/payment-method, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         SubscriptionChange: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/subscription/change, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         SubscriptionCancel: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/subscription/cancel, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        PromoValidate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/promo/validate, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Webhook: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/webhook, Method: POST } }
 
   # ── In-app features (authed): chat, support, run history, integrations ──
@@ -987,8 +988,20 @@ Resources:
           AMPLIFY_APP_ID: !Ref AmplifyAppId
           AMPLIFY_DOMAIN: !Ref AmplifyDomain
           AMPLIFY_BRANCH: !Ref AmplifyBranch
-          # Finances balance sheet: read Stripe revenue (read-only list calls).
+          # Finances balance sheet reads Stripe revenue; the Promo Codes tab also
+          # creates coupons + promotion codes, so this is no longer read-only.
           STRIPE_SECRET_KEY: '{{resolve:secretsmanager:digimetrics-saas/stripe-secret-key:SecretString}}'
+          # Promo scoping ("plans only" / "top-ups only") resolves products from
+          # these price ids, so AdminFn needs the same set BillingFn has.
+          PRICE_STARTER_MONTHLY: !Sub '{{resolve:ssm:/saas/price/starter/monthly}}'
+          PRICE_STARTER_ANNUAL: !Sub '{{resolve:ssm:/saas/price/starter/annual}}'
+          PRICE_PRO_MONTHLY: !Sub '{{resolve:ssm:/saas/price/pro/monthly}}'
+          PRICE_PRO_ANNUAL: !Sub '{{resolve:ssm:/saas/price/pro/annual}}'
+          PRICE_EXPERT_MONTHLY: !Sub '{{resolve:ssm:/saas/price/expert/monthly}}'
+          PRICE_EXPERT_ANNUAL: !Sub '{{resolve:ssm:/saas/price/expert/annual}}'
+          PRICE_TOPUP_TOPUP_S: !Sub '{{resolve:ssm:/saas/price/topup/topup_s}}'
+          PRICE_TOPUP_TOPUP_M: !Sub '{{resolve:ssm:/saas/price/topup/topup_m}}'
+          PRICE_TOPUP_TOPUP_L: !Sub '{{resolve:ssm:/saas/price/topup/topup_l}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -1068,6 +1081,9 @@ Resources:
         PlatformLlmUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/llm-usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformToolCost: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/tool-cost, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Finances: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/finances, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PromosList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/promos, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PromoCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/promos, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        PromoArchive: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/promos/archive, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────
   # The topic (and email subscription) only exist when AlarmEmail is set; the

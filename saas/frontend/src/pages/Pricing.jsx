@@ -12,21 +12,62 @@ export default function Pricing() {
   const { user, refresh } = useAuth();
   const [interval, setInterval] = useState('monthly');
   const [busy, setBusy] = useState(null);
+  // A code entered here is checked against the plan the user is actually
+  // looking at, so `promo` is cleared whenever the interval changes — a code
+  // valid on monthly isn't necessarily valid on annual.
+  const [code, setCode] = useState('');
+  const [promo, setPromo] = useState(null);      // { percentOff, amountOff, ... }
+  const [promoErr, setPromoErr] = useState('');
+  const [checking, setChecking] = useState(false);
+
+  function setBilling(iv) {
+    setInterval(iv);
+    setPromo(null);
+    setPromoErr('');
+  }
+
+  // Validated against the most expensive plan we can price it on so the buyer
+  // gets a straight yes/no before picking a tier; the real discount is applied
+  // per-plan server-side at checkout.
+  async function applyCode(e) {
+    e?.preventDefault();
+    const entered = code.trim().toUpperCase();
+    if (!entered) return;
+    setChecking(true); setPromoErr('');
+    try {
+      const res = await api.validatePromo(entered, 'pro', interval);
+      if (res.valid) { setPromo(res); setPromoErr(''); }
+      else { setPromo(null); setPromoErr(res.error || 'That code isn’t valid.'); }
+    } catch (err) {
+      setPromo(null);
+      setPromoErr(err.message);
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function choose(tier) {
-    if (tier === 'free' || tier === user.tier) return;
+    if (tier === 'free' || (tier === user.tier && !promo)) return;
     setBusy(tier);
+    const applied = promo ? code.trim().toUpperCase() : undefined;
     try {
       // Already subscribed → switch the existing subscription in place so Stripe
       // prorates. Sending them through checkout again would open a SECOND
-      // subscription and bill them twice.
+      // subscription and bill them twice. This path never opens Checkout, so the
+      // code has to ride along on the request — there's no Stripe page to type
+      // it into.
       if (user.hasSubscription) {
-        await api.changePlan(tier, interval);
-        toast(`Switched to ${PLANS[tier].name}. Your next invoice is prorated.`, 'success');
+        const res = await api.changePlan(tier, interval, applied);
+        toast(
+          res.discounted
+            ? `Switched to ${PLANS[tier].name} with ${applied} applied. Your next invoice is prorated.`
+            : `Switched to ${PLANS[tier].name}. Your next invoice is prorated.`,
+          'success',
+        );
         await refresh();
         return;
       }
-      const { url } = await api.checkout(tier, interval);
+      const { url } = await api.checkout(tier, interval, applied);
       window.location.href = url;
     } catch (e) {
       toast(e.message, 'error');
@@ -34,6 +75,22 @@ export default function Pricing() {
       setBusy(null);
     }
   }
+
+  // What the card should show once a code is in play. Percentage discounts price
+  // every tier; a fixed amount off is shown as-is.
+  function discounted(price) {
+    if (!promo) return null;
+    const off = promo.percentOff != null
+      ? price * (promo.percentOff / 100)
+      : (promo.amountOff || 0) / 100;
+    return Math.max(0, Math.round((price - off) * 100) / 100);
+  }
+
+  const promoLabel = !promo ? '' :
+    `${promo.percentOff != null ? `${promo.percentOff}% off` : `${CURRENCY.symbol}${(promo.amountOff / 100).toFixed(2)} off`}`
+    + (promo.duration === 'repeating' ? ` for ${promo.durationInMonths} months`
+      : promo.duration === 'forever' ? ', for as long as you subscribe'
+      : ' on your first invoice');
 
   return (
     <div>
@@ -46,13 +103,36 @@ export default function Pricing() {
           {['monthly', 'annual'].map((iv) => (
             <button
               key={iv}
-              onClick={() => setInterval(iv)}
+              onClick={() => setBilling(iv)}
               className={`rounded-full px-4 py-1.5 capitalize ${interval === iv ? 'bg-surface shadow text-brand-700 dark:text-brand-300' : 'text-muted'}`}
             >
               {iv} {iv === 'annual' && <span className="text-green-600 dark:text-green-400">−20%</span>}
             </button>
           ))}
         </div>
+
+        {/* Codes work at Stripe's own checkout too, but a subscriber switching
+            plans never sees that page — and nobody should have to redirect to
+            find out whether their code is real. */}
+        <form onSubmit={applyCode} className="mt-4 flex items-start justify-center gap-2">
+          <div>
+            <label htmlFor="promo" className="sr-only">Promo code</label>
+            <input
+              id="promo"
+              value={code}
+              onChange={(e) => { setCode(e.target.value.toUpperCase()); setPromo(null); setPromoErr(''); }}
+              placeholder="Promo code"
+              autoComplete="off"
+              spellCheck={false}
+              className="field w-44 text-center uppercase tracking-wide"
+            />
+            {promoErr && <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{promoErr}</p>}
+            {promo && <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">{promo.code} applied — {promoLabel}.</p>}
+          </div>
+          <button type="submit" disabled={!code.trim() || checking} className="btn-ghost disabled:opacity-60">
+            {checking ? '…' : 'Apply'}
+          </button>
+        </form>
       </div>
 
       <div className="mt-8 grid gap-5 lg:grid-cols-4">
@@ -75,7 +155,14 @@ export default function Pricing() {
               <h3 className="text-lg font-bold">{p.name}</h3>
               <p className="mt-1 min-h-[2.5rem] text-sm text-muted">{p.blurb}</p>
               <div className="mt-4">
-                <span className="text-3xl font-bold">{CURRENCY.symbol}{price}</span>
+                {promo && id !== 'free' ? (
+                  <>
+                    <span className="text-sm text-muted line-through">{CURRENCY.symbol}{price}</span>{' '}
+                    <span className="text-3xl font-bold">{CURRENCY.symbol}{discounted(price)}</span>
+                  </>
+                ) : (
+                  <span className="text-3xl font-bold">{CURRENCY.symbol}{price}</span>
+                )}
                 <span className="text-sm text-muted">/mo</span>
               </div>
               <ul className="mt-4 flex-1 space-y-2 text-sm">
@@ -85,10 +172,13 @@ export default function Pricing() {
               </ul>
               <button
                 onClick={() => choose(id)}
-                disabled={current || busy === id || id === 'free'}
+                disabled={(current && !(promo && user.hasSubscription)) || busy === id || id === 'free'}
                 className={`mt-5 ${p.popular ? 'btn-primary' : 'btn-ghost'} w-full disabled:opacity-60`}
               >
-                {current ? 'Current plan' : id === 'free' ? 'Free forever' : busy === id ? '…' :
+                {/* With a code in hand, staying put is a real action — it applies
+                    the discount to the plan they're already on. */}
+                {current && promo && user.hasSubscription ? 'Apply to my plan'
+                  : current ? 'Current plan' : id === 'free' ? 'Free forever' : busy === id ? '…' :
                   tierRank(id) > tierRank(user.tier) ? `Upgrade to ${p.name}` : `Switch to ${p.name}`}
               </button>
             </div>

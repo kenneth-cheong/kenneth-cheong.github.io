@@ -1,8 +1,9 @@
 // Stripe billing:
-//   POST /billing/checkout   { tier, interval }  -> hosted Checkout URL  (authed)
+//   POST /billing/checkout   { tier, interval, promoCode? } -> Checkout URL (authed)
 //   POST /billing/portal                          -> Customer Portal URL  (authed)
 //   POST /billing/payment-method                  -> SETUP Checkout URL   (authed)
-//   POST /billing/subscription/change { tier, interval } -> switch in place (authed)
+//   POST /billing/promo/validate { code, tier?, interval? } -> price preview (authed)
+//   POST /billing/subscription/change { tier, interval, promoCode? } -> switch in place
 //   POST /billing/subscription/cancel { atPeriodEnd }    -> cancel         (authed)
 //   GET  /billing/invoices                        -> invoices + receipts  (authed)
 //   POST /billing/webhook                         -> Stripe events        (PUBLIC, signed)
@@ -17,6 +18,7 @@ import {
   setPastDue, debitTopupCredits, unlinkStripeCustomer,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
+import { findPromoByCode, promoProblem, appliesToProduct, normalizePromo } from '../lib/promos.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, json, parseBody, claims } from '../lib/http.mjs';
 import { rateLimit } from '../lib/ratelimit.mjs';
 
@@ -75,11 +77,73 @@ function tierForPrice(id) {
   return null;
 }
 
+// ── Promo codes ──────────────────────────────────────────────────────────────
+// Checkout has its own code field (allow_promotion_codes), but two of our three
+// paid surfaces don't go through it in a way the user can type into: the
+// in-place plan switch never opens Checkout at all, and a code entered on our
+// own pricing page should be validated before we bounce anyone to Stripe. Both
+// funnel through here.
+//
+// Resolve a typed code against the price being bought. Returns { pc } on
+// success or { error } with a message meant for the buyer's eyes.
+async function resolvePromo(code, priceId, user) {
+  const pc = await findPromoByCode(code);
+  if (!pc) return { error: 'That code isn’t valid.' };
+
+  let price = null;
+  try { price = await stripe.prices.retrieve(priceId); } catch { /* fall through unscoped */ }
+  const productId = typeof price?.product === 'string' ? price.product : price?.product?.id;
+  if (productId && !appliesToProduct(pc.coupon, productId)) {
+    return { error: 'That code doesn’t apply to this plan.' };
+  }
+
+  // "First-time customer" is the one restriction Stripe can't check for us
+  // outside Checkout — anyone with a Stripe customer id has already transacted.
+  const problem = promoProblem(pc, {
+    isExistingCustomer: !!user?.stripeCustomerId,
+    amount: price?.unit_amount ?? null,
+  });
+  return problem ? { error: problem } : { pc, price };
+}
+
+// Price preview for the code box on /pricing — tells the user what they'll
+// actually pay before they commit to a redirect or a plan switch.
+async function handlePromoValidate(event) {
+  const c = claims(event);
+  if (!c?.userId) return unauthorized();
+  const throttled = await billingThrottle(c.userId); if (throttled) return throttled;
+  const { code, tier, interval = 'monthly' } = parseBody(event);
+  const price = tier ? priceId(tier, interval) : null;
+  if (tier && !price) return badRequest('Unknown tier/interval');
+
+  const user = await getUser(c.userId);
+  const { pc, price: priceObj, error } = await resolvePromo(code, price, user);
+  if (error) return ok({ valid: false, error });
+
+  const promo = normalizePromo(pc);
+  const base = priceObj?.unit_amount ?? null;
+  return ok({
+    valid: true,
+    code: promo.code,
+    percentOff: promo.percentOff,
+    amountOff: promo.amountOff,
+    duration: promo.duration,
+    durationInMonths: promo.durationInMonths,
+    // Minor units, matching Stripe. null when we weren't asked about a
+    // specific plan (the code box on a page with no selection yet).
+    amountDue: base == null ? null : Math.max(0, promo.percentOff != null
+      ? Math.round(base * (1 - promo.percentOff / 100))
+      : base - (promo.amountOff || 0)),
+    baseAmount: base,
+  });
+}
+
 export const handler = async (event) => {
   const path = event.rawPath || event.requestContext?.http?.path || '';
   if (path.endsWith('/webhook')) return handleWebhook(event);
   if (path.endsWith('/checkout')) return handleCheckout(event);
   if (path.endsWith('/topup')) return handleTopup(event);
+  if (path.endsWith('/promo/validate')) return handlePromoValidate(event);
   if (path.endsWith('/portal')) return handlePortal(event);
   if (path.endsWith('/invoices')) return handleInvoices(event);
   if (path.endsWith('/payment-method')) return handlePaymentMethod(event);
@@ -135,11 +199,24 @@ async function handleCheckout(event) {
   const c = claims(event);
   if (!c?.userId) return unauthorized();
   const throttled = await billingThrottle(c.userId); if (throttled) return throttled;
-  const { tier, interval = 'monthly' } = parseBody(event);
+  const { tier, interval = 'monthly', promoCode } = parseBody(event);
   const price = priceId(tier, interval);
   if (!price) return badRequest('Unknown tier/interval');
 
   const user = await getUser(c.userId);
+
+  // A code typed on our pricing page is pre-applied so the buyer sees the
+  // discounted total on Stripe's page rather than having to retype it there.
+  // Stripe rejects `discounts` and `allow_promotion_codes` together, so it's
+  // one or the other: pre-applied when they brought a code, the Stripe-hosted
+  // field when they didn't.
+  let discounts;
+  if (promoCode) {
+    const { pc, error } = await resolvePromo(promoCode, price, user);
+    if (error) return badRequest(error);
+    discounts = [{ promotion_code: pc.id }];
+  }
+
   const session = await createCheckoutSession(user, {
     mode: 'subscription',
     line_items: [{ price, quantity: 1 }],
@@ -147,7 +224,7 @@ async function handleCheckout(event) {
     subscription_data: { trial_period_days: tier === 'pro' ? 7 : undefined },
     success_url: `${process.env.APP_ORIGIN}/account?checkout=success`,
     cancel_url: `${process.env.APP_ORIGIN}/pricing?checkout=cancelled`,
-    allow_promotion_codes: true,
+    ...(discounts ? { discounts } : { allow_promotion_codes: true }),
   });
   return ok({ url: session.url });
 }
@@ -172,6 +249,11 @@ async function handleTopup(event) {
     metadata: { type: 'topup', userId: user.userId, credits: String(pack.credits), packId },
     success_url: `${process.env.APP_ORIGIN}/account?topup=success`,
     cancel_url: `${process.env.APP_ORIGIN}/account?topup=cancelled`,
+    // Credit packs are a purchase like any other — without this there is no code
+    // field at all on the top-up checkout, so a codes-and-all promotion silently
+    // excludes them. The webhook grants credits off `metadata`, not the amount
+    // paid, so a discount never changes how many credits land.
+    allow_promotion_codes: true,
   });
   return ok({ url: session.url });
 }
@@ -270,19 +352,30 @@ async function handlePaymentMethod(event) {
 async function handleSubscriptionChange(event) {
   const { user, err } = await billingCaller(event);
   if (err) return err;
-  const { tier, interval = 'monthly' } = parseBody(event);
+  const { tier, interval = 'monthly', promoCode } = parseBody(event);
   // Downgrading to free is a cancellation, not a price swap — there is no free
   // price to move to.
   if (tier === 'free') return badRequest('To move to Free, cancel your subscription.');
   const price = priceId(tier, interval);
   if (!price) return badRequest('Unknown tier/interval');
 
+  // This path never opens Checkout, so a subscriber taking an upgrade offer had
+  // no way to redeem a code at all — the people most likely to use one.
+  // Validated here rather than trusted to Stripe: attaching over the API skips
+  // the restriction checks Checkout would have run.
+  let discounts;
+  if (promoCode) {
+    const { pc, error } = await resolvePromo(promoCode, price, user);
+    if (error) return badRequest(error);
+    discounts = [{ promotion_code: pc.id }];
+  }
+
   try {
     const sub = await activeSubscription(user.stripeCustomerId);
     if (!sub) return badRequest('No active subscription to change.');
     const item = sub.items?.data?.[0];
     if (!item) return badRequest('No active subscription to change.');
-    if (item.price?.id === price) return ok({ changed: false, tier });
+    if (item.price?.id === price && !discounts) return ok({ changed: false, tier });
 
     await stripe.subscriptions.update(sub.id, {
       items: [{ id: item.id, price }],
@@ -291,8 +384,11 @@ async function handleSubscriptionChange(event) {
       // A pending cancellation would otherwise survive the switch and cut them
       // off at period end on a plan they just paid to change to.
       cancel_at_period_end: false,
+      // Omitted entirely when there's no code: sending `discounts: []` would
+      // strip a discount they already have.
+      ...(discounts ? { discounts } : {}),
     });
-    return ok({ changed: true, tier });
+    return ok({ changed: true, tier, discounted: !!discounts });
   } catch (e) {
     return forgetStrandedCustomer(user, e);
   }
@@ -497,4 +593,5 @@ async function onChargeRefunded(charge) {
 export const __test = {
   isMissingCustomer, activeSubscription, promoteNewCard,
   handlePaymentMethod, handleSubscriptionChange, handleSubscriptionCancel,
+  handleCheckout, handleTopup, handlePromoValidate, resolvePromo,
 };

@@ -27,7 +27,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-line">
-        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['promos', 'Promo codes'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -42,7 +42,7 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'finances' ? <AdminFinances /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'promos' ? <AdminPromos /> : tab === 'finances' ? <AdminFinances /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
     </div>
   );
 }
@@ -1976,6 +1976,247 @@ const RANGE_PRESETS = [['1', '24h'], ['7', '7 days'], ['30', '30 days'], ['90', 
 // (Cost Explorer); COGS is an estimate from credits consumed, labelled as such.
 // The Airwallex switch is staged but NOT live (see shared/catalog.mjs) — the
 // processor behind these figures is Stripe, so the copy below must say Stripe.
+// ── Promo codes ──────────────────────────────────────────────────────────────
+// Create and retire discount codes without a Stripe dashboard login. Stripe owns
+// the objects (see backend/src/lib/promos.mjs), which is what keeps the discount
+// on the invoice and therefore honest in the Finances tab.
+//
+// Codes are IMMUTABLE once created — Stripe's rule, not ours. The only edit is
+// the on/off switch; changing the money means retiring a code and issuing a new
+// one, which the empty-form copy says out loud so nobody hunts for an edit
+// button that can't exist.
+const PROMO_SCOPES = [['all', 'Everything'], ['plans', 'Plans only'], ['topups', 'Credit top-ups only']];
+
+function blankPromo() {
+  return {
+    code: '', name: '', kind: 'percent', value: '',
+    duration: 'once', durationInMonths: '3', scope: 'all',
+    maxRedemptions: '', expiresAt: '', firstTimeOnly: false, minimumAmount: '',
+  };
+}
+
+function AdminPromos() {
+  const [promos, setPromos] = useState(null);   // null = loading, undefined = errored
+  const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  const [form, setForm] = useState(blankPromo());
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    setError('');
+    api.adminPromos()
+      .then((r) => setPromos(r.promos || []))
+      .catch((e) => { setError(e.message || 'Could not load promo codes.'); setPromos(undefined); });
+  };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  async function create(e) {
+    e.preventDefault();
+    setSaving(true); setError(''); setMsg('');
+    try {
+      const { promo } = await api.adminCreatePromo({
+        code: form.code.trim().toUpperCase(),
+        name: form.name.trim(),
+        // Stripe takes fixed amounts in minor units; the form asks for dollars.
+        percentOff: form.kind === 'percent' ? Number(form.value) : null,
+        amountOff: form.kind === 'amount' ? Math.round(Number(form.value) * 100) : null,
+        duration: form.duration,
+        durationInMonths: form.duration === 'repeating' ? Number(form.durationInMonths) : null,
+        scope: form.scope,
+        maxRedemptions: form.maxRedemptions ? Number(form.maxRedemptions) : null,
+        // A code should die at the END of its last day, not at midnight opening it.
+        expiresAt: form.expiresAt ? Math.floor(new Date(`${form.expiresAt}T23:59:59`).getTime() / 1000) : null,
+        firstTimeOnly: form.firstTimeOnly,
+        minimumAmount: form.minimumAmount ? Math.round(Number(form.minimumAmount) * 100) : null,
+      });
+      setPromos((list) => [promo, ...(list || [])]);
+      setForm(blankPromo());
+      setOpen(false);
+      setMsg(`${promo.code} is live.`);
+    } catch (err) {
+      setError(err.message || 'Could not create the promo code.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggle(promo) {
+    const reactivating = !promo.active;
+    if (!reactivating && !(await confirmDialog({
+      title: `Deactivate ${promo.code}`,
+      message: 'New redemptions stop immediately. Anyone already subscribed on this code keeps their discount — deactivating never raises a price someone has already been quoted.',
+      confirmText: 'Deactivate',
+    }))) return;
+    setError('');
+    try {
+      const { promo: updated } = await api.adminSetPromoActive(promo.id, reactivating);
+      setPromos((list) => list.map((p) => (p.id === updated.id ? updated : p)));
+      setMsg(`${updated.code} ${updated.active ? 'reactivated' : 'deactivated'}.`);
+    } catch (err) {
+      setError(err.message || 'Could not update the code.');
+    }
+  }
+
+  const discountOf = (p) => (p.percentOff != null ? `${p.percentOff}%` : fmtMoney((p.amountOff || 0) / 100, p.currency || CURRENCY.code))
+    + (p.duration === 'repeating' ? ` × ${p.durationInMonths} mo` : p.duration === 'forever' ? ', forever' : ', once');
+  const scopeLabel = (s) => (PROMO_SCOPES.find(([v]) => v === s)?.[1] || 'Custom (Stripe dashboard)');
+  const expiredLabel = (p) => (p.expiresAt ? new Date(p.expiresAt * 1000).toLocaleDateString() : '—');
+
+  return (
+    <div className="mt-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={() => setOpen((v) => !v)} className="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-sm">
+          <Plus size={14} /> New code
+        </button>
+        <button onClick={load} title="Refresh" className="btn-ghost ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm">
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
+        <Info size={13} className="mt-0.5 shrink-0" />
+        <span>
+          Codes are redeemable by anyone who has the string, at checkout and when an existing subscriber switches plans. Stripe holds them, so the discount shows on the invoice and in <b>Finances</b>. A code’s discount can’t be edited after it’s created — retire it and issue a new one.
+        </span>
+      </p>
+
+      {error && <div className="mt-4 rounded-lg bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
+      {msg && <div className="mt-4 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300">{msg}</div>}
+
+      {open && (
+        <form onSubmit={create} className="card mt-4 grid gap-4 p-5 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="font-medium">Code</span>
+            <input value={form.code} onChange={(e) => set({ code: e.target.value.toUpperCase() })}
+              placeholder="LAUNCH20" required autoComplete="off" spellCheck={false}
+              className="field mt-1 uppercase tracking-wide" />
+            <span className="mt-1 block text-xs text-muted">What the customer types. A–Z, 0–9, hyphen or underscore.</span>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">Internal name <span className="font-normal text-muted">(optional)</span></span>
+            <input value={form.name} onChange={(e) => set({ name: e.target.value })}
+              placeholder="July newsletter" className="field mt-1" />
+            <span className="mt-1 block text-xs text-muted">Shown on the Stripe invoice line. Defaults to the code.</span>
+          </label>
+
+          <label className="text-sm">
+            <span className="font-medium">Discount</span>
+            <div className="mt-1 flex gap-2">
+              <select value={form.kind} onChange={(e) => set({ kind: e.target.value })} className="field dm-select w-32">
+                <option value="percent">Percent</option>
+                <option value="amount">Fixed</option>
+              </select>
+              <input type="number" min="0" step={form.kind === 'percent' ? '1' : '0.01'}
+                max={form.kind === 'percent' ? '100' : undefined}
+                value={form.value} onChange={(e) => set({ value: e.target.value })}
+                placeholder={form.kind === 'percent' ? '20' : '10.00'} required className="field flex-1" />
+              <span className="self-center text-sm text-muted">{form.kind === 'percent' ? '%' : CURRENCY.code}</span>
+            </div>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">Lasts</span>
+            <div className="mt-1 flex gap-2">
+              <select value={form.duration} onChange={(e) => set({ duration: e.target.value })} className="field dm-select flex-1">
+                <option value="once">One invoice</option>
+                <option value="repeating">A number of months</option>
+                <option value="forever">For as long as they subscribe</option>
+              </select>
+              {form.duration === 'repeating' && (
+                <input type="number" min="1" step="1" value={form.durationInMonths}
+                  onChange={(e) => set({ durationInMonths: e.target.value })} required className="field w-24" />
+              )}
+            </div>
+            <span className="mt-1 block text-xs text-muted">Top-ups are one-off purchases, so anything past the first invoice only affects subscriptions.</span>
+          </label>
+
+          <label className="text-sm">
+            <span className="font-medium">Applies to</span>
+            <select value={form.scope} onChange={(e) => set({ scope: e.target.value })} className="field dm-select mt-1">
+              {PROMO_SCOPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">Max redemptions <span className="font-normal text-muted">(optional)</span></span>
+            <input type="number" min="1" step="1" value={form.maxRedemptions}
+              onChange={(e) => set({ maxRedemptions: e.target.value })} placeholder="Unlimited" className="field mt-1" />
+          </label>
+
+          <label className="text-sm">
+            <span className="font-medium">Expires <span className="font-normal text-muted">(optional)</span></span>
+            <input type="date" value={form.expiresAt} onChange={(e) => set({ expiresAt: e.target.value })} className="field mt-1" />
+            <span className="mt-1 block text-xs text-muted">Valid through the end of this day.</span>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">Minimum spend <span className="font-normal text-muted">(optional)</span></span>
+            <input type="number" min="0" step="0.01" value={form.minimumAmount}
+              onChange={(e) => set({ minimumAmount: e.target.value })} placeholder={`${CURRENCY.symbol}0.00`} className="field mt-1" />
+          </label>
+
+          <label className="flex items-start gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" checked={form.firstTimeOnly} onChange={(e) => set({ firstTimeOnly: e.target.checked })} className="mt-0.5" />
+            <span>
+              <span className="font-medium">New customers only</span>
+              <span className="block text-xs text-muted">Blocks anyone who has ever paid us — including existing subscribers trying to use it on a plan switch.</span>
+            </span>
+          </label>
+
+          <div className="flex items-center gap-2 sm:col-span-2">
+            <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">{saving ? 'Creating…' : 'Create code'}</button>
+            <button type="button" onClick={() => { setOpen(false); setForm(blankPromo()); }} className="btn-ghost">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {promos === null && <div className="mt-6 text-sm text-muted">Loading promo codes…</div>}
+      {promos?.length === 0 && <div className="mt-6 text-sm text-muted">No promo codes yet.</div>}
+      {promos?.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                <th className="py-2 pr-3">Code</th>
+                <th className="py-2 pr-3">Discount</th>
+                <th className="py-2 pr-3">Applies to</th>
+                <th className="py-2 pr-3">Redeemed</th>
+                <th className="py-2 pr-3">Expires</th>
+                <th className="py-2 pr-3">Status</th>
+                <th className="py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {promos.map((p) => (
+                <tr key={p.id} className="border-b border-line/60">
+                  <td className="py-2 pr-3 font-mono font-semibold">
+                    {p.code}
+                    {p.firstTimeOnly && <span className="ml-2 rounded bg-sunken px-1.5 py-0.5 text-[10px] font-sans font-medium text-muted">NEW ONLY</span>}
+                    {p.minimumAmount ? <span className="ml-2 rounded bg-sunken px-1.5 py-0.5 text-[10px] font-sans font-medium text-muted">MIN {fmtMoney(p.minimumAmount / 100, p.currency || CURRENCY.code)}</span> : null}
+                  </td>
+                  <td className="py-2 pr-3">{discountOf(p)}</td>
+                  <td className="py-2 pr-3 text-muted">{scopeLabel(p.scope)}</td>
+                  <td className="py-2 pr-3">{p.timesRedeemed}{p.maxRedemptions ? ` / ${p.maxRedemptions}` : ''}</td>
+                  <td className="py-2 pr-3 text-muted">{expiredLabel(p)}</td>
+                  <td className="py-2 pr-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.active ? 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300' : 'bg-sunken text-muted'}`}>
+                      {p.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right">
+                    <button onClick={() => toggle(p)} className="btn-ghost px-2.5 py-1 text-xs">
+                      {p.active ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminFinances() {
   const [days, setDays] = useState('30');
   const [custom, setCustom] = useState({ from: '', to: '' });

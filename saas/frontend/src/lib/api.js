@@ -252,13 +252,16 @@ export const api = {
     RUN_URL
       ? call('run/social-audit', { method: 'POST', body: payload, base: RUN_URL })
       : call('/run/social-audit', { method: 'POST', body: payload }),
-  checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
+  checkout: (tier, interval, promoCode) => call('/billing/checkout', { method: 'POST', body: { tier, interval, promoCode } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
+  // Price the code before we redirect (or switch a plan in place) — never
+  // resolves to a rejection for an invalid code, it answers { valid: false }.
+  validatePromo: (code, tier, interval) => call('/billing/promo/validate', { method: 'POST', body: { code, tier, interval } }),
   // "Manage billing" is these three routes rather than one redirect to Stripe's
   // hosted portal: cancelling and switching plans stay in the app, where we can
   // word them ourselves. api.portal() remains as the escape hatch.
   paymentMethod: () => call('/billing/payment-method', { method: 'POST' }),
-  changePlan: (tier, interval) => call('/billing/subscription/change', { method: 'POST', body: { tier, interval } }),
+  changePlan: (tier, interval, promoCode) => call('/billing/subscription/change', { method: 'POST', body: { tier, interval, promoCode } }),
   cancelPlan: (atPeriodEnd = true) => call('/billing/subscription/cancel', { method: 'POST', body: { atPeriodEnd } }),
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
@@ -421,6 +424,10 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/finances${qs ? `?${qs}` : ''}`);
   },
+  // Promo codes. Stripe holds them; these are staff-gated proxies.
+  adminPromos: () => call('/admin/promos'),
+  adminCreatePromo: (promo) => call('/admin/promos', { method: 'POST', body: promo }),
+  adminSetPromoActive: (id, active) => call('/admin/promos/archive', { method: 'POST', body: { id, active } }),
   // Product-email preference (Account toggle) + the public one-click unsubscribe.
   setEmailPrefs: (emailOptOut) => call('/me/email-prefs', { method: 'POST', body: { emailOptOut } }),
   unsubscribeEmail: (token) => call('/notify/unsubscribe', { method: 'POST', body: { token }, auth: false }),

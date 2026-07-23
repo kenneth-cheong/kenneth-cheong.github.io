@@ -5,6 +5,9 @@
 //                                            -> provision a client/staff account
 //   POST /admin/credits { userId, monthlyDelta?, topupDelta?, reason }
 //   POST /admin/tier    { userId, tier }     -> override tier + reset allowance
+//   GET  /admin/promos                       -> discount codes (from Stripe)
+//   POST /admin/promos { code, percentOff|amountOff, duration, scope, ... }
+//   POST /admin/promos/archive { id, active } -> deactivate / reactivate a code
 //   POST /admin/role    { userId, role }     -> promote/demote client <-> staff
 //                                            (promoting to staff requires a true
 //                                            admin — ADMIN_EMAILS — not just any staff)
@@ -41,6 +44,7 @@ import { PLANS, NDA_VERSION, TERMS_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { amplifyUsage, amplifyAccessLogs, toolSpendBySource, llmSpendByProvider, anthropicCostReport, anthropicUsageReport, deepseekBalance, toolCostBreakdown } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
+import { listPromos, createPromo, updatePromo } from '../lib/promos.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
 import { putBroadcastImage } from '../lib/s3.mjs';
@@ -166,6 +170,34 @@ export const handler = async (event) => {
     try {
       return ok(await saveTicketTemplate({ id, title, body: text, editorEmail: c.email }));
     } catch (e) { return badRequest(e.message || 'Could not save the template.'); }
+  }
+
+  // ── Promo codes ────────────────────────────────────────────────────────────
+  // Create/list/deactivate discount codes without anyone needing a Stripe
+  // dashboard login. Stripe holds the objects; see lib/promos.mjs for why.
+  if (method === 'GET' && path.endsWith('/admin/promos')) {
+    try {
+      return ok({ promos: await listPromos() });
+    } catch (e) {
+      console.error('promos_list', e.message);
+      return badRequest(e.message || 'Could not load promo codes.');
+    }
+  }
+  if (method === 'POST' && path.endsWith('/admin/promos/archive')) {
+    const pb = parseBody(event);
+    const id = clampStr(pb.id, 80).trim();
+    if (!id) return badRequest('Promo id is required.');
+    try {
+      // `active` is the only field Stripe lets us flip, so this doubles as the
+      // reactivate route.
+      return ok({ promo: await updatePromo(id, { active: !!pb.active }) });
+    } catch (e) { return badRequest(e.message || 'Could not update the promo code.'); }
+  }
+  if (method === 'POST' && path.endsWith('/admin/promos')) {
+    const pb = parseBody(event);
+    try {
+      return ok({ promo: await createPromo({ ...pb, code: clampStr(pb.code, 40), createdBy: c.email }) });
+    } catch (e) { return badRequest(e.message || 'Could not create the promo code.'); }
   }
 
   // ── Broadcast notifications ────────────────────────────────────────────────
