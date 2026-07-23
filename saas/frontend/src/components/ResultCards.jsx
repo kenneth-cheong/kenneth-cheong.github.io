@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, RefreshCw, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart } from 'lucide-react';
+import { Play, RefreshCw, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart, Plug } from 'lucide-react';
 import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
@@ -41,6 +41,13 @@ export default function ResultCards() {
   // half a refresh silently reverted to the older audit number on reload, which
   // reads as the refresh having done nothing.
   const [speed, setSpeed] = useState(null);
+
+  // GA4 is the one card here whose numbers come from a CONNECTED account. With
+  // no connection there's nothing to report, and the stored run is a setup
+  // prompt rather than a pull — rendering it landed four honest-looking zeros
+  // on the dashboard. Ask for the connection instead.
+  const ga4Connected = useIntegrationConnected('ga4');
+  const hasTraffic = ga4?.result?.summary?.sessions != null;
   const psRun = byTool['page-speed'];
   const psSum = psRun?.result?.summary;
   const psStored = psSum && psSum.pageSpeedMobile != null && (!audit || String(psRun.ts) > String(audit.ts))
@@ -56,7 +63,7 @@ export default function ResultCards() {
     : psStored ? { ...audit, ts: psStored.ts, target: psStored.target || audit.target }
     : audit;
 
-  if (loading) {
+  if (loading || ga4Connected === null) {
     return (
       <div className="dm-result-grid mt-4">
         {[0, 1, 2].map((i) => <div key={i} className="card h-52 animate-pulse opacity-60" />)}
@@ -170,8 +177,11 @@ export default function ResultCards() {
       </Card>
 
       {/* ── Traffic ─────────────────────────────────────────────────────── */}
-      <Card title="Traffic" toolId="ga4" run={ga4} icon={<LineChart size={15} aria-hidden />} chip="GA4">
-        {ga4?.result?.summary && (
+      <Card
+        title="Traffic" toolId="ga4" run={hasTraffic ? ga4 : null} icon={<LineChart size={15} aria-hidden />} chip="GA4"
+        empty={!ga4Connected && <ConnectState label="Google Analytics" />}
+      >
+        {hasTraffic && (
           <div className="grid grid-cols-2 gap-3 py-1">
             {[
               ['Sessions', ga4.result.summary.sessions],
@@ -200,8 +210,11 @@ export default function ResultCards() {
 // Without it the footer button just opens the card's own tool, which is right
 // for the heavyweight ones — but was badly wrong for Page speed, where it meant
 // a 50-credit forensic audit to refresh two numbers.
-function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, children }) {
-  const has = !!run?.result;
+//
+// `empty` replaces the default "No run yet" state — for a card whose blocker
+// isn't a missing run but a missing connection.
+function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, empty, children }) {
+  const has = !!run?.result && !empty;
   const navigate = useNavigate();
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -285,7 +298,7 @@ function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, children }
             )}
           </div>
         </>
-      ) : (
+      ) : empty || (
         <div className="flex flex-1 flex-col items-center justify-center gap-2.5 py-6 text-center">
           <ShieldAlert size={20} className="text-faint" aria-hidden />
           <p className="text-[11px] text-muted">No run yet — run this once and it stays here.</p>
@@ -319,6 +332,40 @@ function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, children }
       </Modal>
     )}
     </>
+  );
+}
+
+// Is this integration linked? null while we're still asking. A failed lookup
+// assumes connected — same call as useIntegrationGate — so a blip can't tell
+// someone to connect an account they already have.
+function useIntegrationConnected(provider) {
+  const [connected, setConnected] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api.integrations()
+      .then((d) => { if (alive) setConnected(!!d.connected?.[provider]?.connected); })
+      .catch(() => { if (alive) setConnected(true); });
+    return () => { alive = false; };
+  }, [provider]);
+  return connected;
+}
+
+// The card's "you haven't linked this yet" state: the honest answer when the
+// numbers would otherwise all be zero.
+function ConnectState({ label }) {
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2.5 py-6 text-center">
+      <Plug size={20} className="text-faint" aria-hidden />
+      <p className="text-[11px] text-muted">{label} isn’t connected — link it to see your traffic here.</p>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); navigate('/integrations'); }}
+        className="btn-primary px-3 py-1.5 text-xs"
+      >
+        <Plug size={12} aria-hidden /> Connect {label}
+      </button>
+    </div>
   );
 }
 
