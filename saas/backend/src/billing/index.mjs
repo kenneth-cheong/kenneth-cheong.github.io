@@ -18,7 +18,7 @@ import {
   setPastDue, debitTopupCredits, unlinkStripeCustomer,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
-import { findPromoByCode, promoProblem, appliesToProduct, normalizePromo } from '../lib/promos.mjs';
+import { findPromoByCode, promoProblem, appliesToProduct, normalizePromo, hydrateCoupon } from '../lib/promos.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, json, parseBody, claims } from '../lib/http.mjs';
 import { rateLimit } from '../lib/ratelimit.mjs';
 
@@ -93,7 +93,11 @@ async function resolvePromo(code, priceId, user) {
   let price = null;
   try { price = await stripe.prices.retrieve(priceId); } catch { /* fall through unscoped */ }
   const productId = typeof price?.product === 'string' ? price.product : price?.product?.id;
-  if (productId && !appliesToProduct(pc.coupon, productId)) {
+  // hydrateCoupon, not pc.coupon: the coupon nested in a promotion_code lookup
+  // omits applies_to entirely, so a scoped code would read as unrestricted and
+  // a top-ups-only discount would land on a subscription.
+  const coupon = await hydrateCoupon(pc.coupon);
+  if (productId && !appliesToProduct(coupon, productId)) {
     return { error: 'That code doesn’t apply to this plan.' };
   }
 

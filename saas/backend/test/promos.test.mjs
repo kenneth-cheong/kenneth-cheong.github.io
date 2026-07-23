@@ -14,6 +14,8 @@ let promotionCodes = [];
 let priceProduct = { price_pro_m: 'prod_plan', price_expert_m: 'prod_plan_x', price_topup_s: 'prod_topup' };
 let subscriptions = [];
 let codeTaken = false;
+// Keyed by coupon id — what a direct coupons.retrieve would return.
+let couponRestrictions = {};
 
 vi.mock('stripe', () => ({
   default: class {
@@ -33,6 +35,14 @@ vi.mock('stripe', () => ({
       this.coupons = {
         create: async (args) => { calls.push(['coupons.create', args]); return { id: 'coupon_1', ...args }; },
         del: async (id) => { calls.push(['coupons.del', id]); return { id, deleted: true }; },
+        // applies_to comes back ONLY when explicitly expanded — that is the
+        // whole reason hydrateCoupon exists, so the double enforces it: ask
+        // without the expand and you get a coupon that looks unrestricted.
+        retrieve: async (id, opts) => {
+          calls.push(['coupons.retrieve', id, opts]);
+          const expanded = opts?.expand?.includes('applies_to');
+          return { id, ...(expanded ? (couponRestrictions[id] || {}) : {}) };
+        },
       };
       this.prices = {
         retrieve: async (id) => {
@@ -84,6 +94,7 @@ const promo = (over = {}) => ({
 
 beforeEach(() => {
   calls.length = 0;
+  couponRestrictions = {};
   user = { userId: 'u1', email: 'a@b.co', tier: 'pro', stripeCustomerId: null };
   promotionCodes = [promo()];
   subscriptions = [{ id: 'sub_1', status: 'active', items: { data: [{ id: 'si_1', price: { id: 'price_pro_m' } }] } }];
@@ -148,6 +159,21 @@ describe('POST /billing/checkout with a code', () => {
   it('refuses a top-ups-only code on a plan', async () => {
     promotionCodes = [promo({ coupon: { id: 'c_1', percent_off: 20, valid: true, applies_to: { products: ['prod_topup'] } } })];
     const res = await __test.handleCheckout(ev({ tier: 'pro', promoCode: 'LAUNCH20' }));
+    expect(res.statusCode).toBe(400);
+    expect(bodyOf(res).error).toMatch(/doesn’t apply/);
+  });
+
+  it('refuses it even when the lookup hid the restriction', async () => {
+    // The real failure: promotionCodes.list returns the coupon WITHOUT
+    // applies_to, so the scoped code reads as unrestricted and a top-ups-only
+    // discount silently lands on a subscription. Only a direct coupon read
+    // knows better.
+    // `applies_to: null` — how Stripe actually reports it on a nested coupon,
+    // scoped or not. Indistinguishable from "no restriction" without asking.
+    promotionCodes = [promo({ coupon: { id: 'c_scoped', percent_off: 20, valid: true, applies_to: null } })];
+    couponRestrictions = { c_scoped: { percent_off: 20, valid: true, applies_to: { products: ['prod_topup'] } } };
+    const res = await __test.handleCheckout(ev({ tier: 'pro', promoCode: 'LAUNCH20' }));
+    expect(find('coupons.retrieve')).toBeDefined();
     expect(res.statusCode).toBe(400);
     expect(bodyOf(res).error).toMatch(/doesn’t apply/);
   });

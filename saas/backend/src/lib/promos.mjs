@@ -65,6 +65,35 @@ async function productsForScope(scope) {
 }
 
 // The inverse, for display: which bucket does this coupon's applies_to match?
+// `applies_to` is NOT returned by default on a Coupon — not nested inside a
+// promotion_code, and not even on a direct retrieve. It has to be expanded
+// explicitly. Every caller below therefore hydrates before trusting the absence
+// of a restriction, because "no applies_to" and "not told about applies_to" are
+// the same shape and mean opposite things: the first is a code valid on
+// everything, the second is a scoped code we're about to wave through.
+//
+// Cached per coupon id for the life of the container; coupons are immutable, so
+// there is nothing to invalidate.
+const couponCache = new Map();
+
+export async function hydrateCoupon(coupon) {
+  if (!coupon?.id) return coupon;
+  // Only a populated applies_to is trustworthy — anything else means "nobody
+  // expanded it", not "unrestricted". The cache keeps this to one call per
+  // coupon per container.
+  if (coupon.applies_to?.products?.length) return coupon;
+  if (couponCache.has(coupon.id)) return couponCache.get(coupon.id);
+  let full;
+  try {
+    full = await stripe.coupons.retrieve(coupon.id, { expand: ['applies_to'] });
+  } catch (e) {
+    console.error('coupon_hydrate', coupon.id, e.message);
+    return coupon;                                 // fail open, as before
+  }
+  couponCache.set(coupon.id, full);
+  return full;
+}
+
 async function scopeOf(coupon) {
   const applies = coupon?.applies_to?.products;
   if (!applies?.length) return 'all';
@@ -111,9 +140,12 @@ export function normalizePromo(pc, scope = 'all') {
 export async function listPromos({ limit = 100 } = {}) {
   const res = await stripe.promotionCodes.list({ limit });
   // scopeOf hits the (cached) product map; resolve it once up front so the map
-  // is warm and the per-row calls are pure.
+  // is warm and the per-row calls only pay for their own coupon hydration.
   await productIds();
-  return Promise.all(res.data.map(async (pc) => normalizePromo(pc, await scopeOf(pc.coupon))));
+  return Promise.all(res.data.map(async (pc) => {
+    const coupon = await hydrateCoupon(pc.coupon);
+    return normalizePromo({ ...pc, coupon }, await scopeOf(coupon));
+  }));
 }
 
 // Look up a customer-typed code. Stripe's `code` filter is exact and
@@ -213,7 +245,8 @@ export async function createPromo(input) {
 // an archive-and-recreate, which the UI drives explicitly.
 export async function updatePromo(id, { active }) {
   const pc = await stripe.promotionCodes.update(id, { active: !!active });
-  return normalizePromo(pc, await scopeOf(pc.coupon));
+  const coupon = await hydrateCoupon(pc.coupon);
+  return normalizePromo({ ...pc, coupon }, await scopeOf(coupon));
 }
 
 // Archive, never delete. Deleting the coupon would strip the discount from every
