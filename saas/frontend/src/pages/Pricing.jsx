@@ -3,7 +3,7 @@ import { Check } from 'lucide-react';
 import { PLANS, tierRank, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
-import { toast } from '../lib/ui.js';
+import { toast, confirmDialog } from '../lib/ui.js';
 import TopupPacks from '../components/TopupPacks.jsx';
 
 const ORDER = ['free', 'starter', 'pro', 'expert'];
@@ -46,8 +46,34 @@ export default function Pricing() {
     }
   }
 
+  // Downgrading to Free means cancelling the paid subscription — there's no
+  // "Free subscription" to switch into. We cancel at period end so they keep
+  // what they've already paid for and simply lapse to Free when it runs out.
+  async function downgradeToFree() {
+    if (!user.hasSubscription) return; // nothing to cancel — already on Free
+    const ok = await confirmDialog({
+      title: 'Downgrade to Free',
+      message: `Cancel your ${PLANS[user.tier].name} plan? You'll keep it until the end of your current billing period, then move to the Free plan. Any credits you've already bought stay valid.`,
+      confirmText: 'Downgrade to Free',
+      cancelText: 'Keep my plan',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy('free');
+    try {
+      await api.cancelPlan(true); // at period end — they keep what they paid for
+      toast('Downgrading to Free — you keep your current plan until the end of the billing period.', 'success');
+      await refresh();
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function choose(tier) {
-    if (tier === 'free' || (tier === user.tier && !promo)) return;
+    if (tier === user.tier && !promo) return;
+    if (tier === 'free') return downgradeToFree();
     setBusy(tier);
     const applied = promo ? code.trim().toUpperCase() : undefined;
     try {
@@ -186,14 +212,17 @@ export default function Pricing() {
               </ul>
               <button
                 onClick={() => choose(id)}
-                disabled={(current && !(promo && user.hasSubscription)) || busy === id || id === 'free'}
+                disabled={(current && !(promo && user.hasSubscription)) || busy === id}
                 className={`mt-5 ${p.popular ? 'btn-primary' : 'btn-ghost'} w-full disabled:opacity-60`}
               >
                 {/* With a code in hand, staying put is a real action — it applies
-                    the discount to the plan they're already on. */}
+                    the discount to the plan they're already on. The Free card is
+                    only reachable by a paying subscriber, so there it's a
+                    downgrade — cancelling the current plan at period end. */}
                 {current && promo && user.hasSubscription ? 'Apply to my plan'
-                  : current ? 'Current plan' : id === 'free' ? 'Free forever' : busy === id ? '…' :
-                  tierRank(id) > tierRank(user.tier) ? `Upgrade to ${p.name}` : `Switch to ${p.name}`}
+                  : current ? 'Current plan' : busy === id ? '…'
+                  : id === 'free' ? 'Downgrade to Free'
+                  : tierRank(id) > tierRank(user.tier) ? `Upgrade to ${p.name}` : `Switch to ${p.name}`}
               </button>
             </div>
           );
