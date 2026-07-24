@@ -7,10 +7,24 @@ import { isStaff } from './admin.mjs';
 import { retrieveKb } from './kb.mjs';
 import { CREDIT_COSTS, CURRENCY, PLANS, TOOLS, TOPUP_PACKS, toolById, inputsFor, tabsFor, exampleFor } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
+import { connectorConfigured } from './integrations.mjs';
 
-export const TOOL_CATALOG = TOOLS
-  .map((t) => `${t.id} — ${t.name} [${t.minTier}, ${CREDIT_COSTS[t.cost] ?? 0}cr]: ${t.desc}`)
-  .join('\n');
+// An integration tool whose OAuth isn't wired up on this deployment can't be
+// run at all — the Integrations page shows that connector as "Coming soon"
+// (Meta and LinkedIn are pending platform approval). Recommending one sends the
+// user to a dead end, so flag it in the catalog and let the rule below tell the
+// assistant to say it's still being built. Reads the same signal the page does,
+// so each connector starts being recommended the moment it goes live.
+const notReady = (t) => !!t.integration && !connectorConfigured(t.integration);
+
+// Built per call rather than at import: the connector env vars decide it, and a
+// module-level const would freeze the answer for the life of the container.
+export function toolCatalog() {
+  return TOOLS
+    .map((t) => `${t.id} — ${t.name} [${t.minTier}, ${CREDIT_COSTS[t.cost] ?? 0}cr]: ${t.desc}`
+      + (notReady(t) ? ' ⚠️ NOT AVAILABLE YET — still being built, cannot be run or connected' : ''))
+    .join('\n');
+}
 
 // The behavioural rules + tool-recommendation + quick-action instructions.
 export const CHAT_RULES =
@@ -31,6 +45,12 @@ export const CHAT_RULES =
   'the user does not have to retype it. Use ids ONLY from the Tools list below (never invent one), prefer free/low-cost ' +
   'tools the user\'s tier can run, and don\'t write raw URLs or markdown links. Example: ' +
   '"To find low-competition keywords, try [[tool:keyword-analysis]]."\n\n' +
+  'NEVER RECOMMEND, LINK OR OFFER a tool marked "NOT AVAILABLE YET" in the Tools list, and never ' +
+  'suggest connecting that account — it does not work yet and the button would be a dead end. If the ' +
+  'user asks about one, say plainly that it is still being built and is not ready yet, give no ' +
+  'timeline or launch date, and offer what does work today (the Google connectors — Search Console, ' +
+  'GA4 and Google Ads — on the Integrations page) instead. If you already suggested it earlier in this ' +
+  'conversation, correct yourself.\n\n' +
   'QUICK ACTIONS (use sparingly, only when the user clearly wants to act): to add a keyword to their ' +
   'rank tracking, write [[action:track|<keyword>]]; if you cannot resolve their issue, offer ' +
   '[[action:ticket|<short subject>]] to open a support ticket. These render as confirm buttons. Never ' +
@@ -204,7 +224,7 @@ export async function buildChatSystem(user, query = '', pageContext = null) {
   const help = retrieveKb(`${query} ${tool?.name || ''}`.trim());
   return `${CHAT_RULES}\n\n` +
     (page ? `${page}\n\n` : '') +
-    `Tools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
+    `Tools you can recommend (id — name [min tier, credits]: what it does):\n${toolCatalog()}\n\n` +
     `HELP / KNOWLEDGE BASE (authoritative — use these facts for how-to & policy questions; don't invent):\n${help}\n\n` +
     `Here is everything known about this user (their own data — safe to share with them):\n${context}`;
 }
