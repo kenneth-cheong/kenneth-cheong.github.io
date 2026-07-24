@@ -480,7 +480,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       {/* Page chrome (back link, title, tour) — the modal supplies its own header. */}
       {!embedded && (
         <>
-          <Link to="/" className="text-sm text-muted hover:text-strong">← All tools</Link>
+          <Link to="/tools" className="text-sm text-muted hover:text-strong">← All tools</Link>
           <div className="mt-3 flex items-center gap-3">
             <h1 className="text-2xl font-bold">{tool.name}</h1>
             {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2.5 py-1 text-xs font-bold uppercase text-amber-700 dark:text-amber-300"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
