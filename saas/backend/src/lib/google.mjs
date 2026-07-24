@@ -593,9 +593,13 @@ export async function fetchIntegration(provider, conn, body) {
     if (res) return { ...res, source: 'live' };
   } catch (e) {
     console.warn('integration_live_fetch_failed', provider, e.message);
+    // Carry the reason up so the caller can tell a permission/property problem
+    // (403 — reconnecting won't help) apart from an expired token (401 — it
+    // will). Swallowing to bare null forced every failure into "reconnect".
+    return { _liveError: e.message };
   }
-  // No usable token, or the live pull failed → signal "not available" so the
-  // caller shows a connect gate. No seeded/demo fallback.
+  // No usable token, or the live pull returned nothing → signal "not available"
+  // so the caller shows a connect gate. No seeded/demo fallback.
   return null;
 }
 

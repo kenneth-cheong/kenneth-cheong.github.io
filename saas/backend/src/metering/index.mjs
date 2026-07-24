@@ -3804,8 +3804,22 @@ function connectReasonOf(message) {
   const m = String(message || '');
   if (/\bno (property|site|customer id|account|ad account)\b/i.test(m)) return 'account';
   if (/not connected/i.test(m)) return 'connect';
-  if (/invalid_grant|token (refresh|exchange)|unauthori[sz]ed|permission denied|\b(401|403)\b/i.test(m)) return 'reconnect';
+  // 401 / invalid_grant, or a message that explicitly says "reconnect" (e.g. the
+  // sitemap-write 403, where reconnecting upgrades the scope) = the token/grant
+  // is the problem → reconnecting fixes it.
+  if (/invalid_grant|token (refresh|exchange)|unauthori[sz]ed|reconnect|\b401\b/i.test(m)) return 'reconnect';
+  // A bare 403 / permission with no reconnect hint = signed in fine, but this
+  // account can't read THAT property/resource → reconnecting won't help; ask them
+  // to pick one they can access. (A bare-domain non-property GSC site 403s here.)
+  if (/permission denied|forbidden|insufficient permission|\b403\b/i.test(m)) return 'account';
   return null;
+}
+// The blurb that pairs with each connect reason — kept honest per reason so a
+// permission problem doesn't tell the user to "sign in again" (which never fixes it).
+function connectText(tool, reason) {
+  if (reason === 'account') return `Your ${tool.name} account can’t read that property — pick one you have access to and run again.`;
+  if (reason === 'connect') return `Connect your ${tool.name} account under Integrations to use this tool.`;
+  return `We couldn’t reach your ${tool.name} account — sign in again under Integrations to restore access.`;
 }
 async function integrationsRun(tool, body) {
   const conn = body._integrations?.[tool.integration];
@@ -3830,9 +3844,17 @@ async function integrationsRun(tool, body) {
     const reason = connectReasonOf(e?.message);
     if (!reason) throw e;
     console.log(JSON.stringify({ metric: 'integration_needs_connect', provider: tool.integration, reason, detail: String(e?.message || '').slice(0, 200) }));
-    return connectPrompt(tool, reason, `We couldn’t reach your ${tool.name} account — sign in again to restore access.`);
+    return connectPrompt(tool, reason, connectText(tool, reason));
   }
-  // No seeded fallback: if the live pull didn't return data, prompt a reconnect.
+  // The connector returns the failure reason (rather than throwing) so we can
+  // classify it: a 403/permission means "pick a property you can access", a
+  // 401/expired token means "reconnect" — different fixes, so don't conflate them.
+  if (live?._liveError) {
+    const reason = connectReasonOf(live._liveError) || 'reconnect';
+    console.log(JSON.stringify({ metric: 'integration_needs_connect', provider: tool.integration, reason, detail: String(live._liveError).slice(0, 200) }));
+    return connectPrompt(tool, reason, connectText(tool, reason));
+  }
+  // No seeded fallback: if the live pull returned no rows, prompt a reconnect.
   if (!live?.rows) {
     return connectPrompt(tool, 'reconnect', `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.`);
   }

@@ -82,6 +82,12 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   const siteDefault = (f) => {
     const dom = (active?.domain || '').trim();
     if (!dom) return '';
+    // Integration property pickers (GSC property URL, GA4 property id, Ads
+    // customer id) accept ONLY the connected account's exact values — the
+    // project's bare domain isn't one. Seeding it made the GSC tool pull a
+    // non-property like "mysite.com" and 403; leave these to their own account
+    // options (the backend falls back to the connected property when empty).
+    if (f.type === 'account') return '';
     const bare = dom.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     if (f.type === 'url') return /^https?:\/\//.test(dom) ? dom : `https://${bare}`;
     const looksSite = ['domain', 'website', 'target'].includes(f.name)

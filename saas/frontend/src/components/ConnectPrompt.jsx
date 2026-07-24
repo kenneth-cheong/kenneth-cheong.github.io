@@ -50,7 +50,10 @@ export function connectReasonFor(message) {
   const m = String(message || '');
   if (/\bno (property|site|customer id|account|ad account)\b/i.test(m)) return 'account';
   if (/not connected|connect your|reconnect/i.test(m)) return 'connect';
-  if (/invalid_grant|token (refresh|exchange)|unauthori[sz]ed|permission denied|\b(401|403)\b/i.test(m)) return 'reconnect';
+  // 401/expired token → reconnect; 403/permission → the account can't read that
+  // resource, so pick a different one (reconnecting won't help).
+  if (/invalid_grant|token (refresh|exchange)|unauthori[sz]ed|\b401\b/i.test(m)) return 'reconnect';
+  if (/permission denied|forbidden|insufficient permission|\b403\b/i.test(m)) return 'account';
   return null;
 }
 

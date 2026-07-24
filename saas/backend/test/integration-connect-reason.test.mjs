@@ -14,11 +14,22 @@ describe('connectReasonOf — connection failures must never read as faults', ()
     }
   });
 
-  it('reads "sign in again" out of the auth failures', () => {
+  it('reads "pick an account" out of a bare permission/403 (reconnecting cannot fix it)', () => {
+    // A 403 means signed-in-but-forbidden: the account can't read THAT property
+    // (e.g. a bare-domain value that isn't a verified GSC site). Telling the user
+    // to reconnect just loops them; the fix is picking a property they can access.
+    for (const m of ['gsc 403', 'sitemaps 403', 'permission denied', 'Forbidden', 'insufficient permission for site']) {
+      expect(connectReasonOf(m), m).toBe('account');
+    }
+  });
+
+  it('reads "sign in again" out of the auth failures (and the scope-upgrade reconnect)', () => {
     for (const m of [
-      'gsc 403', 'gsc 401', 'ga4 401', 'sitemaps 403', 'ads 401',
+      'gsc 401', 'ga4 401', 'ads 401',
       'token refresh 400', 'token exchange 400', 'invalid_grant',
-      'Unauthorized', 'unauthorised', 'permission denied',
+      'Unauthorized', 'unauthorised',
+      // Explicitly worded "reconnect" (sitemap write needs the full scope) — here
+      // reconnecting DOES fix it, so it stays a reconnect despite being a 403.
       'Permission denied — reconnect Google in Integrations to grant sitemap write access.',
     ]) {
       expect(connectReasonOf(m), m).toBe('reconnect');
