@@ -27,20 +27,47 @@ function costOf(tool) {
   return { credits: unit, label: `${unit} credit${unit > 1 ? 's' : ''}`, note: 'Charged once per run.' };
 }
 
+// Two things you can spend credits on that aren't tools, so they get no row in
+// the tables above: Monty's replies and the per-keyword rank backfill. Both used
+// to quote their own price at the point of spending; now that every tool surface
+// is quiet about cost, this page is the only place they're written down.
+const OTHER_CHARGES = [
+  {
+    id: 'ai_chat',
+    name: 'Monty (AI assistant)',
+    where: 'Chat drawer, “Ask Monty”, “How do I do this?”',
+    label: `${CREDIT_COSTS.ai_chat} per message`,
+    note: `${CREDIT_COSTS.ai_chat} credits for each reply Monty sends. Opening the drawer and re-reading past chats costs nothing.`,
+  },
+  {
+    id: 'rank_backfill',
+    name: 'Backfill ranking history',
+    where: 'Rankings → Backfill history',
+    label: `${CREDIT_COSTS.rank_backfill} per keyword`,
+    note: `${CREDIT_COSTS.rank_backfill} credits for each tracked keyword, and only for the ones we actually retrieve. Refreshing today’s positions is free.`,
+  },
+];
+
 export default function CreditGuide() {
   const { user } = useAuth();
   const [q, setQ] = useState('');
 
+  const needle = q.trim().toLowerCase();
+
   const groups = useMemo(() => {
-    const needle = q.trim().toLowerCase();
     const match = (t) =>
       !needle || (t.name + t.desc + (SIMPLE_NAMES[t.id]?.name || '')).toLowerCase().includes(needle);
     return CATEGORIES
       .map((c) => [c, TOOLS.filter((t) => t.category === c && match(t))])
       .filter(([, tools]) => tools.length > 0);
-  }, [q]);
+  }, [needle]);
 
-  const hits = groups.reduce((n, [, tools]) => n + tools.length, 0);
+  const other = useMemo(
+    () => OTHER_CHARGES.filter((o) => !needle || (o.name + o.where + o.note).toLowerCase().includes(needle)),
+    [needle],
+  );
+
+  const hits = groups.reduce((n, [, tools]) => n + tools.length, 0) + other.length;
   const allowance = PLANS[user.tier]?.monthlyCredits ?? 0;
 
   return (
@@ -79,7 +106,7 @@ export default function CreditGuide() {
         />
       </div>
 
-      {hits === 0 && <p className="py-12 text-center text-sm text-faint">No tools match “{q}”.</p>}
+      {hits === 0 && <p className="py-12 text-center text-sm text-faint">Nothing matches “{q}”.</p>}
 
       <div className="flex flex-col gap-8">
         {groups.map(([category, tools]) => (
@@ -125,6 +152,34 @@ export default function CreditGuide() {
             </div>
           </section>
         ))}
+        {other.length > 0 && (
+          <section>
+            <h2 className="mb-3 text-[11px] font-extrabold uppercase tracking-[0.14em] text-faint">Other charges</h2>
+            <div className="overflow-x-auto rounded-2xl border border-line bg-raised">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-[10px] font-bold uppercase tracking-wide text-muted">
+                    <th scope="col" className="px-4 py-2.5">What</th>
+                    <th scope="col" className="px-4 py-2.5 text-right">Approx. credits</th>
+                    <th scope="col" className="hidden px-4 py-2.5 sm:table-cell">How it's counted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {other.map((o) => (
+                    <tr key={o.id} className="border-b border-line last:border-0 align-top">
+                      <td className="px-4 py-2.5">
+                        <span className="font-semibold text-heading">{o.name}</span>
+                        <span className="block text-xs text-muted">{o.where}</span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-semibold text-heading">{o.label}</td>
+                      <td className="hidden px-4 py-2.5 text-xs text-muted sm:table-cell">{o.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </div>
 
       <p className="mt-8 max-w-2xl text-xs text-faint">
