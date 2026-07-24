@@ -418,20 +418,26 @@ const SAMPLE_RESULTS = {
     },
   },
 
+  // The old sample promised something this tool cannot produce: "122,574 brand
+  // mentions" and a per-engine breakdown including Google AI Overview and
+  // Gemini. aiVisibilityRun asks THREE models (AI_MODELS: GPT-4o, Claude,
+  // Perplexity) three prompts each and returns one row per prompt — nine data
+  // points, not six figures. Those numbers belong to the agency GEO dashboard.
+  //
+  // Real run for Asana in the US market (matching this file's other samples and
+  // the tour's own example values), 2026-07-24, through the same aiMentions
+  // upstream: the three brandPrompts() prompts × the three models, scored on the
+  // same fields (is_mentioned / visibility_score) and averaged by the same
+  // formula. 9 of 9 checks answered; overall mention rate 78%. The last row is
+  // the interesting one and it is not dressed up — asked for ALTERNATIVES to
+  // Asana, two of the three models never name Asana at all.
   'ai-mentions': {
     result: {
       source: 'live',
-      sections: [
-        stats('Brand mentions across AI engines · Asana', [
-          { label: 'Total mentions', value: '122,574', tone: 'green' },
-          { label: 'Avg position', value: '4.1', tone: 'green' },
-        ]),
-        list('Mentions by AI engine (last 30 days)', [
-          'Google AI Overview: 68,902',
-          'ChatGPT: 31,624',
-          'Gemini: 6,072',
-          'Perplexity: 411',
-        ]),
+      rows: [
+        { prompt: 'What is Asana and what do they offer?', 'GPT-4o': '✓ 85%', Claude: '✓ 85%', Perplexity: '✓ 85%', Avg: '85%' },
+        { prompt: 'Is Asana a good option in United States?', 'GPT-4o': '✓ 95%', Claude: '✓ 85%', Perplexity: '✓ 85%', Avg: '88%' },
+        { prompt: 'What are the best alternatives to Asana in United States?', 'GPT-4o': '✓ 50%', Claude: '✗', Perplexity: '✗', Avg: '17%' },
       ],
     },
   },
