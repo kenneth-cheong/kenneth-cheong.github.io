@@ -16,8 +16,8 @@ const GREETING = { role: 'assistant', content: "Hi! I'm Monty, your Digimetrics 
 
 // Assistant replies arrive as lightweight Markdown interleaved with our own
 // chip tokens; `renderMessage` turns both into React nodes. It lives in
-// lib/markdown.jsx because the same formatting now also renders inside tool
-// results (InlineAnswer) — see the notes there.
+// lib/markdown.jsx so every surface that shows assistant output shares one
+// renderer — see the notes there.
 
 // Animated "assistant is typing" indicator — three bouncing dots.
 function TypingDots() {

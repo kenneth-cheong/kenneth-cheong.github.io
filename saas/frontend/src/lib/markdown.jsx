@@ -2,10 +2,8 @@
 // numbered/bulleted lists, `code`, links, tables, rules, fenced code and
 // blockquotes) into React nodes.
 //
-// Lives here rather than inside ChatDrawer because assistant output is no
-// longer chat-only: "Do it for me" streams its answer into the tool result in
-// the main section (see InlineAnswer), and it has to be formatted identically
-// to the drawer — one renderer, one look.
+// Lives here rather than inside ChatDrawer so any surface that shows assistant
+// output formats it identically to the drawer — one renderer, one look.
 //
 // We render to elements (not dangerouslySetInnerHTML) so there's no
 // HTML-injection surface and the chat's chips stay real buttons.
@@ -59,8 +57,7 @@ function renderInline(text, chipFor, keyBase) {
 }
 
 // --- Tables -----------------------------------------------------------------
-// The drafts these answers produce ("Do it for me" on a recommendation) lean on
-// pipe tables and `---` rules constantly. Unrendered, a link-flow audit lands as
+// The answers Monty produces lean on pipe tables and `---` rules constantly. Unrendered, a link-flow audit lands as
 // a wall of `| Page | Purpose |` — technically the content, visibly a mess. So
 // the block grammar below covers what the model actually writes.
 

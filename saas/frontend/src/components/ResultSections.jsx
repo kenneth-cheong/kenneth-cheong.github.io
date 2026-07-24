@@ -67,7 +67,7 @@ function Section({ s, context }) {
       return <Block title={s.title}>{Array.isArray(s.series) ? <TrendChart series={s.series} /> : <LineChart data={s.data} />}</Block>;
     case 'cards':
       // Cards that carry a `body` are real recommendations/insights → give them
-      // the actionable card (How / Do it for me). Cards without a
+      // the actionable card ("How do I do this?"). Cards without a
       // body (ranked "opportunity" cards: lines + barPct + meta) stay plain.
       // Two or more actionable ones also get a bulk row above the list, so a
       // 12-issue report isn't 12 separate trips to the assistant.
