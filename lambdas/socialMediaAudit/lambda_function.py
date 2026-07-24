@@ -4887,62 +4887,111 @@ def report_recommend(body):
     }
     if not api_key:
         return {'recommendations_block': fallback, 'ai': False}
-    prompt = (
-        "You are a senior social media account manager writing the recommendations "
-        "section of a MONTHLY client report. Given the data (real metrics, this "
-        "month vs last month, the client's own tagged priority posts and competitor "
-        "benchmarks), write a concise, client-facing analysis, SPLIT PER PLATFORM. "
-        "Respond with STRICT JSON only, no prose, matching:\n"
-        '{"headline":"one punchy sentence on the month overall, across all platforms",'
-        '"platforms":[{"platform":"<platform key copied verbatim from the data>",'
-        '"wins":["2-3 concrete wins on THIS platform, cite the numbers/deltas"],'
-        '"concerns":["1-2 honest concerns or declines on THIS platform"],'
-        '"recommendations":[{"title":"...","detail":"1-2 sentences, specific & actionable","priority":"high|medium|low"}],'
-        '"next_month_focus":["1-3 priorities for THIS platform next month"]}]}\n'
-        "Emit exactly one `platforms` entry for EACH of these platforms, in this "
-        "order, copying the key verbatim: " + (', '.join(plat_keys) or '(none)') + ". "
-        "Never merge two platforms into one entry and never invent a platform that "
-        "is not in that list. Everything inside an entry must be about that "
-        "platform only — no cross-platform points, and no repeating the same "
-        "generic advice under every platform. Only the headline speaks to the "
-        "account as a whole.\n"
-        "HARD RULE: inside a platform's entry, do NOT name any OTHER platform — not "
-        "in a win, a concern, an action title/detail, or a focus point. No "
-        "'consolidate to LinkedIn', no 'repurpose this to Facebook', no 'pause "
-        "Instagram'. A reader on the TikTok tab must see TikTok advice and nothing "
-        "else; budget-shifting advice across channels belongs in the headline or "
-        "nowhere. Any point naming another platform will be discarded, so write the "
-        "same advice in terms of THIS platform instead.\n"
-        "Ground every point in the numbers. If tagged "
-        "posts are present, comment on what made them work and how to repeat it. "
-        "If `audience_breakdowns` is present, work in WHO the audience is (age, "
-        "gender, location, seniority) and HOW they discover the content (traffic "
-        "sources) — e.g. tailor content/timing to the dominant segment. "
-        "If `competitors` is present, explicitly compare the brand against them: "
-        "posting volume, reactions, comments, shares, total engagement and "
-        "engagement rate, plus share of voice where given. Only ever cite a "
-        "competitor under its OWN platform (an Instagram account and a Facebook "
-        "Page are not comparable), name who leads on what, and say what the brand "
-        "should copy or counter. Competitor reach and impressions are not obtainable for accounts "
-        "we don't own, so never claim or estimate them. "
-        "Keep it plain-English for a non-marketer client.\n\nDATA:\n"
-        + json.dumps(facts, default=str)[:24000]
-    )
-    try:
+
+    facts_json = json.dumps(facts, default=str)[:24000]
+
+    # One strict-JSON call that must emit wins/concerns/actions/focus for EVERY
+    # platform at once runs long: ~5000 output tokens across four platforms took
+    # ~23s, right on API Gateway's 29s ceiling, so busier clients tipped over it
+    # and the browser saw the bare 504 (no CORS on a gateway timeout) as a generic
+    # "Failed to fetch". The report block is already per-platform, so fan the work
+    # out — one small call per platform plus a tiny headline call, run
+    # concurrently. Each returns in a few seconds and the wall-clock is the
+    # slowest single platform, comfortably under the wall regardless of count.
+    def _rec_call(prompt, max_tokens):
         r = requests.post('https://api.anthropic.com/v1/messages',
                           headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
                                    'content-type': 'application/json'},
-                          # Four platforms' worth of wins/concerns/actions/focus is
-                          # roughly four times the old single block — at 1800 the
-                          # JSON was cut mid-object and every run fell back.
-                          json={'model': HAIKU_MODEL, 'max_tokens': 5000,
+                          json={'model': HAIKU_MODEL, 'max_tokens': max_tokens,
                                 'messages': [{'role': 'user', 'content': prompt}]},
-                          timeout=60)
+                          timeout=45)
         txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
                       if b.get('type') == 'text')
         txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
-        out = json.loads(txt)
-        out['platforms'] = _rec_platform_blocks(out.get('platforms'), plat_keys)
+        return json.loads(txt)
+
+    _persona = (
+        "You are a senior social media account manager writing the recommendations "
+        "section of a MONTHLY client report. Ground every point in the real numbers "
+        "(this month vs last month, tagged priority posts, competitor benchmarks), "
+        "keep it plain-English for a non-marketer client, and respond with STRICT "
+        "JSON only — no prose, no markdown fences.\n")
+    _shared = (
+        "If tagged posts are present, comment on what made them work and how to "
+        "repeat it. If `audience_breakdowns` is present, work in WHO the audience is "
+        "(age, gender, location, seniority) and HOW they discover the content "
+        "(traffic sources) — e.g. tailor content/timing to the dominant segment. "
+        "If `competitors` is present, compare the brand against them on posting "
+        "volume, reactions, comments, shares, total engagement and engagement rate, "
+        "plus share of voice where given — but only ever cite a competitor under "
+        "its OWN platform (an Instagram account and a Facebook Page are not "
+        "comparable), and since competitor reach and impressions aren't obtainable "
+        "for accounts we don't own, never claim or estimate them.\n")
+
+    def _platform_block(pk):
+        prompt = (_persona +
+            'Write the analysis for the "' + pk + '" platform ONLY. Respond with '
+            'STRICT JSON matching:\n'
+            '{"platform":"' + pk + '",'
+            '"wins":["2-3 concrete wins on this platform, cite the numbers/deltas"],'
+            '"concerns":["1-2 honest concerns or declines on this platform"],'
+            '"recommendations":[{"title":"...","detail":"1-2 sentences, specific & actionable","priority":"high|medium|low"}],'
+            '"next_month_focus":["1-3 priorities for this platform next month"]}\n'
+            "HARD RULE: every point must be about the " + pk + " platform only. Do "
+            "NOT name any OTHER platform in a win, concern, action or focus point — "
+            "no 'consolidate to LinkedIn', no 'repurpose this to Facebook', no "
+            "'pause Instagram'. Budget-shifting advice across channels belongs "
+            "nowhere here; phrase every point in terms of " + pk + " instead (any "
+            "point naming another platform is discarded). Don't repeat generic "
+            "advice — make it specific to this platform's numbers.\n"
+            + _shared + "\nDATA:\n" + facts_json)
+        try:
+            b = _rec_call(prompt, 1500)
+            if isinstance(b, dict):
+                b['platform'] = pk        # pin the key even if the model rephrased it
+                return b
+        except Exception:
+            pass
+        return None
+
+    def _headline():
+        prompt = (_persona +
+            'Write ONLY a one-sentence headline on the month overall, across all '
+            'platforms. Respond with STRICT JSON: {"headline":"one punchy sentence"}'
+            "\n\nDATA:\n" + facts_json)
+        try:
+            d = _rec_call(prompt, 300)
+            return str((d or {}).get('headline') or '').strip()
+        except Exception:
+            return ''
+
+    try:
+        if plat_keys:
+            # Headline + every platform, all in flight at once. Individual workers
+            # swallow their own errors (returning None/''), so one slow or failing
+            # platform never sinks the whole report — the rest still render.
+            with ThreadPoolExecutor(max_workers=min(8, len(plat_keys) + 1)) as ex:
+                head_fut = ex.submit(_headline)
+                plat_futs = [ex.submit(_platform_block, pk) for pk in plat_keys]
+                headline = head_fut.result()
+                blocks = [f.result() for f in plat_futs]
+            plat_blocks = _rec_platform_blocks([b for b in blocks if b], plat_keys)
+            if not plat_blocks:
+                raise RuntimeError('no platform blocks returned')
+            out = {**fallback, 'headline': headline or fallback['headline'],
+                   'platforms': plat_blocks}
+            return {'recommendations_block': out, 'ai': True}
+        # No per-platform rows — one small combined call in the pre-split shape.
+        prompt = (_persona +
+            'Respond with STRICT JSON matching:\n'
+            '{"headline":"one punchy sentence on the month overall",'
+            '"wins":["2-3 concrete wins, cite the numbers/deltas"],'
+            '"concerns":["1-2 honest concerns or declines"],'
+            '"recommendations":[{"title":"...","detail":"1-2 sentences, specific & actionable","priority":"high|medium|low"}],'
+            '"next_month_focus":["1-3 priorities for next month"]}\n'
+            + _shared + "\nDATA:\n" + facts_json)
+        out = _rec_call(prompt, 2500)
+        out['platforms'] = []
         return {'recommendations_block': {**fallback, **out}, 'ai': True}
     except Exception as e:
         return {'recommendations_block': fallback, 'ai': False, 'error': str(e)[:200]}
