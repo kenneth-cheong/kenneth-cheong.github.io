@@ -185,7 +185,7 @@ export default function Performance() {
             Run a tool under this project — Search Console, GA4, Ads, a site audit, Backlinks Explorer or AI Visibility — and
             its headline numbers get snapshotted here for comparison over time.
           </p>
-          <Link to="/" className="btn-primary mt-4 inline-block">Run a tool</Link>
+          <Link to="/tools" className="btn-primary mt-4 inline-block">Run a tool</Link>
         </div>
       ) : (
         <>

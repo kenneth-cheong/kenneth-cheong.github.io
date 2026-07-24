@@ -136,7 +136,7 @@ export default function History({ embedded = false }) {
         <div className="card mt-6 p-8 text-center">
           <p className="font-semibold text-heading">No runs yet</p>
           <p className="mt-1.5 text-sm text-dim">Everything you run is saved here, so you can re-open or re-run any result later.</p>
-          <Link to="/" className="btn-primary mt-4 inline-block text-sm">Run your first tool →</Link>
+          <Link to="/tools" className="btn-primary mt-4 inline-block text-sm">Run your first tool →</Link>
         </div>
       )}
 

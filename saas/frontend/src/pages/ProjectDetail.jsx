@@ -129,7 +129,7 @@ export default function ProjectDetail() {
           ) : runs.length === 0 ? (
             <div>
               <p className="text-sm text-dim">Nothing run for this site yet — results land here automatically.</p>
-              <Link to="/" className="mt-2 inline-block text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Run a tool →</Link>
+              <Link to="/tools" className="mt-2 inline-block text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Run a tool →</Link>
             </div>
           ) : (
             <div className="divide-y divide-hair">
