@@ -21,13 +21,6 @@ export const CURRENCY = { code: 'USD', symbol: 'US$' };
 export const TERMS_VERSION = '2026-07-25.1';
 
 /**
- * Soft-launch Free Trial + NDA acceptance version. Independent of TERMS_VERSION:
- * bumping this re-prompts every trial user with the NDA gate. Keep in sync with
- * the NDA copy in TrialNdaGate.jsx.
- */
-export const NDA_VERSION = '2026-06-29.2';
-
-/**
  * Account access policy. A Free account is a time-limited trial, not a
  * permanent tier: it opens for `freeTrialDays` from sign-up and then locks
  * until the user subscribes. A paying account whose renewal fails keeps working
@@ -1883,8 +1876,8 @@ export const PROFILE_FIELDS = [
   // ── Contact & preferences ──
   { key: 'phone', label: 'Phone / WhatsApp', group: 'contact', type: 'text', required: false,
     placeholder: '+65 …' },
-  // Moved off the Free Trial + NDA gate (2026-07-20) — it blocked freelancers and
-  // anyone who'd have to ask HQ for it. Optional, and only surfaced this late.
+  // Optional company registration number, surfaced late in progressive profiling —
+  // it blocks freelancers and anyone who'd have to ask HQ for it if required early.
   { key: 'uen', label: 'Company registration no. (UEN)', group: 'contact', type: 'text', required: false,
     placeholder: 'Optional — e.g. 201912345A' },
   // Every pre-existing value is still here verbatim — dropping one would fail

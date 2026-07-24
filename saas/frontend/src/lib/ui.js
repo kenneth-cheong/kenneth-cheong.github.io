@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TERMS_VERSION, NDA_VERSION } from '@shared/catalog.mjs';
+import { TERMS_VERSION } from '@shared/catalog.mjs';
 
 // ── Toasts ───────────────────────────────────────────────────────────────────
 export function toast(msg, type = 'info') {
@@ -150,14 +150,6 @@ export function hasAcceptedTerms(user) {
   return !!user
     && user.onboarding?.acceptedTerms === true
     && user.onboarding?.acceptedTermsVersion === TERMS_VERSION;
-}
-
-// Has the user accepted the current soft-launch Free Trial + NDA? Bumping
-// NDA_VERSION re-prompts everyone (same pattern as hasAcceptedTerms).
-export function hasAcceptedNda(user) {
-  return !!user
-    && user.onboarding?.acceptedNda === true
-    && user.onboarding?.acceptedNdaVersion === NDA_VERSION;
 }
 
 // Recently-used tools (most recent first, capped).

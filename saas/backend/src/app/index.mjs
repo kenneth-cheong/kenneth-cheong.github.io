@@ -32,8 +32,7 @@ import Stripe from 'stripe';
 // Only used by account deletion (to cancel an active subscription so a deleted
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-import { sendEmail, sendRawEmail, sendSmtpEmail, sendNotice, smtpConfigured, SUPPORT_INBOX, noticeFrom } from '../lib/email.mjs';
-import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
+import { sendNotice, SUPPORT_INBOX, noticeFrom } from '../lib/email.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 import { accessLocked, accessLockedResponse } from '../lib/access.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
@@ -214,7 +213,7 @@ const oauthRedirectUri = (event) => `https://${event.requestContext?.domainName}
 const ACCESS_LOCK_ALLOW = [
   '/support/tickets', '/support/attachments',
   '/me/notifications', '/me/notifications/read', '/me/notifications/delete', '/me/notifications/clear',
-  '/me/email-prefs', '/me/sessions/revoke', '/me/delete', '/me/nda', '/me/onboarding',
+  '/me/email-prefs', '/me/sessions/revoke', '/me/delete', '/me/onboarding',
   // Staff data-access consent (unrelated to this gate despite the path): granting
   // and especially REVOKING staff access must never depend on being paid up.
   '/me/access', '/me/access/respond',
@@ -339,121 +338,6 @@ export const handler = async (event) => {
       if (body.profileNudge && typeof body.profileNudge === 'object') { const n = sanitizeProfileNudge(body.profileNudge); if (n) patch.profileNudge = n; }
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
-    }
-
-    // ── Soft-launch Free Trial + NDA acceptance ──────────────────────────────
-    // The trial user fills the company form and accepts the NDA. We persist a
-    // durable, server-stamped proof-of-acceptance in `onboarding` (so the gate
-    // never re-prompts) and notify tom@digimetrics.ai. Stricter than /me/onboarding:
-    // all fields are required, validated and clamped here.
-    if (method === 'POST' && path.endsWith('/me/nda')) {
-      if (body.accepted !== true) return badRequest('You must accept the terms.');
-      const form = {
-        name: clampStr(body.name, 200).trim(),
-        organisation: clampStr(body.organisation, 200).trim(),
-        uen: clampStr(body.uen, 60).trim(),
-        telephone: clampStr(body.telephone, 60).trim(),
-        email: clampStr(body.email, 200).trim(),
-      };
-      // Only name + email are required. Organisation/UEN/telephone were dropped
-      // from the gate on 2026-07-20 (freelancers have no UEN, and employees won't
-      // chase HQ for one) — they're now optional profile fields collected later.
-      // The fields stay in the record shape so existing acceptances, the Admin
-      // Agreements table and the Acceptance Record PDF keep rendering.
-      const REQUIRED = ['name', 'email'];
-      const missing = REQUIRED.filter((k) => !form[k]);
-      if (missing.length) return badRequest(`Missing required field(s): ${missing.join(', ')}`);
-      if (!isEmail(form.email)) return badRequest('A valid email is required.');
-
-      const version = clampStr(body.version, 20) || 'unversioned';
-      // Set when the base Terms/Privacy consent rode this same submit (the
-      // combined gate a new user sees). Recorded on the acceptance so the PDF
-      // lists every document agreed to, not just the NDA.
-      const termsVersion = clampStr(body.termsVersion, 20) || null;
-      const acceptedAt = new Date().toISOString();
-      // Proof-of-consent record (per the NDA's Electronic Acceptance section):
-      // capture IP + device/browser alongside the account/org details + version.
-      const ip = event.requestContext?.http?.sourceIp || 'unknown';
-      const userAgent = clampStr(event.headers?.['user-agent'] || event.headers?.['User-Agent'] || '', 400);
-      const firstTime = user.onboarding?.acceptedNda !== true;
-      const onboarding = await updateOnboarding(user.userId, {
-        acceptedNda: true,
-        acceptedNdaAt: acceptedAt,
-        acceptedNdaVersion: version,
-        acceptedNdaIp: ip,
-        acceptedNdaUserAgent: userAgent,
-        // Freeze how the operating entity was described at acceptance time, so a
-        // later correction never rewrites an already-signed record (Admin
-        // re-renders these PDFs on demand from stored data).
-        acceptedNdaAttribution: ENTITY_ATTRIBUTION,
-        ...(termsVersion ? { acceptedTermsWithNdaVersion: termsVersion } : {}),
-        nda: form,
-      });
-
-      // Notify Tom + Kenneth (best-effort — acceptance is already saved). Only on
-      // the first acceptance so re-runs after a version bump don't spam the inbox.
-      // The full details ride along as a one-page "Acceptance Record" PDF; the
-      // email body itself is a short summary.
-      if (firstTime) {
-        // Organisation is optional now, so never render an empty "( )".
-        const who = form.organisation ? `${form.name} (${form.organisation})` : form.name;
-        const subject = `Digimetrics Free Trial + NDA accepted — ${form.organisation || form.name}`;
-        const text = [
-          `${who} accepted the Digimetrics Free Trial + NDA.`,
-          '',
-          `Email: ${form.email}`,
-          `Account: ${user.email || '—'}`,
-          `Accepted at (UTC): ${acceptedAt}`,
-          `NDA version: ${version}`,
-          '',
-          'Full details are in the attached Acceptance Record (PDF).',
-        ].join('\n');
-        const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#0f172a;">`
-          + `<h2 style="color:#1d4ed8;margin:0 0 6px;">New Free Trial + NDA acceptance</h2>`
-          + `<p style="color:#475569;margin:0 0 14px;"><b>${form.name}</b>${form.organisation ? ` (${form.organisation})` : ''} confirmed they are authorised to accept the Digimetrics Free Trial and NDA Terms.</p>`
-          + `<p style="color:#475569;margin:0;font-size:14px;">Email: ${form.email}<br>Account: ${user.email || '—'}<br>Accepted at (UTC): ${acceptedAt}<br>NDA version: ${version}</p>`
-          + `<p style="color:#64748b;margin:16px 0 0;font-size:13px;">The full proof-of-consent details are in the attached <b>Acceptance Record (PDF)</b>.</p>`
-          + `</div>`;
-
-        let pdf = null;
-        try {
-          pdf = await buildAcceptancePdf({
-            formName: form.name, organisation: form.organisation, uen: form.uen,
-            telephone: form.telephone, formEmail: form.email,
-            accountEmail: user.email, acceptedAt, ip, userAgent, version,
-            attribution: ENTITY_ATTRIBUTION,
-            termsVersion: termsVersion || user.onboarding?.acceptedTermsVersion || null,
-          });
-        } catch (e) { console.warn('nda_pdf_failed', e.message); }
-
-        const safeOrg = (form.organisation || form.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
-        const filename = `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`;
-        const recipients = ['tom@digimetrics.ai', 'kenneth@digimetrics.ai'];
-        const attachments = pdf ? [{ filename, contentType: 'application/pdf', content: pdf }] : [];
-        // Prefer authenticated SMTP (Gmail/Workspace): it sends from a real
-        // @digimetrics.ai mailbox, so the notification passes DMARC and lands cleanly.
-        // Falls back to SES when SMTP isn't configured — but SES must send from a
-        // non-digimetrics.ai address (NDA_NOTIFY_FROM, gmail p=none) because
-        // digimetrics.ai's DMARC rejects unverified SES mail. The Admin → Agreements
-        // view is the authoritative record regardless of email outcome.
-        try {
-          let sent = false;
-          if (smtpConfigured()) {
-            sent = await sendSmtpEmail({ to: recipients, replyTo: form.email, subject, text, html, attachments });
-          }
-          if (!sent) {
-            const notifyFrom = process.env.NDA_NOTIFY_FROM || 'Digimetrics Free Trial <clarinet.kenneth@gmail.com>';
-            if (pdf) {
-              await sendRawEmail({ to: recipients, from: notifyFrom, replyTo: form.email, subject, text, html, attachments });
-            } else {
-              // PDF generation failed — still send the notification without it.
-              await sendEmail({ to: recipients, from: notifyFrom, subject, text, html });
-            }
-          }
-        } catch (e) { console.warn('nda_notify_failed', e.message); }
-      }
-
-      return ok({ onboarding });
     }
 
     // ── Progressive profiling: save profile answers, reward on completion ──────

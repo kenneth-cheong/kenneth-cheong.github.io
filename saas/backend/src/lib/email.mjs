@@ -61,8 +61,7 @@ export async function sendSmtpEmail({ to, subject, text, html, attachments = [],
 
 // Best-effort transactional notice that PREFERS authenticated SMTP. SMTP sends
 // from a real @digimetrics.ai mailbox (SMTP_FROM, e.g. no-reply@digimetrics.ai), so it
-// isn't subject to the SES sandbox and passes DMARC — the same path the Free
-// Trial + NDA notifications use. Falls back to SES only when SMTP isn't
+// isn't subject to the SES sandbox and passes DMARC. Falls back to SES only when SMTP isn't
 // configured (or the SMTP send fails). Same shape as sendEmail plus optional
 // attachments/replyTo. Returns true if any transport accepted the message.
 export async function sendNotice({ to, subject, text, html, attachments = [], replyTo, from }) {

@@ -219,9 +219,6 @@ export const api = {
   auditSynthesize: (url, inputs) => call('/audit/synthesize', { method: 'POST', body: { url, inputs } }),
   // First-run onboarding state (welcome flow, chosen goal, dismissed checklist).
   setOnboarding: (patch) => call('/me/onboarding', { method: 'POST', body: patch }),
-  // Soft-launch Free Trial + NDA acceptance (company form + NDA). Persists a
-  // durable proof-of-acceptance and notifies tom@digimetrics.ai server-side.
-  acceptNda: (payload) => call('/me/nda', { method: 'POST', body: payload }),
   // Progressive-profiling answers; completing the whole profile pays a one-time bonus.
   saveProfile: (patch) => call('/me/profile', { method: 'POST', body: { patch } }),
   saveUsername: (username) => call('/me/username', { method: 'POST', body: { username } }),
@@ -377,10 +374,6 @@ export const api = {
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
   // Admin
   adminUsers: () => call('/admin/users'),
-  // Free Trial + NDA agreements collected in-app (replaces the email notification).
-  adminAgreements: () => call('/admin/agreements'),
-  adminAgreementPdf: (userId) => call(`/admin/agreements/pdf?userId=${encodeURIComponent(userId)}`),
-  adminAgreementSamplePdf: () => call('/admin/agreements/sample-pdf'),
   adminCreateUser: ({ email, name, role, tier, credits, sendInvite }) =>
     call('/admin/users', { method: 'POST', body: { email, name, role, tier, credits, sendInvite } }),
   adminCredits: (userId, monthlyDelta, topupDelta, reason) =>

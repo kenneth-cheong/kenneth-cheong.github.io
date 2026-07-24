@@ -67,7 +67,7 @@ Parameters:
     Type: String
     Default: ''
     Description: >-
-      SMTP login for agreement notifications (a Google Workspace mailbox, e.g.
+      SMTP login for transactional notifications (a Google Workspace mailbox, e.g.
       noreply@digimetrics.ai). Gmail forces the From header to match this mailbox,
       so it must be the @digimetrics.ai address you want mail to come from. Empty
       disables SMTP and falls back to SES.
@@ -741,9 +741,9 @@ Resources:
           STRIPE_SECRET_KEY: '{{resolve:secretsmanager:digimetrics-saas/stripe-secret-key:SecretString}}'
           SES_FROM: !Ref SesFrom
           SES_SUPPORT: !Ref SesSupport
-          # Agreement (Free Trial + NDA) notifications prefer authenticated SMTP
-          # so they send from a real @digimetrics.ai mailbox and pass DMARC. The App
-          # Password is in Secrets Manager; empty SMTP_USER falls back to SES.
+          # Transactional notifications prefer authenticated SMTP so they send from
+          # a real @digimetrics.ai mailbox and pass DMARC. The App Password is in
+          # Secrets Manager; empty SMTP_USER falls back to SES.
           SMTP_USER: !Ref SmtpUser
           SMTP_FROM: !Ref SmtpFrom
           SMTP_HOST: !Ref SmtpHost
@@ -789,7 +789,6 @@ Resources:
         MeAccess: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/access, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         MeAccessRespond: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/access/respond, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         MeOnboarding: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/onboarding, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
-        MeNda: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/nda, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         MeEmailPrefs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/email-prefs, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         MeProfile: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/profile, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         # Explorer breadth-checklist reward claim + post-usage / exit feedback surveys.
@@ -1086,16 +1085,6 @@ Resources:
       Events:
         Users: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         UserCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
-        Agreements: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/agreements, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
-        AgreementPdf: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/agreements/pdf, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
-        # Restores the route behind Admin → Agreements → "Sample PDF" (Admin.jsx →
-        # api.adminAgreementSamplePdf → admin/index.mjs:81). It went missing from
-        # this Events block while the handler and the button both stayed, so the
-        # live stack still had the route but the template no longer declared it —
-        # the next deploy would have torn it down and 404'd the button. The
-        # logical id CloudFormation already holds is AdminFnAgreementSamplePdfPermission,
-        # so this event MUST stay named AgreementSamplePdf to match it.
-        AgreementSamplePdf: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/agreements/sample-pdf, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Credits: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/credits, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Tier: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/tier, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         AccessGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/access, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }

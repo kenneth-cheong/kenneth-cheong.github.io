@@ -19,11 +19,10 @@ import PlanPeek from './PlanPeek.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
-import TrialNdaGate from './TrialNdaGate.jsx';
 import FaultReporter from './FaultReporter.jsx';
 import { setUser as setDiagnosticsUser } from '../lib/diagnostics.js';
 import { identify as identifyRecording } from '../lib/analytics.js';
-import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda, onboardingOf } from '../lib/ui.js';
+import { useMediaQuery, needsWelcome, hasAcceptedTerms, onboardingOf } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, HelpCircle, ChevronDown, ChevronLeft, Search } from 'lucide-react';
@@ -103,17 +102,16 @@ export default function Layout({ children }) {
   // (lets anyone replay the intro — tours were otherwise one-shot).
   const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
   // ── Onboarding: ONE ask at a time, and never the same ask twice ────────────
-  // This used to be a queue of four consecutive overlays (Terms consent → Free
-  // Trial/NDA → welcome goal picker → tour offer), and because several of the
-  // "seen it" flags were written fire-and-forget, a failed write put the whole
-  // queue back on screen at the NEXT login. Users reported being "forced through
-  // all the onboarding questions repeatedly".
+  // This used to be a queue of several consecutive overlays (Terms consent →
+  // welcome goal picker → tour offer), and because several of the "seen it" flags
+  // were written fire-and-forget, a failed write put the whole queue back on
+  // screen at the NEXT login. Users reported being "forced through all the
+  // onboarding questions repeatedly".
   //
-  // Now: the two legal acceptances share a single dialog (TrialNdaGate renders
-  // the Terms checkbox via `withTerms`), and the tour offer is folded into the
-  // welcome flow rather than firing as a separate toast behind it. So a brand-new
-  // account sees at most two screens ever — the legal gate, then the welcome —
-  // and a returning user sees none.
+  // Now: a brand-new account sees at most two screens ever — the Terms/Privacy
+  // consent gate, then the welcome — and a returning user sees none. The tour
+  // offer is folded into the welcome flow rather than firing as a separate toast
+  // behind it.
   // ...EXCEPT on the legal pages themselves. The gate asks you to agree to the
   // Terms and Privacy Notice and links to them — but those links land back in
   // this same Layout, which re-rendered the gate ON TOP of the document, so the
@@ -123,8 +121,7 @@ export default function Layout({ children }) {
   // route re-renders the gate.
   const onLegalPage = location.pathname.startsWith('/legal/');
   const needsConsent = !!user && !hasAcceptedTerms(user) && !onLegalPage;
-  const needsNda = !!user && !hasAcceptedNda(user) && !onLegalPage;
-  const needsLegal = needsConsent || needsNda;
+  const needsLegal = needsConsent;
   // Same reasoning as the gates: nothing overlays a legal document.
   const showWelcome = !needsLegal && !onLegalPage && (forceWelcome || needsWelcome(user));
 
@@ -151,7 +148,7 @@ export default function Layout({ children }) {
   };
 
   // Launch the assistant on entry: open it (with its slide-in animation) once
-  // per app load, after the consent/NDA/welcome overlays clear so it never
+  // per app load, after the consent/welcome overlays clear so it never
   // stacks on them. Desktop only — the panel sits beside content there, whereas
   // on mobile it's a full-screen sheet that would take over the whole app.
   // Users can opt out via the assistant's settings (dm:chatAutoOpen = '0').
@@ -397,7 +394,7 @@ export default function Layout({ children }) {
       {/* Floats over the page (mockup .monty-chat) — it no longer displaces content. */}
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} ask={ask} say={say} />
       {/* Proactive Helpful Otter — desktop only (mobile chat is a full-screen sheet
-          it shouldn't hijack). Suppressed until the consent/NDA/welcome overlays clear. */}
+          it shouldn't hijack). Suppressed until the consent/welcome overlays clear. */}
       {wide && <ProactiveEngine paused={needsLegal || showWelcome} chatOpen={chatOpen} />}
       {/* Floating launcher — desktop only, matching the assistant's own rule
           (on mobile the panel is a full-screen sheet). */}
@@ -413,12 +410,9 @@ export default function Layout({ children }) {
       <FaultReporter />
       <Toaster />
       <DialogHost />
-      {/* One legal dialog. A new account needs both acceptances, so the NDA gate
-          carries the Terms checkbox too (`withTerms`). The standalone consent
-          gate is only for the re-consent case: an established user who already
-          accepted the NDA and is being re-prompted by a TERMS_VERSION bump. */}
-      {needsNda && <TrialNdaGate withTerms={needsConsent} />}
-      {needsConsent && !needsNda && <ConsentGate />}
+      {/* Terms/Privacy consent gate — shown to a new signup and to anyone after a
+          TERMS_VERSION bump. Not dismissible; using the app requires agreement. */}
+      {needsConsent && <ConsentGate />}
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}
 
       {/* Friendly one-time tour invitation (replaces the old auto-fired tour). */}

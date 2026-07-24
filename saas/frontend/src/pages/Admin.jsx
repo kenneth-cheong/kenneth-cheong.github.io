@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw, Info, Plus, Pencil, Trash2, X, ShieldCheck } from 'lucide-react';
+import { FileText, RefreshCw, Info, Plus, Pencil, Trash2, X, ShieldCheck } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, CURRENCY, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -9,7 +9,6 @@ import { api } from '../lib/api.js';
 import { confirmDialog, promptDialog } from '../lib/ui.js';
 import { interpolate } from '../lib/proactive.js';
 import SortableTable from '../components/SortableTable.jsx';
-import TrialNdaGate from '../components/TrialNdaGate.jsx';
 import DiagnosticsPanel from '../components/DiagnosticsPanel.jsx';
 import { Attachments } from '../components/Attachments.jsx';
 import { TicketComposer } from '../components/TicketComposer.jsx';
@@ -27,7 +26,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-line">
-        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['promos', 'Promo codes'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['promos', 'Promo codes'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -42,7 +41,7 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'promos' ? <AdminPromos /> : tab === 'finances' ? <AdminFinances /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'promos' ? <AdminPromos /> : tab === 'finances' ? <AdminFinances /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
     </div>
   );
 }
@@ -354,141 +353,6 @@ function Toggle({ checked, onChange, title, small }) {
       className={`relative inline-flex ${w} shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-brand-600' : 'bg-overlay'}`}>
       <span className={`inline-block ${dot} transform rounded-full bg-white shadow transition-transform ${checked ? (small ? 'translate-x-4' : 'translate-x-5') : 'translate-x-0.5'}`} />
     </button>
-  );
-}
-
-// ── Agreements (Free Trial + NDA acceptances) ────────────────────────────────
-function AdminAgreements() {
-  const [rows, setRows] = useState(null); // null = loading
-  const [error, setError] = useState('');
-  const [downloading, setDownloading] = useState('');
-  const [previewGate, setPreviewGate] = useState(false);
-  const [sampling, setSampling] = useState(false);
-
-  useEffect(() => {
-    api.adminAgreements()
-      .then(({ agreements }) => setRows(agreements || []))
-      .catch((e) => { setError(e?.message || 'Failed to load agreements.'); setRows([]); });
-  }, []);
-
-  const fmt = (iso) => {
-    if (!iso) return '—';
-    try { return new Date(iso).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', dateStyle: 'medium', timeStyle: 'short' }); }
-    catch { return iso; }
-  };
-
-  const download = async (r) => {
-    setDownloading(r.userId);
-    try {
-      const { filename, base64 } = await api.adminAgreementPdf(r.userId);
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = filename || 'agreement.pdf';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      setError(e?.message || 'Could not generate the PDF.');
-    } finally {
-      setDownloading('');
-    }
-  };
-
-  // Open a sample of the generated Acceptance Record PDF in a new tab so staff
-  // can see the document an acceptance produces (placeholder data, current version).
-  const openSample = async () => {
-    setSampling(true);
-    setError('');
-    try {
-      const { base64 } = await api.adminAgreementSamplePdf();
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-      window.open(url, '_blank', 'noopener');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (e) {
-      setError(e?.message || 'Could not generate the sample PDF.');
-    } finally {
-      setSampling(false);
-    }
-  };
-
-  if (rows === null) return <p className="mt-6 text-sm text-faint">Loading…</p>;
-
-  return (
-    <div className="mt-6">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <p className="text-sm text-muted">
-          {rows.length} {rows.length === 1 ? 'trial user has' : 'trial users have'} accepted the Free Trial &amp; NDA.
-        </p>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <button
-            onClick={() => setPreviewGate(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-body hover:bg-raised"
-          >
-            <MonitorPlay size={14} aria-hidden /> Preview gate
-          </button>
-          <button
-            onClick={openSample}
-            disabled={sampling}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-body hover:bg-raised disabled:opacity-50"
-          >
-            <FileText size={14} aria-hidden /> {sampling ? 'Preparing…' : 'Sample PDF'}
-          </button>
-        </div>
-      </div>
-      {error && <p className="mb-3 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
-      {rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-faint">
-          No agreements yet. They&rsquo;ll appear here as trial users accept.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-line">
-          <table className="w-full text-sm">
-            <thead className="bg-raised text-left text-xs uppercase tracking-wide text-muted">
-              <tr>
-                {['Name', 'Organisation', 'UEN', 'Telephone', 'Email', 'Accepted', 'Ver.', 'IP', ''].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-hair">
-              {rows.map((r) => (
-                <tr key={r.userId} className="align-top hover:bg-raised">
-                  <td className="whitespace-nowrap px-3 py-2 font-medium text-heading">{r.name || '—'}</td>
-                  <td className="px-3 py-2 text-body">{r.organisation || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-body">{r.uen || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-body">{r.telephone || '—'}</td>
-                  <td className="px-3 py-2 text-body">
-                    {r.email || '—'}
-                    {r.accountEmail && r.accountEmail !== r.email && (
-                      <span className="block text-xs text-faint">acct: {r.accountEmail}</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-dim">{fmt(r.acceptedAt)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted">{r.version || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted">{r.ip || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    <button
-                      onClick={() => download(r)}
-                      disabled={downloading === r.userId}
-                      className="rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10 disabled:opacity-50"
-                    >
-                      {downloading === r.userId ? 'Preparing…' : 'PDF'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {/* `withTerms` matches what a genuinely NEW user faces: they have accepted
-          neither the NDA nor the base Terms, so their gate carries both
-          checkboxes. Without it staff were previewing a dialog nobody actually
-          sees — the NDA-only variant only appears for an existing user whose
-          Terms consent is already on file. */}
-      {previewGate && <TrialNdaGate preview withTerms onClose={() => setPreviewGate(false)} />}
-    </div>
   );
 }
 
