@@ -2242,6 +2242,14 @@ function sectionsPageSpeed(psmRes, psdRes, target) {
   const tone = (v) => (v == null ? 'slate' : v >= 90 ? 'green' : v >= 50 ? 'amber' : 'red');
   const rateTone = (r) => (r === 'good' ? 'green' : r === 'needs work' ? 'amber' : r === 'poor' ? 'red' : 'slate');
   const dash = '—';
+  // Google's published "good" thresholds for each metric — the boundary below
+  // which a green rating is earned. Shown next to every number so a value like
+  // a layout shift of 1 reads against the 0.1 it's meant to beat, rather than
+  // just being coloured red with no scale.
+  const GOOD = {
+    lcp: 'under 2.5s', inp: 'under 200ms', cls: 'under 0.1', ttfb: 'under 0.8s',
+    fcp: 'under 1.8s', tbt: 'under 200ms', speedIndex: 'under 3.4s',
+  };
   const sections = [];
 
   sections.push({ type: 'stats', title: 'Google PageSpeed score', items: [
@@ -2259,8 +2267,14 @@ function sectionsPageSpeed(psmRes, psdRes, target) {
   if (field) {
     const m = field.metrics || {};
     const order = [['lcp', 'Largest Contentful Paint'], ['inp', 'Interaction to Next Paint'], ['cls', 'Layout shift'], ['ttfb', 'Server response']];
+    const shown = order.filter(([k]) => m[k]);
     sections.push({ type: 'stats', title: 'What real visitors experience', items:
-      order.filter(([k]) => m[k]).map(([k, label]) => ({ label, value: fmt(m[k]), tone: rateTone(m[k].rating) })) });
+      shown.map(([k, label]) => ({ label, value: fmt(m[k]), tone: rateTone(m[k].rating) })) });
+
+    // The scale the colours are measured against, in the same left-to-right
+    // order as the cards above them.
+    sections.push({ type: 'text', text:
+      `Google's "good" targets — ${shown.map(([k, label]) => `${label}: ${GOOD[k]}`).join(' · ')}. Cards are green (good), amber (needs work) or red (poor).` });
 
     // The whole point of the section: when the lab score is healthy and the
     // field verdict isn't, say so plainly rather than letting the green score
@@ -2282,16 +2296,16 @@ function sectionsPageSpeed(psmRes, psdRes, target) {
 
   const lab = psmRes?.lab || {};
   const labRows = [
-    ['Largest Contentful Paint', lab.lcp, 'How long until the main content appears'],
-    ['Total Blocking Time', lab.tbt, 'How long the page ignores taps while it loads'],
-    ['Cumulative Layout Shift', lab.cls, 'How much the page jumps around as it loads'],
-    ['First Contentful Paint', lab.fcp, 'How long until anything appears'],
-    ['Speed Index', lab.speedIndex, 'How quickly the page fills in visually'],
-  ].filter(([, v]) => v);
+    ['lcp', 'Largest Contentful Paint', lab.lcp, 'How long until the main content appears'],
+    ['tbt', 'Total Blocking Time', lab.tbt, 'How long the page ignores taps while it loads'],
+    ['cls', 'Cumulative Layout Shift', lab.cls, 'How much the page jumps around as it loads'],
+    ['fcp', 'First Contentful Paint', lab.fcp, 'How long until anything appears'],
+    ['speedIndex', 'Speed Index', lab.speedIndex, 'How quickly the page fills in visually'],
+  ].filter(([, , v]) => v);
   if (labRows.length) {
     sections.push({ type: 'table', title: 'Lab measurements (simulated mobile)',
-      columns: ['Metric', 'Value', 'What it means'],
-      rows: labRows.map(([label, v, means]) => ({ Metric: label, Value: v.display ?? dash, 'What it means': means })) });
+      columns: ['Metric', 'Value', 'Good range', 'What it means'],
+      rows: labRows.map(([key, label, v, means]) => ({ Metric: label, Value: v.display ?? dash, 'Good range': GOOD[key] || dash, 'What it means': means })) });
   }
 
   // Costed in the time and weight each fix saves, worst first, so the list

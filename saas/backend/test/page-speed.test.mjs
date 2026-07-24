@@ -66,6 +66,28 @@ describe('sectionsPageSpeed', () => {
     expect(field.items.find((i) => i.label === 'Largest Contentful Paint').value).toBe('2.7s');
   });
 
+  // "Layout shift 1" is meaningless without the 0.1 it's meant to beat.
+  it('gives the good target for each field metric it shows', () => {
+    const r = sectionsPageSpeed(MOBILE, DESKTOP, 'https://example.com');
+    const fieldStatsIdx = r.sections.findIndex((s) => s.type === 'stats' && s.title === 'What real visitors experience');
+    const targets = r.sections[fieldStatsIdx + 1];
+    expect(targets.type).toBe('text');
+    expect(targets.text).toContain('Layout shift: under 0.1');
+    expect(targets.text).toContain('Largest Contentful Paint: under 2.5s');
+    expect(targets.text).toContain('Server response: under 0.8s');
+    // Only names metrics actually on the cards — INP has no field sample here.
+    expect(targets.text).not.toContain('Interaction to Next Paint');
+  });
+
+  it('gives every lab row a good range to read the value against', () => {
+    const table = sectionsPageSpeed(MOBILE, DESKTOP, 'https://example.com').sections.find((s) => s.type === 'table');
+    expect(table.columns).toEqual(['Metric', 'Value', 'Good range', 'What it means']);
+    const byMetric = Object.fromEntries(table.rows.map((row) => [row.Metric, row['Good range']]));
+    expect(byMetric['Largest Contentful Paint']).toBe('under 2.5s');
+    expect(byMetric['Cumulative Layout Shift']).toBe('under 0.1');
+    expect(byMetric['Total Blocking Time']).toBe('under 200ms');
+  });
+
   // Origin fallback means CrUX had too little data for this URL and answered
   // with the whole site. Presenting that as page-level would be a quiet lie.
   it('says so when the field data is the whole site, not this page', () => {
