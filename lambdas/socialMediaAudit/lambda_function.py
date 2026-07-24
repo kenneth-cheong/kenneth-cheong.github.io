@@ -1909,13 +1909,80 @@ def _sl_country_volume(terms, countries, page_types):
     return out
 
 
-def _sl_feed(terms, countries, page_types, lang_code, limit=25):
+# ──────────────────────────────────────────────────────────────────────────────
+# Relevance guard + match labelling
+#
+# content_analysis/search/live matches its `keyword` LOOSELY (no phrase/boolean),
+# so a short or common term drags in documents that aren't about the brand — the
+# "false positives" the feed is full of. These two helpers turn a topic's
+# structured conditions into (a) a post-fetch guard that drops items whose
+# title+snippet don't actually satisfy the conditions, and (b) the list of terms
+# that DID match, surfaced next to each mention so a human can see WHY it's there
+# (and which term to tighten when it shouldn't be).
+# ──────────────────────────────────────────────────────────────────────────────
+def _sl_condition_groups(conditions, fallback_terms):
+    """Normalise a topic's conditions into (groups, enforce).
+
+    groups is [{op:'and'|'not', terms:[...]}]. enforce says whether to actually
+    DROP items that fail: only True when the topic carries an explicit query
+    built in the UI. A legacy topic (flat keyword list, no conditions) gets a
+    synthesised group over its terms for LABELLING only — so it gains "matched"
+    chips without its capture volume silently shrinking on the next pull."""
+    groups, enforce = [], False
+    for c in (conditions or []):
+        if not isinstance(c, dict):
+            continue
+        op = 'not' if c.get('op') == 'not' else 'and'
+        terms = [str(t).strip() for t in (c.get('terms') or []) if str(t).strip()]
+        if terms:
+            groups.append({'op': op, 'terms': terms})
+            enforce = True
+    if not any(g['op'] == 'and' for g in groups):
+        pos = [str(t).strip() for t in (fallback_terms or []) if str(t).strip()]
+        if pos:
+            groups.insert(0, {'op': 'and', 'terms': pos})
+    return groups, enforce
+
+
+def _sl_relevance(groups, haystack):
+    """Score one item's title+snippet against the condition groups. Returns
+    (passes, matched_terms). A positive ('and') group passes when at least one of
+    its terms appears; a 'not' group must have none present. matched_terms are the
+    positive terms found — the 'why it's here' — and are always gathered, even
+    when the item fails, so a label-only (non-enforcing) caller can still show
+    them. An empty haystack can't be judged, so it passes with no labels."""
+    hay = (haystack or '').lower()
+    if not hay:
+        return True, []
+    matched, seen, passes = [], set(), True
+    for g in groups:
+        terms = g.get('terms') or []
+        present = [t for t in terms if t.lower() in hay]
+        if g.get('op') == 'not':
+            if present:
+                passes = False
+        else:
+            if terms and not present:
+                passes = False
+            for t in present:
+                if t.lower() not in seen:
+                    seen.add(t.lower())
+                    matched.append(t)
+    return passes, matched
+
+
+def _sl_feed(terms, countries, page_types, lang_code, limit=25, conditions=None):
     """The mention feed. When countries are selected we fetch per country so the
     feed honours the filter; otherwise one unfiltered pass. Each item keeps its
     own sentiment + emotion scores, country, language and author, which is what
     makes the per-country sentiment/emotion/author breakdowns possible at all
-    (summary/live can't be filtered, so those must be computed from items)."""
+    (summary/live can't be filtered, so those must be computed from items).
+
+    `conditions` (the topic's structured query) drives a relevance guard: an item
+    whose title+snippet doesn't satisfy them is dropped as a false positive, and
+    the terms that DID match are attached as `matched` for display."""
     scopes = countries or [None]
+    groups, enforce = _sl_condition_groups(conditions, terms)
 
     def _one(term, cc):
         req = {'keyword': term, 'page_type': page_types,
@@ -1946,6 +2013,10 @@ def _sl_feed(terms, countries, page_types, lang_code, limit=25):
         title = ci.get('title') or ci.get('main_title') or ''
         if _mostly_non_latin(title) or _is_promo_noise(it.get('domain'), title):
             continue
+        snippet = (ci.get('snippet') or ci.get('highlighted_text') or '')[:400]
+        passes, matched = _sl_relevance(groups, title + ' ' + snippet)
+        if enforce and not passes:          # explicit query not satisfied → drop
+            continue
         seen.add(url)
         pt = it.get('page_types')
         emo = ci.get('sentiment_connotations') or {}
@@ -1953,7 +2024,8 @@ def _sl_feed(terms, countries, page_types, lang_code, limit=25):
             'url': url,
             'domain': it.get('domain'),
             'title': (title or url or '')[:160],
-            'snippet': (ci.get('snippet') or ci.get('highlighted_text') or '')[:400],
+            'snippet': snippet,
+            'matched': matched,
             'date': ci.get('date_published'),
             'sentiment': _ca_dominant_sentiment(ci),
             'emotions': {k: emo.get(k) for k in _SL_EMOTIONS if emo.get(k) is not None},
@@ -2419,6 +2491,11 @@ def _listen_boolean(queries, sources, location, language, headers):
                         _serp_site_mentions_q, qs, site_expr, location, language, headers, 8))
         for i, q in enumerate(queries):
             items = web_futs[i].result() if i in web_futs else []
+            # The boolean query IS the match criterion here, so label each item
+            # with the named query that surfaced it — the feed's "matched" chip.
+            lbl = q.get('label') or q.get('q') or ''
+            for it in items:
+                it.setdefault('matched', [lbl] if lbl else [])
             total += len(items)
             web_all.extend(items)
             out['queries'].append({'label': q.get('label') or '',
@@ -2550,6 +2627,8 @@ def fetch_social_listening(brand, domain, location='Singapore', language='Englis
                                                  key=lambda kv: kv[1], reverse=True)[:8]],
         }
 
+    guard_groups, guard_enforce = _sl_condition_groups(cfg.get('conditions'), terms)
+
     def _merge_mentions(items_lists):
         # Interleave terms (round-robin) so one busy term doesn't fill the feed,
         # dedupe by URL, cap at 20.
@@ -2568,13 +2647,18 @@ def fetch_social_listening(brand, domain, location='Singapore', language='Englis
                     continue
                 if _is_promo_noise(it.get('domain'), title):  # coupon/voucher spam → skip
                     continue
+                snippet = (ci.get('snippet') or ci.get('highlighted_text') or '')[:240]
+                passes, matched = _sl_relevance(guard_groups, title + ' ' + snippet)
+                if guard_enforce and not passes:          # explicit query not met → skip
+                    continue
                 seen_urls.add(url)
                 pt = it.get('page_types')
                 merged.append({
                     'url': url,
                     'domain': it.get('domain'),
                     'title': (title or url or '')[:160],
-                    'snippet': (ci.get('snippet') or ci.get('highlighted_text') or '')[:240],
+                    'snippet': snippet,
+                    'matched': matched,
                     'date': ci.get('date_published'),
                     'sentiment': _ca_dominant_sentiment(ci),
                     'page_type': (pt[0] if isinstance(pt, list) and pt else it.get('page_type')),
@@ -5048,6 +5132,9 @@ def sl_save_topic(body):
         'name':     (data.get('name') or existing.get('name') or 'Untitled topic').strip(),
         'keywords': data.get('keywords') if data.get('keywords') is not None else existing.get('keywords', []),
         'queries':  data.get('queries')  if data.get('queries')  is not None else existing.get('queries', []),
+        # Structured query built field-by-field in the UI: [{op:'and'|'not',
+        # terms:[...]}]. Drives the relevance guard + match labels in _sl_feed.
+        'conditions': data.get('conditions') if data.get('conditions') is not None else existing.get('conditions', []),
         'location': (data.get('location') or existing.get('location') or client.get('location') or 'Singapore').strip(),
         'language': (data.get('language') or existing.get('language') or 'English').strip(),
         'sources':  data.get('sources') if data.get('sources') is not None else existing.get('sources', ['web', 'reddit', 'twitter', 'forums']),
@@ -5108,7 +5195,8 @@ def _sl_snapshot_topic(cid, tid, who):
     client, topic = _dec(client), _dec(topic)
     cfg = {'sources': topic.get('sources') or ['web', 'reddit', 'twitter', 'forums'],
            'keywords': topic.get('keywords') or [],
-           'queries': topic.get('queries') or []}
+           'queries': topic.get('queries') or [],
+           'conditions': topic.get('conditions') or []}
     # brand must be the CLIENT's name (e.g. "Singapore Pools"), not the topic
     # name (e.g. "Payment/Payout") — fetch_social_listening searches
     # [brand] + keywords, so an unqualified topic name as the anchor term
@@ -5136,7 +5224,8 @@ def _sl_snapshot_topic(cid, tid, who):
     except Exception:
         pass
     try:
-        feed = _sl_feed(terms, countries, CA_PAGE_TYPES, lang_code)[:120]
+        feed = _sl_feed(terms, countries, CA_PAGE_TYPES, lang_code,
+                        conditions=topic.get('conditions') or [])[:120]
     except Exception:
         pass
     try:
