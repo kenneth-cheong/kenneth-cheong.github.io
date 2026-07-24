@@ -5283,6 +5283,27 @@ def _sl_snapshot_topic(cid, tid, who):
     except Exception:
         social = {}
 
+    # Run the social posts through the SAME relevance guard as the web feed. The
+    # Apify actors search on the brand term ALONE, so a topic like "Betting
+    # Loophole" pulls togel/casino bot posts that merely name the brand; the web
+    # feed is guarded (via _sl_feed conditions) but these were not, so they slipped
+    # into the report's combined feed unfiltered. Drop non-matching posts when the
+    # topic carries an explicit query (enforce), and always attach `matched` so the
+    # report's "why included" chips work on social mentions too. `terms` is passed
+    # as the fallback exactly as _sl_feed does, so web and social judge identically.
+    _sgrp, _senforce = _sl_condition_groups(topic.get('conditions') or [], terms)
+    for slot in social.values():
+        kept = []
+        for p in (slot.get('posts') or []):
+            hay = ' '.join([p.get('title') or '', p.get('snippet') or '',
+                            ' '.join(p.get('hashtags') or [])])
+            passes, matched = _sl_relevance(_sgrp, hay)
+            if _senforce and not passes:
+                continue
+            p['matched'] = matched
+            kept.append(p)
+        slot['posts'] = kept
+
     # Trim before writing: a topic with 4 platforms x 100 posts plus a 120-item
     # web feed can exceed DynamoDB's 400KB item ceiling, which fails the whole
     # put_item — the same ceiling that silently broke Monthly Social Reports
