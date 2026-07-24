@@ -14,6 +14,7 @@
 
 import { toolById } from '@shared/catalog.mjs';
 import { api, ApiError } from './api.js';
+import { runToolToCompletion } from './jobRun.js';
 import { toast, markStepDone } from './ui.js';
 
 const RUN_URL = import.meta.env.VITE_RUN_URL || '';
@@ -97,7 +98,11 @@ export async function start({ site, runnable, onCredits }) {
       // Always prefer the Function URL (180s) for audit checks — several take
       // longer than the 30s API-Gateway cap, which would 504 the browser while
       // the Lambda finishes (and still charges). RUN_URL routes around that.
-      const resp = await api.runTool(a.id, a.input(site), !!RUN_URL);
+      //
+      // runToolToCompletion, not api.runTool: a background-job tool (the crawler)
+      // answers with a job id, and taking that for the result would summarise
+      // `{jobId, status}` into the report as though the check had passed.
+      const resp = await runToolToCompletion(a.id, a.input(site), !!RUN_URL);
       credits(resp);
       const r = resp.result || {};
       if (r.error || r.needsConnect) { setStatus(a.id, 'fail'); return null; }

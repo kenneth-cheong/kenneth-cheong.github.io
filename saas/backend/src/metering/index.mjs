@@ -71,12 +71,14 @@ export const handler = async (event, context) => {
   if (typeof context?.getRemainingTimeInMillis === 'function') {
     INVOCATION_DEADLINE_AT = Date.now() + context.getRemainingTimeInMillis();
   }
-  // Background self-invocation (InvocationType: Event) — finalize an async
-  // Social Audit independently of any browser tab. Not an HTTP event, so it must
-  // branch BEFORE any CORS/auth/rate-limit handling.
+  // Background self-invocation (InvocationType: Event) — finalize an async run
+  // (Social Audit, Content Optimiser, Technical SEO crawl) independently of any
+  // browser tab. Not an HTTP event, so it must branch BEFORE any
+  // CORS/auth/rate-limit handling.
   if (event && event.__bgFinalize) {
     try {
       if (event.kind === 'content-writer') await contentWriterFinalize(event, context);
+      else if (event.kind === 'technical-seo') await crawlFinalize(event, context);
       else await socialAuditFinalize(event, context);
     } catch (e) { console.error('bg_finalize_failed', event.kind || 'social', event.jobId, e?.message); }
     return { ok: true };
@@ -256,11 +258,16 @@ export const handler = async (event, context) => {
   if (result && typeof result === 'object') delete result._skipHistory;
 
   // ── Partial-results shaping for teaser / capped free tier ─────────────────
+  // `noCharge` responses are control messages, not results: an async tool's
+  // "here's your job id" and the progress polls that follow. Shaping them would
+  // rewrite the job id out of the payload AND spend the user's one teaser reveal
+  // on a message containing no findings — the real run, which re-enters this
+  // handler from the finalizer, is the one that gets teased and capped.
   let payload = result;
-  if (teaser && !softFailed) {
+  if (teaser && !softFailed && !noCharge) {
     payload = applyTeaser(tool, result);
     await markTeaserUsed(user, tool.id);
-  } else if (tool.freeCap && user.tier === 'free' && !softFailed) {
+  } else if (tool.freeCap && user.tier === 'free' && !softFailed && !noCharge) {
     payload = capRows(tool, result, tool.freeCap);
   }
 
@@ -604,8 +611,10 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'media-plan') return mediaPlanRun(body);
   // On-Page: extract page elements → meta/heading recs + content recs + images.
   if (tool.id === 'onpage') return onpageRun(body);
-  // DataForSEO crawl is async: initiate → poll get_results until done.
-  if (tool.id === 'technical-seo') return crawlRun(body, tool);
+  // DataForSEO crawl is async: initiate → poll get_results until done. Wrapped
+  // in a background job so the browser can watch rows land instead of waiting
+  // out the whole crawl on one buffered request. See crawlGateway / crawlRun.
+  if (tool.id === 'technical-seo') return crawlGateway(body, tool);
   // GEO+SEO Forensic Audit: fan out ~30 probes, score them, build a remediation plan.
   if (tool.id === 'forensic-audit') return forensicAuditRun(body);
   // SEO Diagnostics: guided keyword→fix wizard — technical lanes + SERP landscape
@@ -1636,9 +1645,153 @@ function renderStrategy(strategies, recommended, recs, metricMap = {}, rankMap =
     ${recList.length ? `<h3 style="margin:18px 0 6px;font-weight:700;font-size:16px">🎯 Prioritised action plan <span style="font-weight:400;color:#64748b">— ${recList.length} actions for “${esc(recommended.name)}”</span></h3>${statsBanner}${recSections}` : ''}`;
 }
 
+// ── Technical SEO crawl: async job + live rows ───────────────────────────────
+// Same shape as the Content Optimiser's job (start → background finalizer →
+// browser polls `status`), so the React page's generic job path drives it with
+// no tool-specific code. See contentWriterGateway for the annotated original.
+const crawlJobKey = (jobId) => `crawl_job:${jobId}`;
+const CRAWL_JOB_TTL = 2 * 60 * 60; // 2h — re-openable from History / the notification
+const CRAWL_MAX_MS = 11 * 60 * 1000; // hard cap on the poll loop, well inside the 900s Lambda
+const CRAWL_TAIL_MS = 90_000; // reserve for the AI prioritisation pass after the loop
+
+async function crawlStage(jobId, patch) {
+  if (!jobId) return; // sync runs and tests have no job to write to
+  const job = await getCache(crawlJobKey(jobId)).catch(() => null);
+  if (job && job.status !== 'done' && job.status !== 'error') {
+    await putCache(crawlJobKey(jobId), { ...job, status: 'running', ...patch }, CRAWL_JOB_TTL).catch(() => {});
+  }
+}
+
+// The job is one DynamoDB item (400KB). An oversized put throws, crawlStage
+// swallows it, and the user gets a spinner with no rows and no error — so trim
+// the live table instead of betting on the limit. The count in `stage`/`progress`
+// still reports every page found, and the finished result (a different item,
+// saved by saveRun) always carries them all.
+const CRAWL_PARTIAL_MAX_BYTES = 300 * 1024;
+
+/** Publish the rows found so far. Whole snapshot, never a delta — see crawlRun.
+ *  Progress reporting must never be able to fail the run producing it. */
+async function crawlPublish(jobId, pages, progress, maxPages, teased) {
+  if (!jobId || !pages.length) return;
+  const rows = crawlRows(pages);
+  const summary = crawlSummary(rows, progress);
+  let partial = crawlPartial(rows, summary, teased);
+  while (JSON.stringify(partial).length > CRAWL_PARTIAL_MAX_BYTES && rows.length > 1) {
+    rows.length = Math.floor(rows.length / 2);
+    partial = crawlPartial(rows, summary, teased);
+  }
+  await crawlStage(jobId, {
+    stage: `Crawling — ${summary.pagesCrawled} page${summary.pagesCrawled === 1 ? '' : 's'} so far`,
+    progress: { done: summary.pagesCrawled, total: Math.max(summary.pagesCrawled, maxPages), label: 'pages crawled' },
+    partial,
+  }).catch(() => {});
+}
+
+async function crawlGateway(body, tool) {
+  // Poll job progress (browser live-progress; never charged).
+  if (String(body.cwAction || '').trim() === 'status') {
+    const job = await getCache(crawlJobKey(body.jobId)).catch(() => null);
+    if (!job) return { _noCharge: true, status: 'unknown' };
+    const { inputs, ...pub } = job; // don't ship the inputs back
+    return { _noCharge: true, ...pub };
+  }
+
+  // The charged run — invoked by the background finalizer via a synthetic
+  // authenticated gateway event, never directly by the browser.
+  if (body._crawlFinalize) {
+    const inputs = { ...body };
+    delete inputs._crawlFinalize; delete inputs._crawlJobId;
+    return crawlRun({ ...inputs, _jobId: body._crawlJobId }, tool);
+  }
+
+  // Default: start a background job and return its id immediately. Validate the
+  // one hard requirement up front rather than spinning up a job that can only
+  // fail (the run re-checks; this is just the fast path).
+  if (!(body.input || body.url || '').trim()) {
+    return { _failed: true, text: 'Add a website URL to crawl — no credits were charged.' };
+  }
+  const jobId = `crawl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const inputs = { ...body };
+  delete inputs._email; delete inputs._integrations; delete inputs._userId; delete inputs._tier; delete inputs._isStaff;
+  await putCache(crawlJobKey(jobId), {
+    jobId, status: 'starting', stage: 'Queued',
+    userId: body._userId || body._email, email: body._email, tier: body._tier,
+    projectId: body.projectId || null,
+    inputs, createdAt: new Date().toISOString(),
+  }, CRAWL_JOB_TTL);
+  await selfInvokeFinalize(jobId, 'technical-seo');
+  return { _noCharge: true, jobId, status: 'starting' };
+}
+
+// Background worker: run the (charged) crawl by re-entering the gateway handler,
+// so billing, history and the "run complete" notification all flow through the
+// one canonical path, then store the finished result for the browser to adopt.
+async function crawlFinalize(event, context) {
+  const jobId = event.jobId;
+  const job = await getCache(crawlJobKey(jobId)).catch(() => null);
+  if (!job) { console.error('crawl_finalize_missing_job', jobId); return; }
+
+  try {
+    await putCache(crawlJobKey(jobId), { ...job, status: 'running', stage: 'Starting the crawl' }, CRAWL_JOB_TTL).catch(() => {});
+    const synthetic = {
+      rawPath: '/run/technical-seo',
+      requestContext: { http: { method: 'POST' }, authorizer: { lambda: { userId: job.userId, email: job.email, tier: job.tier } } },
+      headers: {},
+      body: JSON.stringify({ ...job.inputs, _crawlFinalize: true, _crawlJobId: jobId, projectId: job.projectId || undefined }),
+    };
+    const guard = cwDeadlineGuard(context);
+    let resp;
+    try { resp = await Promise.race([handler(synthetic, context), guard.promise]); }
+    finally { guard.cancel(); }
+    const parsed = JSON.parse(resp?.body || '{}');
+    const status = resp?.statusCode || 200;
+    if (status === 402) throw new Error('You ran out of credits before this run. Top up and try again — nothing was charged.');
+    if (status >= 300) throw new Error(parsed.error || 'The crawl failed. No credits were charged.');
+    if (parsed.failed || parsed.result?._failed) throw new Error(parsed.result?.text || 'The crawl failed. No credits were charged.');
+
+    await putCache(crawlJobKey(jobId), {
+      jobId, status: 'done',
+      result: parsed.result || {},
+      runId: parsed.runId || null,
+      creditsUsed: parsed.creditsUsed,
+      creditsRemaining: parsed.creditsRemaining,
+      topupRemaining: parsed.topupRemaining,
+      finishedAt: new Date().toISOString(),
+    }, CRAWL_JOB_TTL);
+  } catch (e) {
+    // At the deadline the crawl may already have finished and charged — we just
+    // lost the race to record it. Never assert "no credits were charged" here.
+    const timedOut = e?.message === CW_DEADLINE;
+    const msg = timedOut
+      ? 'This crawl took longer than we allow, so we lost track of it. Check History in a few minutes — if it finished, the result is there. If it never appears, nothing was charged.'
+      : (e?.message || 'The crawl failed. No credits were charged.');
+    if (timedOut) console.error('crawl_finalize_deadline', jobId);
+    await putCache(crawlJobKey(jobId), {
+      jobId, status: 'error', error: msg, finishedAt: new Date().toISOString(),
+    }, CRAWL_JOB_TTL).catch(() => {});
+    try {
+      await addNotification({
+        userId: job.userId,
+        title: '⚠️ Technical SEO Crawler run could not finish',
+        body: (timedOut ? 'It ran long — check History; the result may still have landed.' : (e?.message || 'Please try running it again.')).slice(0, 140),
+        link: '/history',
+        kind: 'alert',
+      });
+    } catch { /* best-effort */ }
+  }
+}
+
 // ── Technical SEO / Forensic Audit: DataForSEO async crawl ────────────────────
 // initiate(task) → poll get_results every 5s until crawl_progress != in_progress
 // or we approach the Lambda timeout. Aggregates per-page rows + a summary.
+//
+// DataForSEO hands pages back in batches as it finds them, so the rows exist
+// long before the crawl finishes. When this runs as a background job (the normal
+// path — see crawlGateway) each poll publishes the table-so-far onto the job the
+// browser is already polling, so the page fills in instead of showing a spinner
+// for two minutes. Publishing is snapshot-based for the same reason cwPublish is:
+// the job write is read-modify-write, so a lost append would drop rows for good
+// while a lost snapshot self-heals on the next poll.
 async function crawlRun(body, tool) {
   const url = UPSTREAMS.dataforseoCrawler;
   const target = (body.input || body.url || '').trim();
@@ -1648,11 +1801,21 @@ async function crawlRun(body, tool) {
   const maxPages = clampInt(body.maxPages, deep ? 30 : 10, 1, deep ? 100 : 50);
   const maxDepth = clampInt(body.maxDepth, deep ? 3 : 4, 1, 10);
 
+  const jobId = body._jobId || null;
+  // Below-tier runs are teaser runs: the finished result gets reduced to the
+  // summary, so the live view must not stream the page table either.
+  const teased = !!body._tier && !tierMeets(body._tier, tool.minTier);
+  await crawlStage(jobId, { stage: 'Starting the crawl', progress: { done: 0, total: maxPages, label: 'pages crawled' } });
+
   const init = await postUpstream(url, { action: 'initiate', url: target, max_pages: maxPages, max_depth: maxDepth });
   const taskId = init?.tasks?.[0]?.id;
   if (!taskId) throw new Error('The crawler did not accept the task. Check the URL and try again.');
 
-  const deadline = Date.now() + 150_000; // stay within the 180s Lambda timeout
+  // As a background job we get the finalizer's budget (MeteringFn is 900s), not
+  // the 180s the old buffered request had. Leave room for the AI pass that runs
+  // after the loop, and never outlast the invocation itself.
+  const budgetMs = Math.min(CRAWL_MAX_MS, Math.max(60_000, msRemaining() - CRAWL_TAIL_MS));
+  const deadline = Date.now() + budgetMs;
   const seen = new Map(); // url → page item (deduped)
   let progress = 'in_progress';
   while (Date.now() < deadline) {
@@ -1666,7 +1829,11 @@ async function crawlRun(body, tool) {
     for (const item of result?.items || []) {
       if (item?.url && !seen.has(item.url)) seen.set(item.url, item);
     }
-    if (result?.crawl_progress && result.crawl_progress !== 'in_progress') { progress = result.crawl_progress; break; }
+    const done = result?.crawl_progress && result.crawl_progress !== 'in_progress';
+    if (done) progress = result.crawl_progress;
+    // Push the rows found so far (and the running summary) to the browser.
+    await crawlPublish(jobId, [...seen.values()], progress, maxPages, teased);
+    if (done) break;
   }
 
   const pages = [...seen.values()];
@@ -1674,21 +1841,9 @@ async function crawlRun(body, tool) {
     return { text: 'The crawl started but returned no pages within the time limit. Try a smaller page count or check the URL.' };
   }
 
-  const rows = pages.map((p) => ({
-    url: p.url,
-    status: p.status_code ?? '—',
-    title: p.meta?.title || '—',
-    h1: p.meta?.htags?.h1?.[0] || '—',
-    score: p.onpage_score != null ? Math.round(p.onpage_score) : '—',
-    issues: pageIssues(p),
-  }));
-  const scored = rows.map((r) => (typeof r.score === 'number' ? r.score : null)).filter((n) => n != null);
-  const summary = {
-    pagesCrawled: pages.length,
-    avgOnPageScore: scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null,
-    pagesWithIssues: rows.filter((r) => r.issues > 0).length,
-    status: progress === 'in_progress' ? 'partial (still crawling)' : 'complete',
-  };
+  const rows = crawlRows(pages);
+  const summary = crawlSummary(rows, progress);
+  await crawlStage(jobId, { stage: 'Prioritising the fixes', progress: { done: rows.length, total: Math.max(rows.length, maxPages), label: 'pages crawled' } });
   const rec = await aiRecommendations({
     label: 'Technical SEO Crawler',
     context: 'Prioritise the technical SEO fixes that will most improve crawlability and rankings, based on the crawled pages, on-page scores and issue counts.',
@@ -1697,6 +1852,49 @@ async function crawlRun(body, tool) {
   return withRecs({ rows, summary }, rec);
 }
 
+/** Crawled page items → the table rows the result (and the live view) render. */
+function crawlRows(pages) {
+  return pages.map((p) => ({
+    url: p.url,
+    status: p.status_code ?? '—',
+    title: p.meta?.title || '—',
+    h1: p.meta?.htags?.h1?.[0] || '—',
+    score: p.onpage_score != null ? Math.round(p.onpage_score) : '—',
+    issues: pageIssues(p),
+  }));
+}
+
+/** Headline numbers over the rows crawled so far. */
+function crawlSummary(rows, progress) {
+  const scored = rows.map((r) => (typeof r.score === 'number' ? r.score : null)).filter((n) => n != null);
+  return {
+    pagesCrawled: rows.length,
+    avgOnPageScore: scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null,
+    pagesWithIssues: rows.filter((r) => r.issues > 0).length,
+    status: progress === 'in_progress' ? 'partial (still crawling)' : 'complete',
+  };
+}
+
+/** The live view: the same rows and summary the finished result carries, as
+ *  sections (the only shape the in-progress renderer speaks).
+ *
+ *  `teased` is a below-tier run, which applyTeaser will reduce to summary-only
+ *  when it finishes — so the live view must stop at the summary too. Streaming
+ *  the page table and then locking it on completion would hand out the paid
+ *  detail for the length of the crawl and read as a bug when it disappeared. */
+function crawlPartial(rows, summary, teased) {
+  if (!rows.length) return [];
+  const stats = { type: 'stats', title: 'Crawl so far', items: [
+    { label: 'Pages crawled', value: summary.pagesCrawled },
+    { label: 'Pages with issues', value: summary.pagesWithIssues, tone: summary.pagesWithIssues ? 'amber' : 'green' },
+    { label: 'Avg on-page score', value: summary.avgOnPageScore ?? '—' },
+  ] };
+  if (teased) return [stats];
+  return [
+    stats,
+    { type: 'table', title: 'Pages', columns: ['url', 'status', 'title', 'h1', 'score', 'issues'], rows },
+  ];
+}
 /** Count obvious on-page problems on a crawled page (safe, polarity-known checks). */
 function pageIssues(p) {
   let n = 0;
@@ -5785,7 +5983,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale };
+export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
