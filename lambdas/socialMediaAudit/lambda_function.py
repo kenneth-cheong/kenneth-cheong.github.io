@@ -6225,6 +6225,39 @@ def cron_capture_one(body):
         return {'ok': False, 'projectId': pid, 'month': month,
                 'reason': 'no data captured', 'meta_error': sc.get('_meta_error')}
 
+    # Social listening — run DAILY for any client that has it configured (enabled
+    # with keywords or boolean queries). The manual "Capture this month" already
+    # runs it; the cron historically skipped it to save cost, which meant a
+    # configured client's Listening tab only refreshed when someone captured by
+    # hand. Now it self-populates every day. Cost is bounded: clients with nothing
+    # configured still incur zero DataForSEO calls. Safe to run inline here — the
+    # cron path is a self-invoked Lambda (900s), NOT behind API Gateway's 30s wall,
+    # so it never trips the "Failed to fetch" gateway timeout the synchronous
+    # endpoints must respect. The daily overwrite carries listening forward on a
+    # transient pull failure so a bad DFS day never blanks an existing report.
+    _lk = proj.get('listenKeywords') or []
+    _lq = proj.get('listenQueries') or []
+    if (proj.get('listenEnabled', True) is not False) and (_lk or _lq):
+        try:
+            _sl = fetch_social_listening(
+                proj.get('brand') or proj.get('name') or '',
+                proj.get('domain', ''), proj.get('location') or 'Singapore',
+                'English', {'enabled': True, 'keywords': _lk, 'queries': _lq,
+                            'sources': ['web', 'reddit', 'twitter', 'forums']})
+            if isinstance(_sl, dict):
+                _sl['gathered_at'] = int(time.time())
+                sc['social_listening'] = _sl
+            elif prev_sc.get('social_listening'):
+                sc['social_listening'] = prev_sc['social_listening']
+        except Exception as _e:
+            if prev_sc.get('social_listening'):        # don't blank on a bad DFS day
+                sc['social_listening'] = prev_sc['social_listening']
+            sc['_listen_error'] = str(_e)[:200]
+    elif prev_sc.get('social_listening'):
+        # Not (re)running today, but keep whatever a prior run stored so the daily
+        # overwrite doesn't drop the report's existing listening section.
+        sc['social_listening'] = prev_sc['social_listening']
+
     _strip_fb_reach_er(sc)                 # before KPIs so the blend isn't skewed
     kpis = _kpis_from_scorecard(sc)
     recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
