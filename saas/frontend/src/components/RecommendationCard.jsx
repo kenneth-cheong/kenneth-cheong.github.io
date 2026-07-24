@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { ListChecks, Wand2, Target, Check, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ListChecks, Wand2, Target, Check, Sparkles, PenLine } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
 import { recStep } from '../lib/planner.js';
 import { toast } from '../lib/ui.js';
 import InlineAnswer from './InlineAnswer.jsx';
+
+const OPTIMISER_ID = 'content-writer'; // catalog id of the AI Content Optimiser
 
 // An actionable recommendation. The data tools return prioritised "do this next"
 // cards (see aiRecommendations / competitor_insights in the metering gateway),
@@ -50,15 +53,49 @@ function ctxLine({ toolName, target, domain } = {}) {
 // So we state the subject explicitly and forbid re-asking for it. `target` is
 // the URL/domain the run was actually about (threaded from ToolRunner), which is
 // the piece that used to go missing whenever the user had no project set up.
+//
+// It also has to WIN against the connected data: the assistant is handed the
+// Search Console property in its own context, so when the user typed a different
+// address on the form the answer opened with "I'm assuming your primary domain
+// is <the GSC one>…" — unsure-sounding, and wrong. What the user typed for this
+// run is definitive, and there's no reason to narrate it back at them.
 function subjectBlock({ target, domain } = {}) {
   const subject = target || domain;
   if (!subject) return '';
   return (
     `\n\nThe page/site in question is: ${subject}\n` +
+    `That is what I entered for this run — treat it as definitive. If a connected Search Console or ` +
+    `Analytics property, or any saved project, names a different domain, ignore that one and use this. ` +
     `Do NOT ask me which URL, domain, page or site this is about — you already have it above. ` +
-    `If you genuinely cannot proceed without something else, make your best assumption, state the ` +
-    `assumption in one short line, and give me the finished result anyway.`
+    `Do NOT open with a preamble about what you're assuming or what you're about to do — start straight ` +
+    `at the deliverable. If something else really is missing, pick the sensible default silently and put ` +
+    `any note about it in one short line at the END.`
   );
+}
+
+// Fields to hand the AI Content Optimiser so the next step opens filled in.
+const listOf = (v) => (Array.isArray(v) ? v : String(v ?? '').split(','))
+  .map((s) => String(s).trim()).filter(Boolean);
+const isSite = (v) => !/[\s,]/.test(String(v ?? '').trim()) && /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+([/?#]|$)/i.test(String(v ?? '').trim());
+// A page (has a path) can be optimised in place; a bare domain can't, so that
+// hand-off starts a new draft on the keyword instead.
+const isPage = (v) => isSite(v) && /^(https?:\/\/)?[^/]+\/[^/\s]/.test(String(v).trim());
+
+export function optimiserValues(context = {}) {
+  const inp = context.inputs || {};
+  const page = context.target || '';
+  // `input` is the keyword list on keyword-style tools and a URL elsewhere.
+  const kws = listOf(inp.keyword || inp.keywords || (isSite(inp.input) ? '' : inp.input));
+  const optimise = isPage(page);
+  const v = {
+    mode: optimise ? 'Optimise existing content' : 'Write a new draft',
+    ...(optimise ? { url: page } : kws[0] ? { input: kws[0] } : {}),
+    ...(kws[0] ? { keyword: kws[0] } : {}),
+    ...(kws.length > 1 ? { secondary: kws.slice(1, 10).join(', ') } : {}),
+    ...(inp.location ? { location: inp.location } : {}),
+    ...(inp.language ? { language: inp.language } : {}),
+  };
+  return (kws.length || optimise) ? v : null;
 }
 
 // One line per recommendation for the bulk prompts. `title` alone is often a
@@ -93,7 +130,8 @@ export function bulkPrompts(cards, context) {
       `Produce the FINISHED thing for EVERY item in this reply — the actual copy, meta title/description, outline or ` +
       `message, ready for me to paste in. Keep them in the same order and number them the same way. Do not ask me ` +
       `clarifying questions first, do not describe what you would write, and do not tell me you'll come back with it: ` +
-      `write it out now. For each item put the finished text on its own, clearly separated from any explanation, then ` +
+      `write it out now. Open with item 1 — no scene-setting, no restating the task, no "I'm assuming…" line. ` +
+      `For each item put the finished text on its own, clearly separated from any explanation, then ` +
       `add one short line on where to paste it. Work through the whole list — do not stop early or skip any item.`
     ),
   };
@@ -105,9 +143,14 @@ export function BulkRecActions({ cards, context }) {
   const plan = usePlan();
   const [addedAll, setAddedAll] = useState(false);
   const [writing, setWriting] = useState(false);
+  const navigate = useNavigate();
   if (!cards || cards.length < 2) return null;
 
   const { count, how, doIt } = bulkPrompts(cards, context);
+  // The natural next step after "here's what to write" is writing it — and the
+  // keyword, market and page are all sitting right here, so don't make the user
+  // re-type them into the next tool.
+  const handoff = context?.toolId === OPTIMISER_ID ? null : optimiserValues(context);
 
   const addAllToPlan = () => {
     if (addedAll || !plan?.addStep) return;
@@ -129,6 +172,15 @@ export function BulkRecActions({ cards, context }) {
         <button onClick={() => ask(how)} title="Monty explains every recommendation step by step (uses AI credits)" className={`${btn} bg-surface text-body hover:bg-sunken`}>
           <ListChecks size={14} aria-hidden /> Explain all {count}
         </button>
+        {handoff && (
+          <button
+            onClick={() => navigate(`/tool/${OPTIMISER_ID}`, { state: { values: handoff } })}
+            title={`Opens the AI Content Optimiser pre-filled${handoff.keyword ? ` with “${handoff.keyword}”` : ''} — nothing runs until you hit Run`}
+            className={`${btn} bg-surface text-body hover:bg-sunken`}
+          >
+            <PenLine size={14} aria-hidden /> Write it in the Content Optimiser
+          </button>
+        )}
         <button
           onClick={addAllToPlan}
           disabled={addedAll}
@@ -164,7 +216,8 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
     `Please help me actually DO this recommendation${where}: "${title}${body ? ` — ${body}` : ''}".${subject}\n\n` +
     `Produce the FINISHED thing in this reply — the actual copy, meta title/description, outline or message, ` +
     `ready for me to paste in. Do not ask me clarifying questions first, do not describe what you would write, ` +
-    `and do not tell me you'll come back with it: write it out now. Put the finished text on its own, clearly ` +
+    `and do not tell me you'll come back with it: write it out now. Lead with the deliverable — no scene-setting ` +
+    `and no "I'm assuming…" line. Put the finished text on its own, clearly ` +
     `separated from any explanation, then add one short line on where to paste it.`
   );
 

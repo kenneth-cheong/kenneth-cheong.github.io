@@ -108,10 +108,16 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // Fields the user has typed in. The project-domain effect below must not
   // overwrite these: someone auditing a different site typed their address in and
   // watched every tool re-fill itself with their existing project's domain.
-  const editedRef = useRef(new Set());
+  //
+  // Values carried in from another screen count as typed — a hand-off ("Write it
+  // in the Content Optimiser") or a re-opened run passes the page the user
+  // actually worked on, and the effect below would otherwise swap it back to the
+  // project domain the moment the project loaded.
+  const carried = () => Object.keys((embedded ? initialValues : location.state?.values) || {});
+  const editedRef = useRef(new Set(carried()));
 
   // Reset the form + result when navigating between tools (same route component).
-  useEffect(() => { setTab(0); editedRef.current = new Set(); setValues(seedValues()); setNudge(false); setOut(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
+  useEffect(() => { setTab(0); editedRef.current = new Set(carried()); setValues(seedValues()); setNudge(false); setOut(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
 
   // The active project often loads AFTER first render, so the initial seed can
   // miss the domain and fall back to a stale value. Once the project's domain is
@@ -1042,6 +1048,13 @@ function EmptyResult({ tool }) {
   );
 }
 
+// Input fields that can name a site or page, in the order we'd believe them.
+const SITE_KEYS = ['url', 'input', 'target', 'domain', 'website', 'site'];
+// A site/page address, not prose: `input` is a URL on some tools and a keyword
+// list on others, so anything with whitespace or a comma is rejected outright.
+const SITE_RE = /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+([/?#]|$)/i;
+const urlish = (v) => { const s = String(v ?? '').trim(); return !/[\s,]/.test(s) && SITE_RE.test(s) ? s : ''; };
+
 function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
   // The exact subtree the PDF export prints — the result card and nothing else.
   const printRef = useRef(null);
@@ -1095,11 +1108,22 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
   // recommendation with no subject attached — which is why "do it for me" on a
   // missing meta description came back asking for the URL the user had just
   // typed into the form two clicks earlier.
-  const target = (inputs?.url || inputs?.input || '').trim() || project?.domain || '';
+  //
+  // A value only counts as the subject when it actually LOOKS like a site: on
+  // Keyword Analysis `input` holds the keyword list and the user's own site sits
+  // in `domain`, so the old `url || input` pick handed the assistant "seo
+  // services singapore, digital marketing agency" as the page in question. With
+  // no usable subject it fell back to the connected Search Console property and
+  // opened with "I'm assuming your primary domain is …" — while the address the
+  // user had typed on the form sat right there.
+  const target = SITE_KEYS.map((k) => urlish(inputs?.[k])).find(Boolean) || project?.domain || '';
   const recContext = {
     toolName: tool.name,
-    domain: project?.domain,
+    // What the user typed on THIS run outranks the project/GSC domain.
+    domain: SITE_KEYS.map((k) => urlish(inputs?.[k])).find(Boolean) || project?.domain,
     target,
+    inputs,
+    toolId: tool.id,
     route: tool.route || `/tool/${tool.id}`,
   };
 
@@ -1348,18 +1372,34 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
     ...baseKeys.map((c) => ({ key: c, label: c.replace(/([a-z])([A-Z])/g, '$1 $2'), render: (row) => cell(c, row[c]) })),
     domain && {
       key: 'timeToRank', label: 'Time to rank',
+      // Never a bare blank: an un-estimated row spells out that it's one click
+      // (and one credit) away, so the empty column doesn't read as missing data.
       render: (row) => pending.has(row.keyword)
         ? <span className="inline-flex items-center gap-1 text-faint"><span className="h-3 w-3 animate-spin rounded-full border-2 border-edge border-t-brand-500" aria-hidden /> estimating…</span>
-        : row.timeToRank != null ? cell('timeToRank', row.timeToRank) : <span className="text-slate-300">—</span>,
+        : row.timeToRank != null ? cell('timeToRank', row.timeToRank)
+        : <button type="button" onClick={() => calculate([row.keyword])} disabled={running}
+            title={`Estimate time to rank for “${row.keyword}” against ${domain} — 1 credit`}
+            className="dm-no-print whitespace-nowrap rounded-full border border-dashed border-edge px-2 py-0.5 text-xs font-medium text-dim hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-40">
+            Calculate
+          </button>,
     },
   ].filter(Boolean);
 
-  async function calculate() {
-    if (!todo.length || running) return;
+  // `kws` estimates just those keywords (the per-row Calculate); omitted, it
+  // estimates everything currently ticked.
+  async function calculate(kws) {
+    if (running) return;
+    const list = (kws || todo).filter(uncomputed);
+    if (!list.length) {
+      toast(selectableKws.length
+        ? 'Tick the keywords you want estimated first — or hit “Select all”.'
+        : 'Every keyword already has an estimate.', 'info');
+      return;
+    }
     setRunning(true);
-    setPending(new Set(todo));
+    setPending(new Set(list));
     let done = 0, denied = false;
-    await pool(todo, 4, async (kw) => {
+    await pool(list, 4, async (kw) => {
       const src = rows.find((r) => r.keyword === kw) || {};
       try {
         const res = await api.runTool(tool.id, {
@@ -1377,7 +1417,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
         setPending((p) => { const n = new Set(p); n.delete(kw); return n; });
       }
     });
-    setSelected(new Set());
+    setSelected((s) => { const n = new Set(s); list.forEach((k) => n.delete(k)); return n; });
     setRunning(false);
     if (done) toast(`Time to rank estimated for ${done} keyword${done > 1 ? 's' : ''}.`, 'info');
     if (denied) toast('Ran out of credits before finishing — the rest weren’t estimated.', 'error');
@@ -1391,11 +1431,18 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
           <button type="button" onClick={toggleAll} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
             {allSel ? 'Clear selection' : 'Select all'}
           </button>
-          <button type="button" onClick={calculate} disabled={running || todo.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">
+          {/* Stays clickable with nothing ticked — it nudges rather than sitting
+              dead, matching the run buttons elsewhere. */}
+          <button type="button" onClick={() => calculate()} disabled={running}
+            className={`inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40 ${todo.length ? '' : 'opacity-60'}`}>
             {running ? 'Calculating…' : `Calculate time to rank${todo.length ? ` (${todo.length})` : ''}`}
           </button>
-          {todo.length > 0 && <span className="text-xs text-faint">costs {todo.length} credit{todo.length > 1 ? 's' : ''} · estimated against {domain}</span>}
+          <span className="text-xs text-faint">
+            {todo.length > 0
+              ? `costs ${todo.length} credit${todo.length > 1 ? 's' : ''} · estimated against ${domain}`
+              : selectableKws.length > 0 ? 'tick a keyword (or use the Calculate link in the table) · 1 credit each'
+              : 'all keywords estimated'}
+          </span>
         </div>
       )}
       <div className="mb-1.5 flex justify-end">
