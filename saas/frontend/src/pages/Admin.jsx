@@ -26,7 +26,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-line">
-        {[['users', 'Users'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['promos', 'Promo codes'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['notifications', 'Broadcast'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['promos', 'Promo codes'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
