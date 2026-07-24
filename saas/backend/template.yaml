@@ -46,7 +46,11 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    Description: Google OAuth client secret (for GSC / GA4 / Ads integrations).
+    Description: >-
+      DEPRECATED / unused. The Google OAuth client secret was migrated to Secrets
+      Manager (digimetrics-saas/google-client-secret) and the functions now read it
+      via {{resolve:secretsmanager:...}}. Left declared so existing deploy commands
+      that pass GoogleClientSecret=UsePreviousValue don't error; remove on a later pass.
   GoogleAdsLoginCustomerId:
     Type: String
     Default: ''
@@ -605,7 +609,7 @@ Resources:
           # finalizer write to the notifications table.
           NOTIFICATIONS_TABLE: !Ref NotificationsTable
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
-          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+          GOOGLE_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/google-client-secret:SecretString}}'
           GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
           # LinkedIn Ads connector — reuses the agency linkedinOAuth app's
@@ -711,7 +715,7 @@ Resources:
         Variables:
           ADMIN_EMAILS: !Ref AdminEmails
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
-          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+          GOOGLE_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/google-client-secret:SecretString}}'
           GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
           # LinkedIn Ads connector — OAuth authorize/callback run in this fn.
@@ -888,7 +892,7 @@ Resources:
       Environment:
         Variables:
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
-          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+          GOOGLE_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/google-client-secret:SecretString}}'
           GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
       Policies:

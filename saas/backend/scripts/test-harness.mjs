@@ -251,7 +251,7 @@ function render(prefill, savedResult){
   if(savedResult){ document.getElementById('out').innerHTML='<div style="font-size:12px;color:#64748b;margin-bottom:6px">re-opened from history</div>'+renderResult(savedResult); }
 }
 // ── Google OAuth (client-side token flow, exactly like index.html) ──
-const G_CLIENT_ID='1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+const G_CLIENT_ID='699016583248-olora0tamm9qk977n7nolovsdngi34b8.apps.googleusercontent.com';
 const G_SCOPES='https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/adwords email';
 let gTokenClient=null; window.__gToken=null; window.__gExpiry=0;
 function connectGoogle(){

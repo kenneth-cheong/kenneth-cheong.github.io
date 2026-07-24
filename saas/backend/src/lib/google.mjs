@@ -14,8 +14,11 @@
 import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { decrypt } from './crypto.mjs';
 
-// Same client as index.html unless overridden.
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+// The SaaS's OWN Google OAuth client (project `digimetrics-saas`), not the agency
+// app index.html uses. Dedicated so the consent screen reads "DigiMetrics" and so
+// verification/branding are decoupled from the agency. GOOGLE_CLIENT_ID (the
+// `GoogleClientId` CFN param) overrides in prod; this default keeps dev correct.
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '699016583248-olora0tamm9qk977n7nolovsdngi34b8.apps.googleusercontent.com';
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const REDIRECT = process.env.GOOGLE_OAUTH_REDIRECT || '';
 const ADS_DEV_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '';
@@ -68,8 +71,9 @@ async function postJson(url, body) {
 }
 
 export async function exchangeCode(code, redirect = REDIRECT) {
-  // Prefer direct exchange when a secret is configured; else reuse the agency
-  // Lambda (which holds the secret), exactly as index.html's code flow does.
+  // With the SaaS's own GoogleClientSecret set we exchange directly against
+  // Google — no dependency on the agency `googleAuth` Lambda. The Lambda path
+  // below is a legacy fallback for a secret-less (agency-client) deploy.
   if (CLIENT_SECRET) {
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

@@ -14,15 +14,27 @@ not an older system Node), a Stripe account, and the existing Google OAuth clien
 
 ---
 
-## 1. Google OAuth (reuse the existing client)
+## 1. Google OAuth (dedicated SaaS client)
 
-In [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → the
-existing OAuth 2.0 Client (`1080212071394-…apps.googleusercontent.com`):
+The SaaS has its **own** Google Cloud project (`digimetrics-saas`) and OAuth client —
+`699016583248-…apps.googleusercontent.com` — so the consent screen reads "DigiMetrics",
+not the agency app, and verification/branding are decoupled. (The old agency client
+`1080212071394-…` is no longer used by the SaaS.) In
+[Google Cloud Console](https://console.cloud.google.com/auth/clients?project=digimetrics-saas) →
+that client, confirm:
 
-- **Authorized JavaScript origins:** add `http://localhost:5173` and your Amplify/custom domain.
-- Note the **Client ID** — it's both `VITE_GOOGLE_CLIENT_ID` (frontend) and `GoogleClientId` (backend).
+- **Authorized redirect URIs:** `https://api.digimetrics.ai/oauth/callback` (the integrations
+  server-side flow — the API derives it from its own request domain).
+- **Authorized JavaScript origins:** `https://platform.digimetrics.ai` and `http://localhost:5173`
+  (required for the Google Identity Services **login** button — without the JS origin, login fails).
+- **Scopes** (Data Access): `webmasters`, `indexing`, `analytics.readonly`, `adwords` + openid/email/profile.
+- The **Client ID** is both `VITE_GOOGLE_CLIENT_ID` (frontend GIS login) and `GoogleClientId`
+  (backend — login ID-token audience check + integrations OAuth). The **Client secret** is the
+  `GoogleClientSecret` deploy param; with it set, the backend exchanges tokens directly against
+  Google (no agency `googleAuth` Lambda).
 
-> Or create a fresh OAuth client dedicated to the SaaS so its consent screen reads "Digimetrics" not the agency app.
+> **App is in Testing mode** until published + verified — capped at 100 users. Add test users
+> under Audience, then submit for verification (needs a privacy policy + homepage on digimetrics.ai).
 
 ---
 
