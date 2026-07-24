@@ -572,7 +572,10 @@ async function directFetchHtml(url, ms = 12000) {
 
 // Deterministic-ish data tools whose results we cache (TTL seconds). Live/AI
 // and user-data tools are never cached.
-const CACHE_TTL = { 'keyword-analysis': 86400, backlinks: 86400, competitors: 86400, 'time-to-rank': 86400, onpage: 86400 };
+// On-Page is absent on purpose: it caches its FETCHED page data instead, one
+// level down (see onpageRun), so a change to how the report renders shows up on
+// the next run rather than a day later.
+const CACHE_TTL = { 'keyword-analysis': 86400, backlinks: 86400, competitors: 86400, 'time-to-rank': 86400 };
 function cacheKey(tool, body) {
   const pub = {};
   for (const [k, v] of Object.entries(body)) if (!k.startsWith('_') && k !== 'projectId' && k !== 'url') pub[k] = v;
@@ -1184,6 +1187,18 @@ async function onpageRun(body) {
   if (!url) throw new Error('A page URL is required.');
   const keywords = String(body.keywords || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
 
+  // What the day-long cache holds is the four upstream answers, NOT the report
+  // built from them. Caching the rendered sections meant a shipped rendering
+  // change (alt-text thumbnails) was invisible for 24h to anyone who had run
+  // the page before — the deploy was live, the screen still showed yesterday.
+  const dataKey = onpageDataKey(url, keywords);
+  const cached = await getCache(dataKey).catch(() => null);
+  if (cached) {
+    const sections = sectionsOnpage(url, cached.recs || {}, cached.extraction || {}, cached.contentRows || [], cached.images || [], new Map(cached.alt || []), keywords);
+    if (sections.some((s) => s.type === 'table')) return { sections, cached: true };
+    // A cached miss-shaped payload re-fetches rather than returning nothing.
+  }
+
   // 1. Extract page elements (headings, meta, images).
   let extraction = {};
   try { extraction = deepBody(await postUpstream(UPSTREAMS.getImages, { url, keywords })) || {}; }
@@ -1226,7 +1241,19 @@ async function onpageRun(body) {
   // "did this run find anything" is a question about the tables, not the
   // section count.
   if (!sections.some((s) => s.type === 'table')) return { text: 'No on-page recommendations were returned. Check the URL and target keywords.' };
+  // Only the fields the report is built from — the raw extraction carries the
+  // full image_data and would push the item at the 400KB row ceiling.
+  const { meta_title, meta_description, canonical_url, headings } = extraction;
+  putCache(dataKey, {
+    extraction: { meta_title, meta_description, canonical_url, headings },
+    recs, contentRows, images, alt: [...altBySrc],
+  }, ONPAGE_TTL).catch(() => {});
   return { sections };
+}
+
+const ONPAGE_TTL = 86400;
+function onpageDataKey(url, keywords) {
+  return createHash('sha256').update(`onpage-data|${url}|${keywords.join(',')}`).digest('hex');
 }
 
 // Page images as { src, alt }, absolute-URL only (the vision endpoint has to be
