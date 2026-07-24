@@ -68,7 +68,8 @@ export default function SeoDiagnostics() {
   const [keywords, setKeywords] = useState([]); // {keyword,volume,position,change,_sel}
   const [ga4, setGa4] = useState('');
   const [gsc, setGsc] = useState('');
-  const [mode, setMode] = useState('starter');
+  // The depth picker is gone — every diagnosis runs the full set of checks.
+  const mode = 'advanced';
   const [evidence, setEvidence] = useState('');
 
   const [busy, setBusy] = useState(false);
@@ -101,7 +102,6 @@ export default function SeoDiagnostics() {
     if (v.input) setDomain(String(v.input));
     if (v.location) setLocation(String(v.location));
     if (v.language) setLanguage(String(v.language));
-    if (v.mode) setMode(String(v.mode));
     if (v.evidence) setEvidence(String(v.evidence));
     if (Array.isArray(v.keywords)) setKeywords(v.keywords);
     if (v.ga4) setGa4(String(v.ga4));
@@ -274,20 +274,9 @@ export default function SeoDiagnostics() {
           <h2 className="text-sm font-bold uppercase tracking-wide text-body">Technical checks</h2>
           <p className="mt-1 text-xs text-faint">We run page speed, performance grade, SSL, on-page (schema/meta/headings), robots/llms.txt, backlinks and a live SERP landscape against your domain, then diagnose.</p>
           <div className="mt-3">
-            <label className="block text-sm font-medium text-body">Depth</label>
-            <div className="mt-1 inline-flex overflow-hidden rounded-lg border border-brand-200 dark:border-brand-500/30">
-              {['starter', 'pro', 'advanced'].map((m) => (
-                <button key={m} type="button" onClick={() => setMode(m)} disabled={busy}
-                  className={`px-4 py-2 text-sm font-bold capitalize ${mode === m ? 'bg-brand-600 text-white' : 'bg-surface text-brand-700 dark:text-brand-300'}`}>{m}</button>
-              ))}
-            </div>
+            <label className="block text-sm font-medium text-body">Extra evidence <span className="font-normal text-faint">(optional)</span></label>
+            <textarea className="field mt-1" rows={3} value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="Paste any crawl exports, known issues or notes to fold into the diagnosis." disabled={busy} />
           </div>
-          {mode !== 'starter' && (
-            <div className="mt-3">
-              <label className="block text-sm font-medium text-body">Extra evidence <span className="font-normal text-faint">(optional)</span></label>
-              <textarea className="field mt-1" rows={3} value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="Paste any crawl exports, known issues or notes to fold into the diagnosis." disabled={busy} />
-            </div>
-          )}
           <div className="mt-4 flex items-center gap-3">
             <button onClick={run} disabled={busy} className="btn-primary">
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Stethoscope size={16} />}
