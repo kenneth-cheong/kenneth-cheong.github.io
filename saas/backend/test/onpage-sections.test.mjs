@@ -50,7 +50,7 @@ describe('sectionsOnpage', () => {
 
   it('renders every section, not just the images one', () => {
     const out = sectionsOnpage('https://mediaonemarketing.com.sg', recs, EXTRACTION, [
-      { Element: 'Body copy', Current: '400 words', Suggested: '900 words', Why: 'Competitors average 900.' },
+      { '#': '1', Current: '400 words', Suggested: '900 words', Why: 'Competitors average 900.' },
     ], images, alt, ['seo agency singapore']);
     assertShape(out);
     const titles = out.filter((s) => s.type === 'table').map((s) => s.title);

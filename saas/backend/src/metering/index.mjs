@@ -1127,8 +1127,11 @@ async function onpageRun(body) {
   try {
     const craw = await postUpstream(UPSTREAMS.onPageContentRecommendations, { url, keywords });
     const arr = Array.isArray(craw) ? craw : deepBody(craw);
-    contentRows = (Array.isArray(arr) ? arr : []).map((r) => ({
-      Element: r.element || r.field || '—', Current: r.current_value ?? '—', Suggested: r.suggested_value ?? '—', Why: r.rationale ?? '',
+    // The upstream answers with current_value / suggested_value / rationale and
+    // nothing else — there is no element name to show, so the row is numbered
+    // instead (index.html's table did the same).
+    contentRows = (Array.isArray(arr) ? arr : []).map((r, i) => ({
+      '#': String(i + 1), Current: r.current_value ?? '—', Suggested: r.suggested_value ?? '—', Why: r.rationale ?? '',
     }));
   } catch (e) { console.error('onpage_content_failed', e.message); }
 
@@ -1308,7 +1311,7 @@ function sectionsOnpage(url, recs, extraction, contentRows, images = [], altBySr
     }
   }
 
-  if (contentRows.length) out.push({ type: 'table', title: 'Content recommendations', columns: ['Element', 'Current', 'Suggested', 'Why'], rows: contentRows });
+  if (contentRows.length) out.push({ type: 'table', title: 'Content recommendations', columns: ['#', 'Current', 'Suggested', 'Why'], rows: contentRows });
   return out;
 }
 
