@@ -84,3 +84,35 @@ describe('crawlRun (mocked upstream)', () => {
     expect(r.summary.pagesCrawled).toBe(1);
   }, 20000);
 });
+
+describe('crawl live-progress helpers', () => {
+  const pages = [
+    { url: 'https://x/', status_code: 200, onpage_score: 90, meta: { title: 'T', description: 'd', htags: { h1: ['H'] } }, checks: { is_https: true } },
+    { url: 'https://x/b', status_code: 404, meta: {}, checks: { is_https: true } },
+  ];
+
+  it('summarises the rows crawled so far, flagging an unfinished crawl', () => {
+    const rows = __test.crawlRows(pages);
+    expect(rows.map((r) => r.url)).toEqual(['https://x/', 'https://x/b']);
+    const mid = __test.crawlSummary(rows, 'in_progress');
+    expect(mid.pagesCrawled).toBe(2);
+    expect(mid.pagesWithIssues).toBe(1); // the 404 has no title/description/h1
+    expect(mid.avgOnPageScore).toBe(90); // only the scored page counts
+    expect(mid.status).toBe('partial (still crawling)');
+    expect(__test.crawlSummary(rows, 'finished').status).toBe('complete');
+  });
+
+  it('publishes stats + the page table, and nothing before the first page lands', () => {
+    const rows = __test.crawlRows(pages);
+    const sections = __test.crawlPartial(rows, __test.crawlSummary(rows, 'in_progress'), false);
+    expect(sections.map((s) => s.type)).toEqual(['stats', 'table']);
+    expect(sections[1].rows).toHaveLength(2);
+    expect(__test.crawlPartial([], __test.crawlSummary([], 'in_progress'), false)).toEqual([]);
+  });
+
+  it('withholds the page table on a teaser run — it would be locked on completion', () => {
+    const rows = __test.crawlRows(pages);
+    const sections = __test.crawlPartial(rows, __test.crawlSummary(rows, 'in_progress'), true);
+    expect(sections.map((s) => s.type)).toEqual(['stats']);
+  });
+});
