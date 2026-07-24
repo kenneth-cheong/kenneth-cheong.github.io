@@ -16,10 +16,10 @@ import {
   claimStripeEvent, releaseStripeEvent,
   resetMonthlyAllowance, applyTierChange, applyDowngrade, linkStripeCustomer,
   setPastDue, debitTopupCredits, unlinkStripeCustomer, setCancelAtPeriodEnd,
-  addLifetimePaid, refundDeltaCents,
+  addLifetimePaid, refundDeltaCents, listTopupPurchases,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
-import { sendSubscribeEmail, sendCancelEmail, formatMoney, formatDate } from '../lib/billing-emails.mjs';
+import { sendSubscribeEmail, sendCancelEmail, sendTopupEmail, formatMoney, formatDate } from '../lib/billing-emails.mjs';
 import { findPromoByCode, promoProblem, appliesToProduct, normalizePromo, hydrateCoupon } from '../lib/promos.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, json, parseBody, claims } from '../lib/http.mjs';
 import { rateLimit } from '../lib/ratelimit.mjs';
@@ -234,6 +234,34 @@ async function handleInvoices(event) {
       description: ch.description || 'Credit top-up',
     });
   }
+
+  // Promo-zeroed top-ups: a code that discounts a pack to $0 completes Checkout
+  // with no charge, so it never appears in charges.list above — the credit
+  // ledger is the only record. Surface those so a free top-up isn't invisible
+  // (the exact gap a customer hit buying credits with a discount code). Paid
+  // top-ups already show as their Stripe charge, so skip any ledger row that
+  // lines up with one: by stored amount for new rows, by a nearby charge for
+  // old rows that predate the stored amount.
+  const receipts = documents.filter((d) => d.type === 'receipt');
+  let topups = [];
+  try { topups = await listTopupPurchases(user.userId); }
+  catch (e) { console.error('invoices_topup_ledger', user.userId, e.message); }
+  for (const row of topups) {
+    const cents = row.meta?.cents;
+    if (cents > 0) continue;                              // paid → shown as its Stripe charge
+    const atMs = row.at ? Date.parse(row.at) : NaN;
+    const atSec = Number.isNaN(atMs) ? 0 : Math.floor(atMs / 1000);
+    // Old row with no stored amount: only skip if a real charge sits next to it.
+    if (cents == null && atSec && receipts.some((r) => Math.abs(r.created - atSec) < 900)) continue;
+    const credits = row.delta || 0;
+    documents.push({
+      id: row.ts, type: 'receipt', number: null,
+      created: atSec, amount: cents || 0, currency: row.meta?.currency || 'usd',
+      status: 'free', pdf: null, url: null,
+      description: `Credit top-up${credits ? ` — ${credits.toLocaleString('en-US')} credits` : ''} (promo)`,
+    });
+  }
+
   documents.sort((a, b) => b.created - a.created);
   return ok({ documents });
 }
@@ -574,12 +602,28 @@ async function onCheckoutComplete(session) {
   // prevents a retried delivery from double-granting).
   if (session.metadata?.type === 'topup') {
     const amount = parseInt(session.metadata.credits, 10) || 0;
+    const cents = session.amount_total || 0;
+    const currency = session.currency || 'usd';
     if (amount > 0) {
-      await grantTopupCredits({ userId, amount, action: 'topup_purchase', meta: { packId: session.metadata.packId } });
+      // Store cents/currency on the ledger row: a promo code can zero the charge,
+      // in which case Stripe creates NO charge and the ledger is the only record
+      // of the purchase — the invoices endpoint reads these to surface it.
+      await grantTopupCredits({ userId, amount, action: 'topup_purchase', meta: { packId: session.metadata.packId, cents, currency } });
     }
     // Top-ups are invoice-less, so this is the only place their revenue lands.
-    if (session.amount_total) {
-      await addLifetimePaid({ userId, cents: session.amount_total, currency: session.currency });
+    if (cents) {
+      await addLifetimePaid({ userId, cents, currency });
+    }
+    // Branded confirmation. When a promo zeroed the charge, Stripe sends no
+    // receipt at all, so this email is the customer's only proof of purchase.
+    // Best-effort — a mail failure must never fail (and thus retry) the webhook.
+    if (amount > 0) {
+      const pack = topupById(session.metadata.packId);
+      await sendTopupEmail(user, {
+        packName: pack?.name || 'Credit top-up',
+        credits: amount,
+        amountText: cents ? formatMoney(cents, currency) : 'Free (promo code)',
+      }).catch((e) => console.error('topup_email', userId, e.message));
     }
   }
 }
@@ -749,5 +793,5 @@ export const __test = {
   handlePaymentMethod, handleSubscriptionChange, handleSubscriptionCancel,
   handleCheckout, handleTopup, handlePromoValidate, resolvePromo,
   onInvoicePaid, onSubscriptionUpdated, tierForInvoice, onCheckoutComplete, onChargeRefunded,
-  priceIdFromLine, subscriptionIdFromInvoice, periodEndOfSubscription,
+  priceIdFromLine, subscriptionIdFromInvoice, periodEndOfSubscription, handleInvoices,
 };

@@ -927,6 +927,37 @@ export async function deleteProvision(email) {
   await ddb.send(new DeleteCommand({ TableName: TABLES.users, Key: { userId: provisionId(email) } }));
 }
 
+// Every one-time top-up purchase for a user, newest first. Used by the invoices
+// endpoint to surface promo-zeroed top-ups, which create no Stripe charge and so
+// exist nowhere else. The Query `Limit` counts rows EVALUATED before the filter,
+// so a heavy spender can bury a top-up under many spend rows — we walk a bounded
+// number of pages rather than a single Limited query. The page cap stops a
+// runaway scan; a top-up older than the scanned window is logged, not silently
+// dropped. `action` is a DynamoDB reserved word, hence the name placeholder.
+export async function listTopupPurchases(userId, { maxPages = 6, pageSize = 200 } = {}) {
+  const out = [];
+  let ExclusiveStartKey;
+  for (let page = 0; page < maxPages; page++) {
+    const { Items, LastEvaluatedKey } = await ddb.send(
+      new QueryCommand({
+        TableName: TABLES.ledger,
+        KeyConditionExpression: 'userId = :u',
+        FilterExpression: '#a = :a',
+        ExpressionAttributeNames: { '#a': 'action' },
+        ExpressionAttributeValues: { ':u': userId, ':a': 'topup_purchase' },
+        ScanIndexForward: false,
+        Limit: pageSize,
+        ExclusiveStartKey,
+      })
+    );
+    if (Items?.length) out.push(...Items);
+    if (!LastEvaluatedKey) return out;
+    ExclusiveStartKey = LastEvaluatedKey;
+  }
+  console.warn('listTopupPurchases_capped', userId);
+  return out;
+}
+
 export async function listLedger(userId, limit = 100) {
   const { Items } = await ddb.send(
     new QueryCommand({

@@ -300,6 +300,50 @@ export function renewalEmailText(user = {}, opts = {}) {
   return lines.join('\n');
 }
 
+// ── One-time credit top-up confirmation ──────────────────────────────────────
+// opts: { packName, credits, amountText, balanceText }
+// amountText is already display-ready ("$45.00 USD", or "Free (promo code)" when
+// a code zeroed the charge — the case where Stripe issues no receipt, making
+// this email the only proof of purchase the customer gets).
+export function topupEmailHtml(user = {}, opts = {}) {
+  const rows = [
+    ['Pack', opts.packName || 'Credit top-up'],
+    ['Credits added', Number(opts.credits || 0).toLocaleString('en-US')],
+  ];
+  if (opts.amountText) rows.push(['Amount', opts.amountText]);
+  if (opts.balanceText) rows.push(['Top-up balance', opts.balanceText]);
+  return shell({
+    title: 'Your Digimetrics credits are ready',
+    preheader: `${Number(opts.credits || 0).toLocaleString('en-US')} credits have been added to your account.`,
+    name: esc(firstName(user)),
+    heading: 'Your credits are ready &#127881;',
+    introHtml: `Thanks for your top-up. We've added <strong>${esc(Number(opts.credits || 0).toLocaleString('en-US'))} credits</strong> to your account — they never expire and are used only after your monthly allowance runs out. Here's a summary:`,
+    cardTitle: 'Top-up summary',
+    rows,
+    noteHtml: `Questions about your purchase or billing? Just reply to this email — we're happy to help.`,
+    ctaLabel: 'Go to your dashboard',
+    ctaUrl: dashUrl(),
+  });
+}
+
+export function topupEmailText(user = {}, opts = {}) {
+  const lines = [
+    `Hi ${firstName(user)},`,
+    '',
+    `Thanks for your top-up. We've added ${Number(opts.credits || 0).toLocaleString('en-US')} credits to your account — they never expire and are used only after your monthly allowance runs out.`,
+    '',
+    'Top-up summary:',
+    `  Pack: ${opts.packName || 'Credit top-up'}`,
+    `  Credits added: ${Number(opts.credits || 0).toLocaleString('en-US')}`,
+  ];
+  if (opts.amountText) lines.push(`  Amount: ${opts.amountText}`);
+  if (opts.balanceText) lines.push(`  Top-up balance: ${opts.balanceText}`);
+  lines.push('', `Go to your dashboard: ${dashUrl()}`, '',
+    'Questions about your purchase or billing? Just reply to this email.', '',
+    'Best regards,', 'The Digimetrics Team', WEBSITE_URL);
+  return lines.join('\n');
+}
+
 // ── Senders (best-effort; never throw) ───────────────────────────────────────
 export async function sendSubscribeEmail(user, opts = {}) {
   if (!user?.email) return false;
@@ -331,6 +375,23 @@ export async function sendCancelEmail(user, opts = {}) {
     });
   } catch (e) {
     console.warn('cancel_email_failed', e.message);
+    return false;
+  }
+}
+
+export async function sendTopupEmail(user, opts = {}) {
+  if (!user?.email) return false;
+  try {
+    const { sendNotice, noticeFrom } = await import('./email.mjs');
+    return await sendNotice({
+      to: user.email,
+      subject: `Your Digimetrics credits are ready — ${Number(opts.credits || 0).toLocaleString('en-US')} added 🎉`,
+      text: topupEmailText(user, opts),
+      html: topupEmailHtml(user, opts),
+      from: noticeFrom('Digimetrics'),
+    });
+  } catch (e) {
+    console.warn('topup_email_failed', e.message);
     return false;
   }
 }
