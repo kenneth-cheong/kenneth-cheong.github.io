@@ -49,6 +49,7 @@ import { amplifyUsage, amplifyAccessLogs, toolSpendBySource, llmSpendByProvider,
 import { financeReport } from '../lib/finances.mjs';
 import { listPromos, createPromo, updatePromo } from '../lib/promos.mjs';
 import { sendEmail } from '../lib/email.mjs';
+import { sendInviteEmail } from '../lib/invite-email.mjs';
 import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
 import { putBroadcastImage } from '../lib/s3.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
@@ -440,12 +441,11 @@ export const handler = async (event) => {
     const credits = Number.isFinite(Number(body.credits)) ? Math.max(0, Number(body.credits)) : PLANS[tier].monthlyCredits;
     const provision = await createProvision({ email, name: (body.name || '').trim(), role, tier, credits, invitedBy: c.email });
     if (body.sendInvite) {
-      await sendEmail({
-        to: email,
-        subject: 'You’ve been invited to Digimetrics',
-        text: `You've been added to Digimetrics${role === 'staff' ? ' as a staff member' : ''}.\n\n`
-          + `Sign in with Google using this email (${email}) to activate your account:\n${APP_ORIGIN || 'the Digimetrics app'}\n`,
-      });
+      // Branded "your account is ready" notice via the authenticated SMTP path
+      // (support@digimetrics.ai), same as the other transactional emails.
+      // Best-effort: a mail failure must never fail the provisioning call.
+      await sendInviteEmail({ email, name: body.name, role }, { appOrigin: APP_ORIGIN })
+        .catch((e) => console.error('invite_email', email, e.message));
     }
     return ok({ user: shape(provision) });
   }

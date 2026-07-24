@@ -688,6 +688,14 @@ Resources:
           PRICE_TOPUP_TOPUP_S: !Sub '{{resolve:ssm:/saas/price/topup/topup_s}}'
           PRICE_TOPUP_TOPUP_M: !Sub '{{resolve:ssm:/saas/price/topup/topup_m}}'
           PRICE_TOPUP_TOPUP_L: !Sub '{{resolve:ssm:/saas/price/topup/topup_l}}'
+          # Branded subscription-confirmation + cancellation emails send from here
+          # via the same authenticated SMTP path as the other mailers. Empty
+          # SMTP_USER falls back to SES.
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }

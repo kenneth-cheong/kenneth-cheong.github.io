@@ -19,6 +19,7 @@ import {
   addLifetimePaid, refundDeltaCents,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
+import { sendSubscribeEmail, sendCancelEmail, formatMoney, formatDate } from '../lib/billing-emails.mjs';
 import { findPromoByCode, promoProblem, appliesToProduct, normalizePromo, hydrateCoupon } from '../lib/promos.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, json, parseBody, claims } from '../lib/http.mjs';
 import { rateLimit } from '../lib/ratelimit.mjs';
@@ -464,14 +465,21 @@ async function handleSubscriptionCancel(event) {
   try {
     const sub = await activeSubscription(user.stripeCustomerId);
     if (!sub) return badRequest('No active subscription to cancel.');
+    const planName = PLANS[user.tier]?.name || user.tier;
     if (atPeriodEnd) {
       const updated = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
       // Same API-version move as the invoice line: the period end lives on the
       // item now, so reading only the subscription returned undefined and the
       // "you keep access until…" confirmation had no date to show.
-      return ok({ cancelled: true, atPeriodEnd: true, endsAt: periodEndOfSubscription(updated) });
+      const endsAt = periodEndOfSubscription(updated);
+      // Best-effort branded confirmation — never let a mail failure fail the cancel.
+      await sendCancelEmail(user, { planName, endsAtText: formatDate(endsAt) })
+        .catch((e) => console.error('cancel_email', user.userId, e.message));
+      return ok({ cancelled: true, atPeriodEnd: true, endsAt });
     }
     await stripe.subscriptions.cancel(sub.id);
+    await sendCancelEmail(user, { planName, endsAtText: '' })
+      .catch((e) => console.error('cancel_email', user.userId, e.message));
     return ok({ cancelled: true, atPeriodEnd: false });
   } catch (e) {
     return forgetStrandedCustomer(user, e);
@@ -632,6 +640,19 @@ async function onInvoicePaid(invoice) {
   // Atomic: touches only tier/credits/periodEnd — topupCredits and other fields
   // are preserved even if a tool run spends concurrently.
   await resetMonthlyAllowance({ userId: user.userId, tier, monthlyCredits: plan.monthlyCredits, periodEnd, previousCredits: user.credits || 0 });
+
+  // Branded confirmation on the FIRST subscription only. Renewals are
+  // billing_reason 'subscription_cycle' and stay silent. Best-effort — a mail
+  // failure must never fail the webhook (that would trigger a Stripe retry and,
+  // via idempotency, skip the grant on the retry).
+  if (reason === 'subscription_create') {
+    await sendSubscribeEmail(user, {
+      planName: plan?.name || tier,
+      monthlyCredits: plan?.monthlyCredits,
+      amountText: formatMoney(invoice.amount_paid, invoice.currency),
+      nextBillingText: formatDate(periodEnd),
+    }).catch((e) => console.error('subscribe_email', user.userId, e.message));
+  }
 }
 
 // Make the card just collected in SETUP mode the one we actually charge. The
