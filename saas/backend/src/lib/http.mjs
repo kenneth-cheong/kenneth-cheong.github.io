@@ -58,7 +58,7 @@ export const isEmail = (s) =>
  *  from being claimed. */
 const RESERVED_USERNAMES = new Set([
   'admin', 'administrator', 'root', 'support', 'help', 'billing', 'security',
-  'settings', 'pending', 'username', 'api', 'system', 'digimetrics', 'mediaone',
+  'settings', 'pending', 'username', 'api', 'system', 'digimetrics',
   'no-reply', 'noreply', 'postmaster', 'abuse', 'me', 'staff',
 ]);
 export const isUsername = (s) =>

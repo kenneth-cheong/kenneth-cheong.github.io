@@ -1594,7 +1594,7 @@ function sectionsOnpage(url, recs, extraction, contentRows, images = [], altBySr
       const proposed = altBySrc.get(x.src) || '';
       return {
         // The absolute src, rendered as a thumbnail by the report's table: a
-        // filename alone doesn't tell you whether "MediaOne Logo Square" is the
+        // filename alone doesn't tell you whether "Digimetrics Logo Square" is the
         // right description for the picture, which is the whole judgement call
         // this table is asking the reader to make.
         Preview: x.src,
@@ -3598,43 +3598,43 @@ function generateForensicRecommendations(d) {
   if (d.psd !== null && d.psd < 90) add(`Poor Desktop Page Speed (score: ${d.psd})`, 'Developer to minify bloated CSS or JS components and serve images in .webp format to reduce page load time. Additional plugins may be required for cache purposes', 'psd');
   if (d.psm !== null && d.psm < 90) add(`Poor Mobile Page Speed (score: ${d.psm})`, 'Developer to minify bloated CSS or JS components and serve images in .webp format to reduce page load time. Additional plugins may be required for cache purposes', 'psm');
   if (d.gtmetrix && d.gtmetrix !== 'A') add(`Performance Grade ${d.gtmetrix} (Not Grade A)`, 'Developer to improve the core web vitals', 'gtmetrix');
-  if (d.copyscape !== null && d.copyscape > 15) add(`High Duplicate Content (${d.copyscape}%)`, 'MediaOne can assist with the write up to rephrase the duplicate content', 'copyscape');
+  if (d.copyscape !== null && d.copyscape > 15) add(`High Duplicate Content (${d.copyscape}%)`, 'Digimetrics can assist with the write up to rephrase the duplicate content', 'copyscape');
   if (d.robots === 'Missing') add('robots.txt Does Not Exist', 'Developer to create robots.txt and add sitemap URL into robots.txt', 'robots');
   if (d.robots === 'Fail') add('robots.txt Missing Sitemap URL', 'Developer to add sitemap URL in robots.txt', 'robots');
   if (d.custom404 === 'Not Configured') add('No Custom 404 Error Page', "Developer to create a '404 Error' page with a home page button", 'custom404');
   if (d.cdn === 'No') add('No CDN Implemented', 'Developer to set up CDN. We recommend Cloudflare, but developer can choose any other CDN that serves similar function', 'html');
   if (d.uptime === 'Not Monitoring') add('Uptimerobot Property Not Created', 'Developer to create Uptimerobot property to monitor site uptime');
-  if (d.siteliner !== null && d.siteliner > 15) add(`High Internal Duplicate Content (${d.siteliner}%)`, 'MediaOne can assist with the write up to rephrase the duplicate content');
+  if (d.siteliner !== null && d.siteliner > 15) add(`High Internal Duplicate Content (${d.siteliner}%)`, 'Digimetrics can assist with the write up to rephrase the duplicate content');
   if (d.sitemap === 'Missing') add('XML Sitemap Missing', 'Developer will create a sitemap and submit it to Google Search Console', 'sitemap');
   if (d.sitemap === 'Not Submitted in GSC') add('Sitemap Not Submitted in GSC', 'Developer to ensure the sitemap is submitted in Google Search Console', 'sitemap');
   if (d.sitemap === 'Has / Error in GSC') add('Sitemap Has "/" Error in GSC', 'Developer to ensure the sitemap is submitted in GSC and delete "/" error in GSC (if any)', 'sitemap');
   if (d.sitemap === 'Not Formatted Properly') add('Sitemap Not Formatted Properly', 'Developer to ensure that the sitemap is formatted correctly', 'sitemap');
   if (d.https === 'No') add('HTTP to HTTPS Redirect Not Configured', 'Developer to 301 redirect http:// URLs to https://', 'https');
-  if (!d.metatitle) add('Missing Meta Title', 'MediaOne will address the meta titles for targeted pages in the On Page Recommendation document. Client may provide the meta titles for other pages and MediaOne can assist with implementing them', 'sitedata');
-  if (!d.metadesc) add('Missing Meta Description', 'MediaOne will address the meta descriptions for targeted pages in the On Page Recommendation document. Client may provide the meta descriptions for other pages and MediaOne can assist with implementing them', 'sitedata');
-  if (d.duptitles !== null && d.duptitles > 0) add(`${d.duptitles} Duplicate Title Tags Found`, 'MediaOne will address the meta titles for targeted pages in the On Page Recommendation document. Client may provide the meta titles for other pages and MediaOne can assist with implementing them');
-  if (d.dupdescs !== null && d.dupdescs > 0) add(`${d.dupdescs} Duplicate Meta Descriptions Found`, 'MediaOne will address the meta descriptions for targeted pages in the On Page Recommendation document. Client may provide the meta descriptions for other pages and MediaOne can assist with implementing them');
-  if (d.unoptmeta !== null && d.unoptmeta > 0) add(`${d.unoptmeta} Unoptimised Meta Tags Found`, 'MediaOne will address the meta titles and descriptions for targeted pages in the On Page Recommendation document');
+  if (!d.metatitle) add('Missing Meta Title', 'Digimetrics will address the meta titles for targeted pages in the On Page Recommendation document. Client may provide the meta titles for other pages and Digimetrics can assist with implementing them', 'sitedata');
+  if (!d.metadesc) add('Missing Meta Description', 'Digimetrics will address the meta descriptions for targeted pages in the On Page Recommendation document. Client may provide the meta descriptions for other pages and Digimetrics can assist with implementing them', 'sitedata');
+  if (d.duptitles !== null && d.duptitles > 0) add(`${d.duptitles} Duplicate Title Tags Found`, 'Digimetrics will address the meta titles for targeted pages in the On Page Recommendation document. Client may provide the meta titles for other pages and Digimetrics can assist with implementing them');
+  if (d.dupdescs !== null && d.dupdescs > 0) add(`${d.dupdescs} Duplicate Meta Descriptions Found`, 'Digimetrics will address the meta descriptions for targeted pages in the On Page Recommendation document. Client may provide the meta descriptions for other pages and Digimetrics can assist with implementing them');
+  if (d.unoptmeta !== null && d.unoptmeta > 0) add(`${d.unoptmeta} Unoptimised Meta Tags Found`, 'Digimetrics will address the meta titles and descriptions for targeted pages in the On Page Recommendation document');
   if (d.canonical !== null && d.canonical > 0) add(`${d.canonical} Canonical Tag Issues Found`, 'Developer to canonicalise targeted pages');
   if (d.hreflang !== null && d.hreflang > 0) add(`${d.hreflang} Hreflang Tag Issues Found`, 'Developer to implement en-SG hreflang tagging: (1) Open header.php in the active theme, (2) Add <link rel="alternate" href="[websiteURL]" hreflang="en-sg" /> before the closing </head> tag, (3) Save the file');
-  if (d.multislash !== null && d.multislash > 0) add(`${d.multislash} Multiple Slash URL Issues Found`, 'Developer to redirect multiple slash URLs to single slash (e.g. https://www.example.com// → https://www.example.com/). MediaOne will also remove the multiple slash URLs from sitemap.xml');
+  if (d.multislash !== null && d.multislash > 0) add(`${d.multislash} Multiple Slash URL Issues Found`, 'Developer to redirect multiple slash URLs to single slash (e.g. https://www.example.com// → https://www.example.com/). Digimetrics will also remove the multiple slash URLs from sitemap.xml');
   if (d.sf404 !== null && d.sf404 > 0) add(`${d.sf404} Broken Links (404) Detected`, 'Developer to remove these pages from sitemap.xml and fix or redirect all broken links to relevant live pages');
   if (d.ga4 === 'Not Connected') add('No Data Flowing into GA4', 'Developer will assist with the GA4 tagging and ensure data is flowing into GA4', 'html');
   if (d.ga4 === 'No Access') add('No Access to Google Analytics 4', 'Client to provide access to GA4');
-  if (d.gsc === 'No Access') add('No Access to Google Search Console', 'Client to give GSC access first. After which, MediaOne will ensure the sitemap is submitted in GSC and delete "/" error in GSC (if any)');
-  if (d.structdata === 'No') add('No Structured Data Markup', 'MediaOne will be recommending relevant structured data on specific pages to enhance how your pages show up for GEO during On-page recommendations', 'html');
-  if (d.sderrors !== null && d.sderrors > 0) add(`${d.sderrors} Structured Data Errors Detected`, 'MediaOne will be reviewing structured data with errors on specific pages to enhance how your pages show up for GEO during On-page recommendations');
-  if (d.llmblock === 'Yes') add('LLM Bots Blocked in robots.txt', 'MediaOne to check & fix the robots.txt to ensure that the website does not block LLM bots', 'robots');
-  if (d.llmstxt === 'Missing') add('llms.txt File Missing', 'MediaOne to check, create and install llms.txt', 'llmstxt');
-  if (d.llmsfull === 'Missing') add('llms-full.txt File Missing', 'MediaOne to check, create and install llms-full.txt', 'llmsfull');
-  if (d.semantic === 'Partial') add('Website is Partly Semantic HTML', 'MediaOne to check and provide the semantic HTML structure for developers to deploy', 'html');
-  if (d.semantic === 'No') add('Website is Not Semantic HTML Optimised', 'MediaOne to check and provide the full semantic HTML structure for developers to deploy', 'html');
+  if (d.gsc === 'No Access') add('No Access to Google Search Console', 'Client to give GSC access first. After which, Digimetrics will ensure the sitemap is submitted in GSC and delete "/" error in GSC (if any)');
+  if (d.structdata === 'No') add('No Structured Data Markup', 'Digimetrics will be recommending relevant structured data on specific pages to enhance how your pages show up for GEO during On-page recommendations', 'html');
+  if (d.sderrors !== null && d.sderrors > 0) add(`${d.sderrors} Structured Data Errors Detected`, 'Digimetrics will be reviewing structured data with errors on specific pages to enhance how your pages show up for GEO during On-page recommendations');
+  if (d.llmblock === 'Yes') add('LLM Bots Blocked in robots.txt', 'Digimetrics to check & fix the robots.txt to ensure that the website does not block LLM bots', 'robots');
+  if (d.llmstxt === 'Missing') add('llms.txt File Missing', 'Digimetrics to check, create and install llms.txt', 'llmstxt');
+  if (d.llmsfull === 'Missing') add('llms-full.txt File Missing', 'Digimetrics to check, create and install llms-full.txt', 'llmsfull');
+  if (d.semantic === 'Partial') add('Website is Partly Semantic HTML', 'Digimetrics to check and provide the semantic HTML structure for developers to deploy', 'html');
+  if (d.semantic === 'No') add('Website is Not Semantic HTML Optimised', 'Digimetrics to check and provide the full semantic HTML structure for developers to deploy', 'html');
   if (d.spam !== null && d.spam > 30) add(`High Spam Score (${d.spam}%)`, 'Audit backlink profile and disavow toxic links via Google Search Console', 'backlinks');
   const rmMissing = d.rankmath === 'Not Installed';
   const wfMissing = d.wordfence === 'Not Installed';
   if (rmMissing || wfMissing) {
     const missing = [rmMissing && 'Rank Math', wfMissing && 'Wordfence'].filter(Boolean).join(' and ');
-    add(`${missing} Plugin(s) Not Installed`, 'MediaOne to install Rank Math (but turn off schema markup generation) and Wordfence plugins to enhance SEO management and strengthen website security monitoring', 'html');
+    add(`${missing} Plugin(s) Not Installed`, 'Digimetrics to install Rank Math (but turn off schema markup generation) and Wordfence plugins to enhance SEO management and strengthen website security monitoring', 'html');
   }
   if (d.h1 !== null && d.h1 === 0) add('Missing H1 Tag', "Add a single H1 heading that clearly describes the page's primary topic", 'html');
   if (d.h1 !== null && d.h1 > 1) add(`Multiple H1 Tags (${d.h1} found)`, 'Reduce H1 tags to one per page to maintain clear heading hierarchy', 'html');

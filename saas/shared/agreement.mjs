@@ -11,7 +11,7 @@ export const AGREEMENT_TITLE = 'Digimetrics Free Trial & Non-Disclosure Agreemen
 export const AGREEMENT_INTRO = [
   {
     text:
-      'This Free Trial and Non-Disclosure Agreement is made between MediaOne Business Group Pte Ltd, the authorised licensee and operator of Digimetrics (the “Company”), and the individual or organisation invited to access and use Digimetrics (the “Trial User”). Together, the “Parties”. Digimetrics and its underlying platform are owned by Apsolute.ai Pte Ltd.',
+      'This Free Trial and Non-Disclosure Agreement is made between Apsolute.ai Pte Ltd, the owner and operator of Digimetrics (the “Company”), and the individual or organisation invited to access and use Digimetrics (the “Trial User”). Together, the “Parties”.',
     boxed: true,
   },
   {
@@ -115,7 +115,7 @@ export const AGREEMENT_SECTIONS = [
       {
         list: [
           'using the “Report a problem” feature within Digimetrics; or',
-          'emailing feedback to tom@mediaone.co.',
+          'emailing feedback to tom@digimetrics.ai.',
         ],
       },
       { p: 'The Trial User agrees that any feedback, suggestions, comments, ideas, issue reports or recommendations provided to the Company may be used by the Company to improve, modify, develop, market or commercialise Digimetrics without any payment, royalty or obligation to the Trial User.' },

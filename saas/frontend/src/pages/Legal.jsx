@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { TERMS_VERSION } from '@shared/catalog.mjs';
 import {
   TERMS_BLOCKS, PRIVACY_BLOCKS, LEGAL_UPDATED, LEGAL_EFFECTIVE,
-  PLATFORM_OWNER, LICENSEE, LEGAL_ADDRESS, LEGAL_EMAIL, LEGAL_PHONE,
+  PLATFORM_OWNER, LEGAL_ADDRESS, LEGAL_EMAIL, LEGAL_PHONE,
 } from '../lib/legalContent.js';
 
 // Terms and Conditions of Use (Part A) + Privacy Notice (Part B), rendered from
@@ -97,8 +97,7 @@ function Shell({ title, blocks, intro, other, otherLabel }) {
 
       {/* Who you are actually contracting with — Section 1 of Part A. */}
       <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-sm text-dim">
-        <p><span className="font-semibold text-body">Platform owner:</span> {PLATFORM_OWNER.name} (UEN {PLATFORM_OWNER.uen})</p>
-        <p className="mt-1"><span className="font-semibold text-body">Authorised licensee &amp; operator:</span> {LICENSEE.name} (UEN {LICENSEE.uen})</p>
+        <p><span className="font-semibold text-body">Owner &amp; operator:</span> {PLATFORM_OWNER.name} (UEN {PLATFORM_OWNER.uen})</p>
         <p className="mt-1">
           {LEGAL_ADDRESS} · <a className="text-brand-600 dark:text-brand-400" href={`mailto:${LEGAL_EMAIL}`}>{LEGAL_EMAIL}</a> · {LEGAL_PHONE}
         </p>

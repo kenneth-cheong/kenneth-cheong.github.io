@@ -18,12 +18,12 @@ const M = 56; // page margin
  *   accountEmail, acceptedAt, ip, userAgent, version }
  * @returns {Promise<Uint8Array>} the PDF bytes
  */
-// How the operating entity is described on the record. Correct as of the
-// 25 July 2026 Terms: Apsolute.ai Pte Ltd OWNS Digimetrics; MediaOne is the
-// authorised licensee and operator. The record used to call MediaOne the
-// "owner/operator", which those Terms contradict.
+// How the operating entity is described on the record. Apsolute.ai Pte Ltd owns
+// AND operates Digimetrics — the MediaOne authorised-licensee layer was removed.
+// Changing this only affects acceptances signed from now on; older records keep
+// their own stored attribution (see LEGACY_ENTITY_ATTRIBUTION below).
 export const ENTITY_ATTRIBUTION =
-  'MediaOne Business Group Pte Ltd — authorised licensee and operator of Digimetrics (owned by Apsolute.ai Pte Ltd)';
+  'Apsolute.ai Pte Ltd — owner and operator of Digimetrics';
 // Wording used before that correction. Acceptances signed under it are RE-RENDERED
 // on demand by Admin -> Agreements, so they must keep the text that was live when
 // the user actually accepted — a proof-of-consent record that silently rewrites

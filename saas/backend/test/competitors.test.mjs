@@ -7,14 +7,14 @@ const { competitorsRun, competitorsCompare } = __test;
 // Fixtures below are trimmed copies of REAL upstream responses (curl'd against
 // serpCompetitors and domainIntersection on 2026-07-24), not hand-written
 // guesses — including the detail that bites: DataForSEO spells one side of a
-// comparison `www.impossible.sg` and the other `mediaonemarketing.com.sg`, so
+// comparison `www.impossible.sg` and the other `digimetrics.ai`, so
 // anything matching domains by string equality silently finds nothing.
 const SERP = {
   statusCode: 200,
   body: {
     'www.firstpagedigital.sg': { 'digital marketing agency': 1 },
     'www.impossible.sg': { 'digital marketing agency': 17 },
-    'mediaonemarketing.com.sg': { 'digital marketing agency': 38 },
+    'digimetrics.ai': { 'digital marketing agency': 38 },
     'clutch.co': { 'digital marketing agency': 16 },
   },
 };
@@ -22,17 +22,17 @@ const SERP = {
 const INTERSECTION = {
   'digital marketing advertising agency': {
     search_volume: 4400, cpc: 43.84000015258789, competition_level: 'LOW',
-    'mediaonemarketing.com.sg': [43, 'https://mediaonemarketing.com.sg/'],
+    'digimetrics.ai': [43, 'https://digimetrics.ai/'],
     'www.impossible.sg': [16, 'https://www.impossible.sg/best-digital-marketing-agencies-in-singapore/'],
   },
   'agency for digital marketing': {
     search_volume: 4400, cpc: 43.84000015258789, competition_level: 'LOW',
-    'mediaonemarketing.com.sg': [34, 'https://mediaonemarketing.com.sg/'],
+    'digimetrics.ai': [34, 'https://digimetrics.ai/'],
     'www.impossible.sg': [6, 'https://www.impossible.sg/'],
   },
   'seo agency singapore': {
     search_volume: 1300, cpc: 12.5, competition_level: 'MEDIUM',
-    'mediaonemarketing.com.sg': [3, 'https://mediaonemarketing.com.sg/seo/'],
+    'digimetrics.ai': [3, 'https://digimetrics.ai/seo/'],
     'www.impossible.sg': [24, 'https://www.impossible.sg/'],
   },
 };
@@ -64,7 +64,7 @@ describe('competitors — step 1 (discovery)', () => {
   it('marks the user\'s own domain, counts their rankings, and offers the rivals for step 2', async () => {
     mockUpstreams();
     const { sections } = await competitorsRun({
-      input: 'digital marketing agency', domain: 'https://www.mediaonemarketing.com.sg/seo/', location: 'Singapore',
+      input: 'digital marketing agency', domain: 'https://www.digimetrics.ai/seo/', location: 'Singapore',
     });
 
     // The user is not a competitor of themselves.
@@ -73,7 +73,7 @@ describe('competitors — step 1 (discovery)', () => {
     expect(stat(sections, 'Your best position')).toBe('#38');
 
     const rows = table(sections).rows;
-    expect(rows.find((r) => /mediaonemarketing/.test(r.Competitor)).Competitor).toMatch(/\(you\)$/);
+    expect(rows.find((r) => /digimetrics/.test(r.Competitor)).Competitor).toMatch(/\(you\)$/);
 
     const picker = sections.find((s) => s.type === 'select');
     expect(picker.name).toBe('compareWith');
@@ -103,7 +103,7 @@ describe('competitors — step 2 (head-to-head compare)', () => {
   it('matches domains across the www. mismatch and scores each gap', async () => {
     mockUpstreams();
     const { sections } = await competitorsRun({
-      input: 'digital marketing agency', domain: 'mediaonemarketing.com.sg',
+      input: 'digital marketing agency', domain: 'digimetrics.ai',
       compareWith: ['impossible.sg'], location: 'Singapore',
     });
 
@@ -124,14 +124,14 @@ describe('competitors — step 2 (head-to-head compare)', () => {
     mockUpstreams();
     await expect(competitorsCompare({ compareWith: ['a.com'] }, ['a.com'])).rejects.toThrow(/Add your domain first/);
     // Ticking yourself falls through to discovery rather than running an empty compare.
-    const { sections } = await competitorsRun({ input: 'x', domain: 'mediaonemarketing.com.sg', compareWith: ['www.mediaonemarketing.com.sg'] });
+    const { sections } = await competitorsRun({ input: 'x', domain: 'digimetrics.ai', compareWith: ['www.digimetrics.ai'] });
     expect(sections.some((s) => s.type === 'select')).toBe(true);
   });
 
   it('reports the rivals it couldn\'t reach instead of dropping them silently', async () => {
     mockUpstreams({ fail: ['clutch.co'] });
     const { sections } = await competitorsRun({
-      domain: 'mediaonemarketing.com.sg', compareWith: ['impossible.sg', 'clutch.co'],
+      domain: 'digimetrics.ai', compareWith: ['impossible.sg', 'clutch.co'],
     });
     expect(sections.find((s) => s.type === 'callout').text).toMatch(/couldn’t reach the data for clutch\.co/);
     expect(table(sections).columns).toContain('clutch.co');
@@ -139,7 +139,7 @@ describe('competitors — step 2 (head-to-head compare)', () => {
 
   it('explains an empty intersection rather than rendering a blank table', async () => {
     mockUpstreams({ intersection: {} });
-    const { sections } = await competitorsRun({ domain: 'mediaonemarketing.com.sg', compareWith: ['impossible.sg'] });
+    const { sections } = await competitorsRun({ domain: 'digimetrics.ai', compareWith: ['impossible.sg'] });
     expect(sections).toHaveLength(1);
     expect(sections[0].text).toMatch(/don’t share any ranking keywords/);
   });

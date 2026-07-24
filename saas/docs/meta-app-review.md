@@ -14,7 +14,7 @@ in the UI until `META_APP_ID` + `META_APP_SECRET` are set.
 
 | Item | Where | Notes |
 |---|---|---|
-| Meta Business account | business.facebook.com | Use the MediaOne business, not a personal one. |
+| Meta Business account | business.facebook.com | Use the Digimetrics business, not a personal one. |
 | App (type: **Business**) | developers.facebook.com → My Apps → Create | Add the **Marketing API** + **Facebook Login** products. |
 | Business Verification | App → Settings → Business verification | Required before Advanced Access. Needs legal entity name, address, and a verification doc (e.g. ACRA business profile) + a domain/phone match. Allow **3–10 business days**. |
 

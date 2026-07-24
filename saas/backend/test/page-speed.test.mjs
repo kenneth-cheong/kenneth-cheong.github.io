@@ -15,7 +15,7 @@ const assertShape = (sections) => {
 const allText = (r) => JSON.stringify(r.sections);
 
 // Shaped like a real webpageAudit response. The numbers are the ones that
-// exposed the original bug: mediaonemarketing.com.sg scores 96 in the lab while
+// exposed the original bug: digimetrics.ai scores 96 in the lab while
 // Google rates its real-user experience SLOW, driven by a CLS of 1.00.
 const MOBILE = {
   strategy: 'mobile',

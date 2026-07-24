@@ -9,7 +9,7 @@ import NdaTermsModal from './NdaTermsModal.jsx';
 // signed-in user who hasn't accepted the current NDA_VERSION. Not dismissible —
 // completing it is required to use the trial. Acceptance is persisted
 // server-side (tied to the account, so it's never re-asked across devices) and
-// tom@mediaone.co is notified.
+// tom@digimetrics.ai is notified.
 //
 // `withTerms` folds the base Terms/Privacy consent INTO this dialog. It used to
 // be a separate, near-identical shield-icon modal (ConsentGate) shown
@@ -168,7 +168,7 @@ export default function TrialNdaGate({ preview = false, withTerms = false, onClo
             on behalf of myself and/or my organisation. I agree to keep Digimetrics&rsquo; non-public product
             information confidential, use the free trial only for evaluation purposes, and provide feedback where
             possible through the &lsquo;Report a problem&rsquo; feature or by emailing{' '}
-            <a href="mailto:tom@mediaone.co" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">tom@mediaone.co</a>.
+            <a href="mailto:tom@digimetrics.ai" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">tom@digimetrics.ai</a>.
           </span>
         </label>
 
@@ -202,8 +202,7 @@ export default function TrialNdaGate({ preview = false, withTerms = false, onClo
           {busy ? 'Activating…' : 'Accept and Activate Free Trial'}
         </button>
         <p className="mt-3 text-center text-xs text-faint">
-          MediaOne Business Group Pte Ltd — authorised licensee and operator of Digimetrics,
-          owned by Apsolute.ai Pte Ltd.
+          Apsolute.ai Pte Ltd — owner and operator of Digimetrics.
         </p>
       </div>
 

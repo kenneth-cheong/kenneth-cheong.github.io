@@ -657,7 +657,7 @@ export default function SocialAudit() {
         <div className="mt-3 space-y-3">
           <div>
             <label htmlFor="sma-brand-input" className="block text-sm font-medium text-body">Brand name <span className="text-amber-500">*</span></label>
-            <input id="sma-brand-input" className={`field mt-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} value={brand} onChange={(e) => { setNudge(false); setBrand(e.target.value); }} placeholder="e.g. MediaOne" disabled={busy} />
+            <input id="sma-brand-input" className={`field mt-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} value={brand} onChange={(e) => { setNudge(false); setBrand(e.target.value); }} placeholder="e.g. Digimetrics" disabled={busy} />
             {nudge && <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-400">Enter a brand name to run the audit.</p>}
           </div>
           <button type="button" onClick={autoFindDetails} disabled={busy || findingDetails}

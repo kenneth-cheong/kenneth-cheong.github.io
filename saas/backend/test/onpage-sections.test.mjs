@@ -12,14 +12,14 @@ const assertShape = (sections) => {
 };
 
 const EXTRACTION = {
-  meta_title: 'Award-Winning Digital Marketing Agency In Singapore | MediaOne',
+  meta_title: 'Award-Winning Digital Marketing Agency In Singapore | Digimetrics',
   meta_description: 'Award-winning digital marketing agency in Singapore offering SEO, paid media and web design.',
-  canonical_url: 'https://mediaonemarketing.com.sg',
+  canonical_url: 'https://digimetrics.ai',
   headings: { h1: ['Digital Marketing Agency'], h2: ['Our services', 'Why us'], h3: [] },
   image_data: [
-    { 'https://mediaonemarketing.com.sg/logo.png': 'MediaOne logo' },
+    { 'https://digimetrics.ai/logo.png': 'Digimetrics logo' },
     { '/img/team.jpg': '' },
-    { 'https://mediaonemarketing.com.sg/logo.png': 'MediaOne logo' }, // repeat
+    { 'https://digimetrics.ai/logo.png': 'Digimetrics logo' }, // repeat
     { 'data:image/png;base64,AAA': 'inline' },
   ],
 };
@@ -29,7 +29,7 @@ const EXTRACTION = {
 // report still looks finished. These are the shapes a user actually types.
 describe('onpageUrl', () => {
   it('gives a bare address the scheme the upstream needs', () => {
-    expect(onpageUrl('mediaonemarketing.com.sg')).toBe('https://mediaonemarketing.com.sg');
+    expect(onpageUrl('digimetrics.ai')).toBe('https://digimetrics.ai');
     expect(onpageUrl('example.com/blog/post')).toBe('https://example.com/blog/post');
     expect(onpageUrl('  example.com/a b  ')).toBe('https://example.com/ab');
     expect(onpageUrl('/example.com/x')).toBe('https://example.com/x');
@@ -49,10 +49,10 @@ describe('onpageUrl', () => {
 
 describe('onpageImages', () => {
   it('absolutises, de-duplicates and drops data: URIs', () => {
-    const imgs = onpageImages(EXTRACTION, 'https://mediaonemarketing.com.sg');
+    const imgs = onpageImages(EXTRACTION, 'https://digimetrics.ai');
     expect(imgs.map((i) => i.src)).toEqual([
-      'https://mediaonemarketing.com.sg/logo.png',
-      'https://mediaonemarketing.com.sg/img/team.jpg',
+      'https://digimetrics.ai/logo.png',
+      'https://digimetrics.ai/img/team.jpg',
     ]);
     expect(imgs[1].alt).toBe('');
   });
@@ -65,14 +65,14 @@ describe('onpageImages', () => {
 
 describe('sectionsOnpage', () => {
   const recs = {
-    meta_title: { current_value: EXTRACTION.meta_title, suggested_value: 'SEO Agency Singapore | MediaOne', rationale: 'Leads with the keyword.' },
+    meta_title: { current_value: EXTRACTION.meta_title, suggested_value: 'SEO Agency Singapore | Digimetrics', rationale: 'Leads with the keyword.' },
     headings: { h1: [{ current_value: 'Digital Marketing Agency', suggested_value: 'SEO Agency in Singapore', rationale: 'Adds the target keyword.' }] },
   };
-  const images = onpageImages(EXTRACTION, 'https://mediaonemarketing.com.sg');
-  const alt = new Map([['https://mediaonemarketing.com.sg/img/team.jpg', 'The MediaOne team in their Singapore office']]);
+  const images = onpageImages(EXTRACTION, 'https://digimetrics.ai');
+  const alt = new Map([['https://digimetrics.ai/img/team.jpg', 'The Digimetrics team in their Singapore office']]);
 
   it('renders every section, not just the images one', () => {
-    const out = sectionsOnpage('https://mediaonemarketing.com.sg', recs, EXTRACTION, [
+    const out = sectionsOnpage('https://digimetrics.ai', recs, EXTRACTION, [
       { '#': '1', Current: '400 words', Suggested: '900 words', Why: 'Competitors average 900.' },
     ], images, alt, ['seo agency singapore']);
     assertShape(out);
@@ -89,8 +89,8 @@ describe('sectionsOnpage', () => {
     // The thumbnail column carries the absolute src as a plain string, so CSV
     // export and copy-to-clipboard stay readable.
     expect(t.columns[0]).toBe('Preview');
-    expect(t.rows[1].Preview).toBe('https://mediaonemarketing.com.sg/img/team.jpg');
-    expect(t.rows[1]['Proposed alt']).toBe('The MediaOne team in their Singapore office');
+    expect(t.rows[1].Preview).toBe('https://digimetrics.ai/img/team.jpg');
+    expect(t.rows[1]['Proposed alt']).toBe('The Digimetrics team in their Singapore office');
     expect(t.rows[1]['Current alt']).toBe('(missing)');
   });
 

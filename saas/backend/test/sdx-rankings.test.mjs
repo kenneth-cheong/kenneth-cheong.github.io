@@ -10,9 +10,9 @@ const { sdxRankings } = __test;
 const RANKING = {
   statusCode: 200,
   body: {
-    'media one business group': { rank: 1, search_volume: 140, url: 'https://mediaonemarketing.com.sg/', traffic: 43, difficulty: 0.12 },
-    'lead generation agency': { rank: 2, search_volume: 90, url: 'https://mediaonemarketing.com.sg/our-services/lead-generation/', traffic: 15, difficulty: 0.55 },
-    'internsg': { rank: 7, search_volume: 4400, url: 'https://mediaonemarketing.com.sg/internsg-review-new-star-job-portal/', traffic: 108, difficulty: 0.29 },
+    'digimetrics': { rank: 1, search_volume: 140, url: 'https://digimetrics.ai/', traffic: 43, difficulty: 0.12 },
+    'lead generation agency': { rank: 2, search_volume: 90, url: 'https://digimetrics.ai/our-services/lead-generation/', traffic: 15, difficulty: 0.55 },
+    'internsg': { rank: 7, search_volume: 4400, url: 'https://digimetrics.ai/internsg-review-new-star-job-portal/', traffic: 108, difficulty: 0.29 },
   },
 };
 
@@ -42,7 +42,7 @@ function mockUpstreams({ ranking = RANKING, metrics = METRICS } = {}) {
 describe('sdxRankings — SEO Diagnostics "Get rankings"', () => {
   it('fills volume and position for the keywords the user typed', async () => {
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: ['lead generation agency', 'seo services singapore'] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: ['lead generation agency', 'seo services singapore'] });
     const byKw = Object.fromEntries(out.rows.map((r) => [r.keyword, r]));
 
     // Ranks for this one → position comes from rankingKeywords.
@@ -57,7 +57,7 @@ describe('sdxRankings — SEO Diagnostics "Get rankings"', () => {
 
   it('normalises both difficulty scales onto 0-100', async () => {
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: ['lead generation agency', 'seo services singapore'] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: ['lead generation agency', 'seo services singapore'] });
     const byKw = Object.fromEntries(out.rows.map((r) => [r.keyword, r]));
     // rankingKeywords said 0.55 — shown as 55, not "0.55".
     expect(byKw['lead generation agency'].difficulty).toBe(55);
@@ -69,20 +69,20 @@ describe('sdxRankings — SEO Diagnostics "Get rankings"', () => {
     // mangools sends `difficulty: null` for keywords it doesn't know, and
     // Number(null) === 0 — which would render as the easiest possible keyword.
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: ['zzzz nonexistent keyword qqq'] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: ['zzzz nonexistent keyword qqq'] });
     expect(out.rows[0].difficulty).toBeNull();
     expect(out.rows[0].volume).toBeNull();
   });
 
   it('matches keywords case-insensitively against the upstream spelling', async () => {
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: ['  Lead Generation   Agency '] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: ['  Lead Generation   Agency '] });
     expect(out.rows[0].position).toBe(2);
   });
 
   it('falls back to the domain’s own ranking keywords when nothing was typed', async () => {
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: [] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: [] });
     expect(out.rows).toHaveLength(3);
     // Sorted by volume so the biggest opportunities are on top.
     expect(out.rows[0].keyword).toBe('internsg');
@@ -91,7 +91,7 @@ describe('sdxRankings — SEO Diagnostics "Get rankings"', () => {
 
   it('never invents a change — the Δ column has no upstream to come from', async () => {
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: [] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: [] });
     expect(out.rows.every((r) => r.change === null)).toBe(true);
   });
 
@@ -99,7 +99,7 @@ describe('sdxRankings — SEO Diagnostics "Get rankings"', () => {
     // An {errorType,errorMessage} body rendered as rows would surface
     // "errorMessage" as a keyword AND still bill for it.
     mockUpstreams({ ranking: { statusCode: 200, body: { errorType: 'Runtime.Error', errorMessage: 'boom' } }, metrics: { statusCode: 200, body: {} } });
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: [] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: [] });
     expect(out._failed).toBe(true);
     expect(out.rows).toBeUndefined();
   });
@@ -112,7 +112,7 @@ describe('sdxRankings — SEO Diagnostics "Get rankings"', () => {
 
   it('stays out of run history — it is a step, not a run', async () => {
     mockUpstreams();
-    const out = await sdxRankings({ input: 'mediaonemarketing.com.sg', keywords: [] });
+    const out = await sdxRankings({ input: 'digimetrics.ai', keywords: [] });
     expect(out._skipHistory).toBe(true);
   });
 });

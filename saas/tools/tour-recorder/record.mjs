@@ -43,7 +43,7 @@ const DEMO_USER = {
   createdAt: '2025-01-01T00:00:00.000Z',
   onboarding: {
     acceptedTerms: true,
-    acceptedTermsVersion: '2026-06-19', // must match shared/catalog.mjs TERMS_VERSION
+    acceptedTermsVersion: '2026-07-25.1', // must match shared/catalog.mjs TERMS_VERSION
     welcomed: true,
     seenPlatformTour: true,
   },

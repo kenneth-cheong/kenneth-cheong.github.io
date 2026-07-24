@@ -11,7 +11,7 @@ const FROM = process.env.SES_FROM;
 //   SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 587),
 //   SMTP_USER, SMTP_PASS (a Google App Password), SMTP_FROM (header From).
 // Gmail forces the From header to match the authenticated mailbox, so to send
-// as an @mediaone.co address (and pass DMARC) SMTP_USER must BE that Workspace
+// as an @digimetrics.ai address (and pass DMARC) SMTP_USER must BE that Workspace
 // mailbox. Lazily built + reused across warm invocations.
 const SMTP_FROM = process.env.SMTP_FROM;
 let _smtp = null;
@@ -60,7 +60,7 @@ export async function sendSmtpEmail({ to, subject, text, html, attachments = [],
 }
 
 // Best-effort transactional notice that PREFERS authenticated SMTP. SMTP sends
-// from a real @mediaone.co mailbox (SMTP_FROM, e.g. no-reply@mediaone.co), so it
+// from a real @digimetrics.ai mailbox (SMTP_FROM, e.g. no-reply@digimetrics.ai), so it
 // isn't subject to the SES sandbox and passes DMARC — the same path the Free
 // Trial + NDA notifications use. Falls back to SES only when SMTP isn't
 // configured (or the SMTP send fails). Same shape as sendEmail plus optional
@@ -161,7 +161,7 @@ function encodeHeader(s = '') {
 export const SUPPORT_INBOX = process.env.SES_SUPPORT || '';
 
 // Build a From header that keeps our sending address but shows a chosen display
-// name, e.g. noticeFrom('Monty · Digimetrics') → '"Monty · Digimetrics" <no-reply@mediaone.co>'.
+// name, e.g. noticeFrom('Monty · Digimetrics') → '"Monty · Digimetrics" <no-reply@digimetrics.ai>'.
 // The address is fixed to whatever the transport is allowed to send as (SMTP_FROM
 // / SES_FROM); only the friendly name varies. Returns undefined when we have no
 // address or no name, so callers fall back to the transport default.

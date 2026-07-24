@@ -18,7 +18,7 @@ export const CURRENCY = { code: 'USD', symbol: 'US$' };
 // the Airwallex billing backend is not deployed yet, so those terms would be
 // factually wrong in the gap. Restore it to '.2' in the same change that ships
 // src/billing/index.mjs + lib/airwallex.mjs — not before.
-export const TERMS_VERSION = '2026-07-25';
+export const TERMS_VERSION = '2026-07-25.1';
 
 /**
  * Soft-launch Free Trial + NDA acceptance version. Independent of TERMS_VERSION:
@@ -1731,7 +1731,7 @@ export const INPUTS = {
     { name: 'device', label: 'Device', type: 'select', options: ['All', 'Mobile', 'Desktop', 'Tablet'], default: 'All' },
     { name: 'country', label: 'Country (optional)', type: 'select', options: GSC_COUNTRY_OPTIONS, default: '',
       help: 'Only count searches made in one country. Leave as “All countries” to see everything.' },
-    { name: 'brand', label: 'Your brand names (optional)', type: 'text', placeholder: 'e.g. mediaone, media one',
+    { name: 'brand', label: 'Your brand names (optional)', type: 'text', placeholder: 'e.g. digimetrics, digi metrics',
       help: 'Splits searches for your brand by name from everything else, so you can see how many people already know you.' },
   ],
   ga4: [

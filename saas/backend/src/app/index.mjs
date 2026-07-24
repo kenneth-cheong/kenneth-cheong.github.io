@@ -344,7 +344,7 @@ export const handler = async (event) => {
     // ── Soft-launch Free Trial + NDA acceptance ──────────────────────────────
     // The trial user fills the company form and accepts the NDA. We persist a
     // durable, server-stamped proof-of-acceptance in `onboarding` (so the gate
-    // never re-prompts) and notify tom@mediaone.co. Stricter than /me/onboarding:
+    // never re-prompts) and notify tom@digimetrics.ai. Stricter than /me/onboarding:
     // all fields are required, validated and clamped here.
     if (method === 'POST' && path.endsWith('/me/nda')) {
       if (body.accepted !== true) return badRequest('You must accept the terms.');
@@ -428,13 +428,13 @@ export const handler = async (event) => {
 
         const safeOrg = (form.organisation || form.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
         const filename = `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`;
-        const recipients = ['tom@mediaone.co', 'kenneth@mediaone.co'];
+        const recipients = ['tom@digimetrics.ai', 'kenneth@digimetrics.ai'];
         const attachments = pdf ? [{ filename, contentType: 'application/pdf', content: pdf }] : [];
         // Prefer authenticated SMTP (Gmail/Workspace): it sends from a real
-        // @mediaone.co mailbox, so the notification passes DMARC and lands cleanly.
+        // @digimetrics.ai mailbox, so the notification passes DMARC and lands cleanly.
         // Falls back to SES when SMTP isn't configured — but SES must send from a
-        // non-mediaone.co address (NDA_NOTIFY_FROM, gmail p=none) because
-        // mediaone.co's DMARC rejects unverified SES mail. The Admin → Agreements
+        // non-digimetrics.ai address (NDA_NOTIFY_FROM, gmail p=none) because
+        // digimetrics.ai's DMARC rejects unverified SES mail. The Admin → Agreements
         // view is the authoritative record regardless of email outcome.
         try {
           let sent = false;
@@ -559,7 +559,7 @@ export const handler = async (event) => {
              `Most useful: ${answers.mostUseful || '—'}`, `Comment: ${answers.comment || '—'}`]
           : [`Reason: ${answers.reason || '—'}`, `Comment: ${answers.comment || '—'}`];
         await sendNotice({
-          to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
+          to: ['tom@digimetrics.ai', 'kenneth@digimetrics.ai'],
           replyTo: user.email || undefined,
           from: noticeFrom('Digimetrics Feedback'),
           subject: kind === 'nps' ? `NPS ${answers.score}/10 — ${user.email || 'trial user'}` : `Exit survey — ${user.email || 'trial user'}`,

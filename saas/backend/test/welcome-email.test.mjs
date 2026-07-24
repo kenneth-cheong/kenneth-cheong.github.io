@@ -14,7 +14,7 @@ describe('welcome email placeholder substitution', () => {
 
   const users = [
     { label: 'name + email', user: { name: 'Jane Tan', email: 'jane@acme.com' } },
-    { label: 'email only', user: { email: 'kenneth@mediaone.co' } },
+    { label: 'email only', user: { email: 'kenneth@digimetrics.ai' } },
     { label: 'dotted/numbered local part', user: { email: 'jane.doe1@acme.com' } },
     { label: 'blank name', user: { name: '   ', email: 'sam@acme.com' } },
     { label: 'no name and no local part', user: { email: '@acme.com' } },
@@ -36,7 +36,7 @@ describe('welcome email placeholder substitution', () => {
   it('derives the first name from name, then email, then a safe default', () => {
     expect(welcomeEmailText({ name: 'Jane Tan' })).toContain('Hi Jane,');
     expect(welcomeEmailText({ email: 'jane.doe1@acme.com' })).toContain('Hi Jane,');
-    expect(welcomeEmailText({ email: 'kenneth@mediaone.co' })).toContain('Hi Kenneth,');
+    expect(welcomeEmailText({ email: 'kenneth@digimetrics.ai' })).toContain('Hi Kenneth,');
     expect(welcomeEmailText({})).toContain('Hi there,');
   });
 

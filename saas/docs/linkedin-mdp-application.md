@@ -15,7 +15,7 @@ hidden in the UI until `LINKEDIN_CLIENT_ID` + `LINKEDIN_CLIENT_SECRET` are set.
 
 | Item | Where | Notes |
 |---|---|---|
-| LinkedIn Company Page | linkedin.com/company | MDP apps must be linked to a real Company Page (MediaOne's). Create/claim it first. |
+| LinkedIn Company Page | linkedin.com/company | MDP apps must be linked to a real Company Page (Digimetrics's). Create/claim it first. |
 | Developer app | developer.linkedin.com → Create app | Associate it with the Company Page above and verify the page (the "Verify" button generates a link a Page admin clicks). |
 | Default products | App → Products | Add **Sign In with LinkedIn using OpenID Connect** (for basic auth) — available instantly. |
 
