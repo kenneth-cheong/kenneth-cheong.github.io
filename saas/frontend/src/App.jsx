@@ -62,6 +62,7 @@ const Schedules = lazyWithReload(() => import('./pages/Schedules.jsx'));
 const Tools = lazyWithReload(() => import('./pages/Tools.jsx'));
 const Notifications = lazyWithReload(() => import('./pages/Notifications.jsx'));
 const OpenRun = lazyWithReload(() => import('./pages/OpenRun.jsx'));
+const PublicRun = lazyWithReload(() => import('./pages/PublicRun.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-faint">Loading…</div>;
 
@@ -78,6 +79,22 @@ function ToolPathRedirect() {
 
 export default function App() {
   const { user, loading } = useAuth();
+  const { pathname } = useLocation();
+
+  // Public share pages (/share/:shareId) render for EVERYONE — signed in,
+  // signed out, or still resolving /me. They're matched here, above all three
+  // auth-state route tables below, so a signed-out visitor gets the report
+  // rather than the login screen (a route added only to the authed table would
+  // render <Login /> for them), and so the page doesn't wait on the auth probe.
+  if (pathname.startsWith('/share/')) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route path="/share/:shareId" element={<PublicRun />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (loading) {
     return (

@@ -45,3 +45,11 @@ customHeaders:
     headers:
       - key: 'Cache-Control'
         value: 'no-cache'
+  # Public shared reports are unlisted-by-token, not public web pages: reachable
+  # by anyone holding the link, but they must never be indexed. The SPA sets a
+  # <meta robots> too, but that lands after JS runs — this header covers crawlers
+  # that don't execute it. (/s/* OG pages carry their own noindex meta server-side.)
+  - pattern: '/share/**'
+    headers:
+      - key: 'X-Robots-Tag'
+        value: 'noindex, nofollow'

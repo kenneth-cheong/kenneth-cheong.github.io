@@ -124,6 +124,10 @@ export function bulkPrompts(cards, context) {
 export function BulkRecActions({ cards, context }) {
   const navigate = useNavigate();
   if (!cards || cards.length < 2) return null;
+  // Public shared reports have no assistant and no signed-in session to run a
+  // tool in — the bulk actions would either no-op (dm:ask) or bounce a visitor
+  // to the login screen (the Optimiser handoff). Hide them entirely.
+  if (context?.readOnly) return null;
 
   const { count, how } = bulkPrompts(cards, context);
   // The natural next step after "here's what to write" is writing it — and the
@@ -179,12 +183,16 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
       </div>
       {body && <p className="mt-1 text-sm leading-relaxed text-dim">{body}</p>}
 
-      {/* Action row — the bridge from "finding" to "done". */}
-      <div className="dm-no-print mt-3 flex flex-wrap items-center gap-1.5">
-        <button onClick={how} title="Monty explains it step by step (uses AI credits)" className={`${btn} bg-sunken text-body hover:bg-overlay`}>
-          <ListChecks size={14} aria-hidden /> How do I do this?
-        </button>
-      </div>
+      {/* Action row — the bridge from "finding" to "done". Suppressed on public
+          shared reports: the button opens Monty (dm:ask), which isn't mounted
+          for a signed-out visitor, so it would be a dead click. */}
+      {!context?.readOnly && (
+        <div className="dm-no-print mt-3 flex flex-wrap items-center gap-1.5">
+          <button onClick={how} title="Monty explains it step by step (uses AI credits)" className={`${btn} bg-sunken text-body hover:bg-overlay`}>
+            <ListChecks size={14} aria-hidden /> How do I do this?
+          </button>
+        </div>
+      )}
     </div>
   );
 }

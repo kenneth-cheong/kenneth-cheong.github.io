@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Copy, Share2, X as XIcon, Image as ImageIcon, Globe, Link2, Loader2 } from 'lucide-react';
+import { Download, Copy, Share2, X as XIcon, Image as ImageIcon, Globe, Link2, Loader2, ExternalLink } from 'lucide-react';
 import { toast, copyText } from '../lib/ui.js';
 import { api } from '../lib/api.js';
 import {
@@ -25,6 +25,9 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
   );
   const f = FORMATS[format];
   const svg = useMemo(() => (summary ? renderCardSvg(summary, format) : ''), [summary, format]);
+  // The minted link (…/s/:id) is the social-unfurl entry point; the report page
+  // (…/share/:id) is the same run rendered in full. Both resolve the same share.
+  const reportUrl = shareUrl ? shareUrl.replace('/s/', '/share/') : '';
 
   useEffect(() => {
     if (!open) return;
@@ -155,7 +158,9 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
             </button>
           </div>
 
-          {/* Public link (opt-in, auto-redacted). Saved runs or dashboard snapshots. */}
+          {/* Public link (opt-in). Saved runs or dashboard snapshots. Two views
+              of one share: the report page to send people, and the /s/ link the
+              social buttons post (it unfurls the card, then opens the report). */}
           {publishable && (
             <div className="rounded-lg border border-line bg-raised/60 p-3">
               <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -163,18 +168,25 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
               </div>
               {shareUrl ? (
                 <>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <input readOnly value={shareUrl} className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-dim" />
-                    <button onClick={() => copyText(shareUrl)} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Copy link"><Link2 size={14} /></button>
+                  <div className="mt-2 text-[11px] font-semibold text-muted">Report link — send this to view the full report</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <input readOnly value={reportUrl} className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-dim" />
+                    <button onClick={() => copyText(reportUrl)} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Copy report link"><Link2 size={14} /></button>
+                    <a href={reportUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Open report in a new tab"><ExternalLink size={14} /></a>
                   </div>
-                  <button onClick={onRevoke} disabled={linking} className="mt-2 text-[11px] font-medium text-red-500 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50">Revoke link</button>
+                  <div className="mt-2.5 text-[11px] font-semibold text-muted">Social link — unfurls the card when posted</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <input readOnly value={shareUrl} className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-dim" />
+                    <button onClick={() => copyText(shareUrl)} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Copy social link"><Link2 size={14} /></button>
+                  </div>
+                  <button onClick={onRevoke} disabled={linking} className="mt-2.5 text-[11px] font-medium text-red-500 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50">Revoke link</button>
                 </>
               ) : (
                 <>
                   <button onClick={onCreateLink} disabled={linking} className={`${btn} mt-2 w-full border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 disabled:opacity-60`}>
                     {linking ? <Loader2 size={15} className="animate-spin" /> : <Globe size={15} />} Create public link
                   </button>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-faint">Shareable link that unfurls the card on social. Your domain is hidden on public cards.</p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-faint">Anyone with the link can view the full report — including the site it’s about. Unfurls the card on social; revoke any time.</p>
                 </>
               )}
             </div>

@@ -120,14 +120,17 @@ const htmlResponse = (statusCode, html) => ({
 
 // Public landing page with OpenGraph/Twitter meta so the link unfurls into the
 // card on LinkedIn/X/WhatsApp, plus a visible CTA back to the product.
-function ogPage({ summary, imageUrl, pageUrl }) {
+// noindex: a share link is unlisted-by-token, not a public web page — it must
+// not turn up in search results even though anyone with the link may open it.
+function ogPage({ summary, imageUrl, pageUrl, reportUrl }) {
   const title = `${summary.headline} · Digimetrics`;
   const statBit = summary.stat && summary.stat !== '✓' ? ` — ${summary.statLabel}: ${summary.stat}` : '';
   const desc = `${summary.headline}${statBit}. Run your own free SEO & AI-visibility report at ${CTA_HOST}.`;
-  const T = htmlEsc(title), D = htmlEsc(desc), I = htmlEsc(imageUrl), U = htmlEsc(pageUrl);
+  const T = htmlEsc(title), D = htmlEsc(desc), I = htmlEsc(imageUrl), U = htmlEsc(pageUrl), R = htmlEsc(reportUrl);
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${T}</title><meta name="description" content="${D}">
+<meta name="robots" content="noindex,nofollow">
 <meta property="og:type" content="website"><meta property="og:title" content="${T}">
 <meta property="og:description" content="${D}"><meta property="og:image" content="${I}">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
@@ -143,13 +146,15 @@ function ogPage({ summary, imageUrl, pageUrl }) {
   h1{font-size:22px;margin:28px 0 6px}
   p{color:#475569;margin:0 0 22px}
   a.cta{display:inline-block;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;text-decoration:none;font-weight:700;padding:14px 26px;border-radius:30px}
+  a.ghost{display:inline-block;margin-top:14px;color:#2563eb;text-decoration:none;font-weight:600;font-size:14px}
   .foot{margin-top:18px;font-size:13px;color:#94a3b8}
 </style></head>
 <body><div class="wrap">
-  <img class="card" src="${I}" alt="${T}" width="1200" height="630">
-  <h1>Want results like this for your site?</h1>
+  <a href="${R}"><img class="card" src="${I}" alt="${T}" width="1200" height="630"></a>
+  <h1>View the full report</h1>
   <p>This report was generated with Digimetrics — SEO, GEO &amp; AI-visibility tools.</p>
-  <a class="cta" href="${htmlEsc(CTA_URL)}">Run your own free audit →</a>
+  <a class="cta" href="${R}">Open the full report →</a>
+  <a class="ghost" href="${htmlEsc(CTA_URL)}">Or run your own free audit</a>
   <div class="foot">${htmlEsc(CTA_HOST)}</div>
 </div></body></html>`;
 }
@@ -175,24 +180,51 @@ export async function handler(event) {
       const share = shareId ? await getShare(shareId) : null;
       const gone = !share || share.revoked;
 
+      // The full public report body, consumed by the /share/:shareId SPA page.
+      // Returns the run RESULT only — never `inputs`, which can carry API keys,
+      // connected-account ids or other things the public was never meant to see.
+      // Unredacted by design: a shared report is the whole report, domain and
+      // all (the redacted PNG card remains the teaser for social unfurls).
+      if (path.endsWith('/run.json')) {
+        if (gone) return json(404, { error: 'Not found' });
+        const run = await runForShare(share);
+        if (!run) return json(404, { error: 'Not found' });
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', ...cors('*') },
+          body: JSON.stringify({
+            run: {
+              tool: run.tool,
+              toolName: run.toolName || run.tool,
+              target: run.target || '',
+              ts: run.ts || null,
+              result: run.result || {},
+            },
+          }),
+        };
+      }
+
       if (path.endsWith('/card.png')) {
         if (gone) return json(404, { error: 'Not found' });
         const run = await runForShare(share);
         if (!run) return json(404, { error: 'Not found' });
         const fmt = event.queryStringParameters?.format;
-        const { png } = await renderRun(run, FORMATS[fmt] ? fmt : 'wide', true);
+        // Unredacted: the report the card links to is fully public, so hiding the
+        // domain on the teaser image bought no privacy — only a vaguer card.
+        const { png } = await renderRun(run, FORMATS[fmt] ? fmt : 'wide', false);
         return pngResponse(png, '*', true);
       }
       // OG landing page
       if (gone) return htmlResponse(404, '<!doctype html><meta charset="utf-8"><title>Link unavailable</title><body style="font-family:system-ui;text-align:center;padding:60px;color:#475569">This share link is no longer available.</body>');
       const run = await runForShare(share);
       if (!run) return htmlResponse(404, '<!doctype html><meta charset="utf-8"><body>Not found</body>');
-      const { summary } = await renderRun(run, 'wide', true);
+      const { summary } = await renderRun(run, 'wide', false);
       const base = baseUrl(event);
       return htmlResponse(200, ogPage({
         summary,
         imageUrl: `${base}/s/${shareId}/card.png?format=wide`,
         pageUrl: `${base}/s/${shareId}`,
+        reportUrl: `${base}/share/${shareId}`,
       }));
     }
 

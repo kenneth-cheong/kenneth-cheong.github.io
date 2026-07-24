@@ -298,6 +298,10 @@ export const api = {
   shareRun: (runId, snapshot) => call(`/me/runs/${encodeURIComponent(runId)}/share`, { method: 'POST', body: snapshot ? { snapshot } : undefined }),
   // Revoke by run (run-backed shares) or by shareId (snapshot shares).
   revokeShare: (runId, shareId) => call(`/me/runs/${encodeURIComponent(runId)}/share/revoke`, { method: 'POST', body: shareId ? { shareId } : undefined }),
+  // Public: the full report body behind a share link. No auth — anyone with the
+  // (unguessable) shareId may read it. Returns { run: { tool, toolName, target,
+  // ts, result } } — result only, never the original inputs.
+  publicRun: (shareId) => call(`/s/${encodeURIComponent(shareId)}/run.json`, { auth: false }),
   // Scheduled tool runs (recurring runs with saved inputs; period-over-period compare)
   schedules: () => call('/me/schedules'),
   createSchedule: (payload) => call('/me/schedules', { method: 'POST', body: payload }),
