@@ -1964,11 +1964,16 @@ async function pageSpeedRun(body) {
   const tryJson = (payload, ms) =>
     withTimeout(postUpstream(UPSTREAMS.pageSpeed, payload), ms).catch(() => null);
 
+  // `checks` skips the malware + robots.txt probes this tool has never shown.
   const [psmRes, psdRes] = await Promise.all([
-    tryJson({ url: target }, 55000),
-    tryJson({ url: target, strategy: 'desktop' }, 55000),
+    tryJson({ url: target, strategy: 'mobile', checks: ['pagespeed'] }, 55000),
+    tryJson({ url: target, strategy: 'desktop', checks: ['pagespeed'] }, 55000),
   ]);
 
+  return sectionsPageSpeed(psmRes, psdRes, target);
+}
+
+function sectionsPageSpeed(psmRes, psdRes, target) {
   const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
   const mobile = psmRes ? parsePS(psmRes.pagespeed) : null;
   const desktop = psdRes ? parsePS(psdRes.pagespeed) : null;
@@ -1980,17 +1985,86 @@ async function pageSpeedRun(body) {
   }
 
   const tone = (v) => (v == null ? 'slate' : v >= 90 ? 'green' : v >= 50 ? 'amber' : 'red');
+  const rateTone = (r) => (r === 'good' ? 'green' : r === 'needs work' ? 'amber' : r === 'poor' ? 'red' : 'slate');
   const dash = '—';
-  return {
-    summary: { pageSpeedMobile: mobile, pageSpeedDesktop: desktop, target },
-    sections: [
-      { type: 'stats', title: 'Google PageSpeed', items: [
-        { label: 'Mobile', value: mobile ?? dash, tone: tone(mobile) },
-        { label: 'Desktop', value: desktop ?? dash, tone: tone(desktop) },
-      ] },
-      { type: 'text', text: `Scored ${target}. 90+ is good, 50–89 needs work, under 50 is poor. These are lab scores — field Core Web Vitals (LCP/INP/CLS) aren’t collected here.` },
-    ],
-  };
+  const sections = [];
+
+  sections.push({ type: 'stats', title: 'Google PageSpeed score', items: [
+    { label: 'Mobile', value: mobile ?? dash, tone: tone(mobile) },
+    { label: 'Desktop', value: desktop ?? dash, tone: tone(desktop) },
+  ] });
+
+  // Mobile carries the field data we lead on: it's the strategy whose CrUX
+  // sample matches how most visitors actually arrive.
+  const field = psmRes?.field || psdRes?.field || null;
+  const fmt = (m) => (m?.value == null ? dash
+    : m.unit === 'score' ? String(m.value)
+    : m.value >= 1000 ? `${(m.value / 1000).toFixed(1)}s` : `${Math.round(m.value)}ms`);
+
+  if (field) {
+    const m = field.metrics || {};
+    const order = [['lcp', 'Largest Contentful Paint'], ['inp', 'Interaction to Next Paint'], ['cls', 'Layout shift'], ['ttfb', 'Server response']];
+    sections.push({ type: 'stats', title: 'What real visitors experience', items:
+      order.filter(([k]) => m[k]).map(([k, label]) => ({ label, value: fmt(m[k]), tone: rateTone(m[k].rating) })) });
+
+    // The whole point of the section: when the lab score is healthy and the
+    // field verdict isn't, say so plainly rather than letting the green score
+    // speak for the page.
+    const labGood = (mobile ?? 0) >= 90;
+    const scope = field.originFallback
+      ? 'across your whole site (this page alone has too few visitors to report on its own)'
+      : 'on this page';
+    if (field.overallRating === 'poor' || field.overallRating === 'needs work') {
+      sections.push({ type: 'callout', text: labGood
+        ? `Your lab score is good, but Google rates the real-world experience ${scope} as "${field.overallRating}". A page can test fast on a clean run and still feel slow to visitors — banners, ads and late-loading images shift the page around after it appears. Trust this section over the score above.`
+        : `Google rates the real-world experience ${scope} as "${field.overallRating}". Fixing the worst metric below will move both this and the score above.` });
+    } else {
+      sections.push({ type: 'callout', text: `Google rates the real-world experience ${scope} as "${field.overallRating || 'good'}" — this is measured on your actual visitors over the last 28 days, not a simulated test.` });
+    }
+  } else {
+    sections.push({ type: 'callout', text: 'Google has no real-visitor data for this page yet — that needs a few thousand visits over 28 days. The scores above are lab tests on a simulated phone and desktop, which is a good proxy but not the same as what your visitors feel.' });
+  }
+
+  const lab = psmRes?.lab || {};
+  const labRows = [
+    ['Largest Contentful Paint', lab.lcp, 'How long until the main content appears'],
+    ['Total Blocking Time', lab.tbt, 'How long the page ignores taps while it loads'],
+    ['Cumulative Layout Shift', lab.cls, 'How much the page jumps around as it loads'],
+    ['First Contentful Paint', lab.fcp, 'How long until anything appears'],
+    ['Speed Index', lab.speedIndex, 'How quickly the page fills in visually'],
+  ].filter(([, v]) => v);
+  if (labRows.length) {
+    sections.push({ type: 'table', title: 'Lab measurements (simulated mobile)',
+      columns: ['Metric', 'Value', 'What it means'],
+      rows: labRows.map(([label, v, means]) => ({ Metric: label, Value: v.display ?? dash, 'What it means': means })) });
+  }
+
+  // Costed in the time and weight each fix saves, worst first, so the list
+  // doubles as the running order.
+  //
+  // An absent `opportunities` key is NOT an empty one: an older upstream that
+  // doesn't send the field would otherwise be reported as "nothing left to
+  // fix", which is the same mistake as reading a green lab score as proof the
+  // page is fast. Stay silent unless the upstream actually looked.
+  const oppSrc = Array.isArray(psmRes?.opportunities) ? psmRes
+    : Array.isArray(psdRes?.opportunities) ? psdRes : null;
+  const opps = oppSrc ? oppSrc.opportunities : [];
+  if (opps.length) {
+    sections.push({ type: 'cards', title: 'What to fix, biggest win first',
+      note: 'Savings are Google’s estimate for this page on mobile.',
+      items: opps.slice(0, 10).map((o) => ({
+        title: o.title,
+        body: `${o.description || ''}${o.display ? `\n\nGoogle estimates: ${o.display}.` : ''}`.trim(),
+        meta: [o.savingsMs ? `saves ~${Math.round(o.savingsMs)}ms` : null,
+               o.savingsBytes ? `${Math.round(o.savingsBytes / 1024)}KB lighter` : null].filter(Boolean).join(' · '),
+      })) });
+  } else if (oppSrc) {
+    sections.push({ type: 'text', text: 'Google found no significant loading opportunities left on this page — nothing worth fixing in the way the page is built and delivered.' });
+  }
+
+  sections.push({ type: 'text', text: `Scored ${target}. 90+ is good, 50–89 needs work, under 50 is poor.` });
+
+  return { summary: { pageSpeedMobile: mobile, pageSpeedDesktop: desktop, target }, sections };
 }
 
 // ── Digimetrics Authority Score ───────────────────────────────────────────────
@@ -6032,7 +6106,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl };
+export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
