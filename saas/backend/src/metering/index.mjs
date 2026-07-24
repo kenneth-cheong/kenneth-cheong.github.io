@@ -1715,10 +1715,12 @@ const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<'
 function renderStrategy(strategies, recommended, recs, metricMap = {}, rankMap = {}) {
   const volFmt = (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v || '0'));
 
+  const kwList = (keywords) => (Array.isArray(keywords) ? keywords : String(keywords || '').split(/,\s*|\n/))
+    .map((k) => String(k).trim()).filter(Boolean);
+
   // Per-strategy keyword table with enriched Vol / KD / Rank columns.
   const kwTable = (keywords) => {
-    const kws = (Array.isArray(keywords) ? keywords : String(keywords || '').split(/,\s*|\n/))
-      .map((k) => String(k).trim()).filter(Boolean);
+    const kws = kwList(keywords);
     if (!kws.length) return '<p style="color:#94a3b8;font-size:12px;margin:6px 0">No target keywords.</p>';
     const rows = kws.map((kw) => {
       const c = cleanKw(kw);
@@ -1749,22 +1751,79 @@ function renderStrategy(strategies, recommended, recs, metricMap = {}, rankMap =
   const field = (label, val) => val
     ? `<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">${label}</div><div style="font-size:13px;color:#334155;line-height:1.5">${esc(val)}</div></div>`
     : '';
-  const stratCards = strategies.map((s) => {
+  // The strategies are alternatives to choose between, not a sequence to read
+  // end to end — stacking three full keyword tables made them one long scroll
+  // with no way to compare. So: a comparison strip first, then one collapsed
+  // card each (the recommended one open) so the shapes are visible at a glance
+  // and only the chosen strategy's detail is on screen. ReportHtml expands every
+  // <details> for print, so the PDF still carries all of them in full.
+  const ACCENTS = ['#3b82f6', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981'];
+  const ttrOf = (s) => (s.time_to_rank
+    ? (String(s.time_to_rank).toLowerCase().includes('month') ? String(s.time_to_rank) : `${s.time_to_rank} months`)
+    : '');
+  const statsOf = (s) => {
+    const kws = kwList(s.target_keywords);
+    const metrics = kws.map((k) => metricMap[cleanKw(k)]).filter(Boolean);
+    const vol = metrics.reduce((a, m) => a + (Number(m.vol) || 0), 0);
+    const kd = metrics.length ? Math.round(metrics.reduce((a, m) => a + (Number(m.diff) || 0), 0) / metrics.length) : null;
+    const ranking = kws.filter((k) => { const r = rankMap[cleanKw(k)]; return r != null && r <= 10; }).length;
+    return { n: kws.length, vol, kd, ranking };
+  };
+
+  const pill = (val, label, col) => `<span style="display:inline-flex;align-items:baseline;gap:4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:3px 9px;font-size:11px;color:#64748b;white-space:nowrap"><strong style="color:${col};font-weight:800">${esc(val)}</strong>${label}</span>`;
+
+  // At-a-glance comparison — only earns its space when there's a choice to make.
+  const compareRows = strategies.map((s, i) => {
+    const st = statsOf(s);
     const isRec = s === recommended;
-    const ttr = s.time_to_rank
-      ? (String(s.time_to_rank).toLowerCase().includes('month') ? s.time_to_rank : `${s.time_to_rank} months`)
-      : '';
-    return `<div style="border:1px solid ${isRec ? '#bfdbfe' : '#e2e8f0'};border-radius:12px;padding:14px 16px;margin:10px 0;background:${isRec ? '#f0f9ff' : '#fff'}">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong style="font-size:15px;color:#0f172a">${isRec ? '★ ' : ''}${esc(s.name)}</strong>
-        ${isRec ? '<span style="background:#3b82f6;color:#fff;border-radius:999px;padding:2px 10px;font-size:10px;font-weight:700">RECOMMENDED</span>' : ''}
+    return `<tr style="border-top:1px solid #f1f5f9;background:${isRec ? '#f0f9ff' : '#fff'}">
+      <td style="padding:8px 10px;color:#0f172a;font-weight:700"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ACCENTS[i % ACCENTS.length]};margin-right:7px"></span>${isRec ? '★ ' : ''}${esc(s.name)}</td>
+      <td style="padding:8px 6px;text-align:center;color:#475569">${esc(s.expected_impact || '—')}</td>
+      <td style="padding:8px 6px;text-align:center;color:#475569">${esc(ttrOf(s) || '—')}</td>
+      <td style="padding:8px 6px;text-align:center;color:#334155;font-weight:700">${st.n}</td>
+      <td style="padding:8px 6px;text-align:center;color:#10b981;font-weight:700">${st.vol ? volFmt(st.vol) : '—'}</td>
+      <td style="padding:8px 6px;text-align:center;font-weight:700;color:${st.kd == null ? '#94a3b8' : st.kd > 50 ? '#ef4444' : st.kd > 30 ? '#f59e0b' : '#10b981'}">${st.kd == null ? '—' : st.kd}</td>
+    </tr>`;
+  }).join('');
+  const compareTable = strategies.length > 1 ? `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin:10px 0 14px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+      <thead><tr style="background:#004a99;color:#fff;text-align:left">
+        <th style="padding:8px 10px;font-weight:700">Strategy</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:80px">Impact</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:90px">Time to rank</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:64px">Keywords</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:70px">Vol/mo</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:56px">Avg KD</th>
+      </tr></thead><tbody>${compareRows}</tbody></table>` : '';
+
+  const stratCards = strategies.map((s, i) => {
+    const isRec = s === recommended;
+    const accent = ACCENTS[i % ACCENTS.length];
+    const st = statsOf(s);
+    // The numbers live in the comparison table above; the summary carries what
+    // that table can't — the theme in words — plus the one stat it omits (how
+    // much of the strategy is already ranking). No duplicated columns.
+    const theme = s.focus_area || s.focus || '';
+    // The default disclosure marker (▶/▼) is the affordance here — it rotates on
+    // open for free, which no static chevron can. It only renders inline if the
+    // summary's content is one inline-level box, hence the inline-block wrapper.
+    return `<details${isRec ? ' open' : ''} style="border:1px solid ${isRec ? '#bfdbfe' : '#e2e8f0'};border-left:4px solid ${accent};border-radius:12px;margin:10px 0;background:#fff;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 14px 12px 8px;background:${isRec ? '#f0f9ff' : '#fff'};color:#94a3b8">
+        <div style="display:inline-block;width:calc(100% - 24px);vertical-align:top">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="width:22px;height:22px;border-radius:6px;background:${accent};color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${i + 1}</span>
+            <strong style="font-size:15px;color:#0f172a">${esc(s.name)}</strong>
+            ${isRec ? '<span style="background:#3b82f6;color:#fff;border-radius:999px;padding:2px 10px;font-size:10px;font-weight:700">RECOMMENDED</span>' : ''}
+            ${st.ranking ? `<span style="margin-left:auto">${pill(String(st.ranking), 'already top 10', '#10b981')}</span>` : ''}
+          </div>
+          ${theme ? `<div style="margin-top:6px;font-size:12.5px;color:#475569;line-height:1.5">${esc(theme)}</div>` : ''}
+        </div>
+      </summary>
+      <div style="padding:0 14px 14px;border-top:1px solid #f1f5f9">
+        ${field('Content approach', s.content_approach)}
+        <div style="margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Target keywords</div>${kwTable(s.target_keywords)}</div>
       </div>
-      ${field('Core keyword theme', s.focus_area || s.focus)}
-      ${field('Content approach', s.content_approach)}
-      ${field('Expected impact', s.expected_impact)}
-      ${field('Est. time to rank', ttr)}
-      <div style="margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Target keywords</div>${kwTable(s.target_keywords)}</div>
-    </div>`;
+    </details>`;
   }).join('');
 
   const strengths = (recs.strengths || []).map((x) => `
@@ -1843,8 +1902,9 @@ function renderStrategy(strategies, recommended, recs, metricMap = {}, rankMap =
   }
 
   return `
-    <h3 style="margin:0 0 6px;font-weight:700;font-size:16px">Keyword strategy options</h3>
-    <p style="margin:0;color:#64748b;font-size:12px">Vol = monthly search volume · KD = keyword difficulty · Rank = your current position</p>
+    <h3 style="margin:0 0 6px;font-weight:700;font-size:16px">Keyword strategy options <span style="font-weight:400;color:#64748b">— ${strategies.length} to choose from</span></h3>
+    <p style="margin:0;color:#64748b;font-size:12px">Vol = monthly search volume · KD = keyword difficulty · Rank = your current position${strategies.length > 1 ? ' · click a strategy to see its keywords' : ''}</p>
+    ${compareTable}
     ${stratCards}
     ${strengths ? `<h3 style="margin:18px 0 6px;font-weight:700;font-size:16px">✅ What you're doing well</h3><ul style="margin:0;padding-left:18px;font-size:13px">${strengths}</ul>` : ''}
     ${recList.length ? `<h3 style="margin:18px 0 6px;font-weight:700;font-size:16px">🎯 Prioritised action plan <span style="font-weight:400;color:#64748b">— ${recList.length} actions for “${esc(recommended.name)}”</span></h3>${statsBanner}${recSections}` : ''}`;
@@ -6279,7 +6339,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
+export const __test = { renderStrategy, competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
