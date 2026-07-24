@@ -367,6 +367,9 @@ function AdminSettings() {
   const [error, setError] = useState('');
   // Editable copy of the ticket-lifecycle numbers (strings while typing).
   const [tForm, setTForm] = useState({ ticketReminderDays: '', ticketAutoCloseDays: '' });
+  // Editable copy of the renewal-reminder "days before" list, as a text field
+  // (comma/space separated) while typing.
+  const [renewalDays, setRenewalDays] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -378,6 +381,7 @@ function AdminSettings() {
           ticketReminderDays: String(settings.ticketReminderDays ?? 3),
           ticketAutoCloseDays: String(settings.ticketAutoCloseDays ?? 7),
         });
+        setRenewalDays((settings.renewalReminderDays ?? []).join(', '));
       })
       .catch(() => live && setError('Could not load settings.'));
     return () => { live = false; };
@@ -412,6 +416,32 @@ function AdminSettings() {
       const { settings } = await api.adminSetSettings({ ticketReminderDays: reminder, ticketAutoCloseDays: close });
       setSettings(settings);
       setTForm({ ticketReminderDays: String(settings.ticketReminderDays), ticketAutoCloseDays: String(settings.ticketAutoCloseDays) });
+      setMsg('Saved.');
+      setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      setError(e?.payload?.error === 'admin_only'
+        ? 'Only a primary admin can change these settings.'
+        : (e?.payload?.error || e?.message || 'Could not save. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveRenewal(e) {
+    e.preventDefault();
+    // Parse the free-text list into whole days; the backend dedupes and sorts.
+    const parts = renewalDays.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    const nums = parts.map(Number);
+    if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 365)) {
+      setError('Enter whole numbers of days between 0 and 365, separated by commas.');
+      return;
+    }
+    if (nums.length > 8) { setError('Use at most 8 reminder days.'); return; }
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const { settings } = await api.adminSetSettings({ renewalReminderDays: nums });
+      setSettings(settings);
+      setRenewalDays((settings.renewalReminderDays ?? []).join(', '));
       setMsg('Saved.');
       setTimeout(() => setMsg(''), 2500);
     } catch (e) {
@@ -532,6 +562,36 @@ function AdminSettings() {
             before any reminder is sent.
           </p>
         )}
+        <button type="submit" className="btn-primary mt-4" disabled={busy || !settings}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </form>
+
+      <form className="card mt-4 p-5" onSubmit={saveRenewal}>
+        <h2 className="text-base font-semibold">Subscription renewal reminders</h2>
+        <p className="mt-1 text-sm text-muted">
+          How many days before a paid plan renews to email and notify the subscriber (someone who has
+          cancelled instead gets an “access ending” reminder on the same days). Applies to the daily
+          maintenance job. Enter whole days separated by commas — <span className="font-medium">leave blank</span> to
+          turn reminders off.
+        </p>
+        <label className="mt-4 block">
+          <span className="text-sm font-medium">Remind these many days before renewal</span>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text" inputMode="numeric" placeholder="30, 10, 5"
+              className="field w-48" disabled={busy || !settings}
+              value={renewalDays}
+              onChange={(e) => setRenewalDays(e.target.value)}
+            />
+            <span className="text-sm text-muted">days before</span>
+          </div>
+        </label>
+        <p className="mt-2 text-sm text-muted">
+          {renewalDays.trim()
+            ? `Reminders will be sent ${renewalDays.split(/[\s,]+/).filter(Boolean).join(', ')} days before renewal.`
+            : 'Reminders are off — no renewal emails will be sent.'}
+        </p>
         <button type="submit" className="btn-primary mt-4" disabled={busy || !settings}>
           {busy ? 'Saving…' : 'Save'}
         </button>

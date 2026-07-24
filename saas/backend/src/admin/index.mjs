@@ -359,6 +359,17 @@ export const handler = async (event) => {
       if (!Number.isInteger(n) || n < 0 || n > 365) return badRequest(`${key} must be a whole number of days between 0 and 365.`);
       patch[key] = n;
     }
+    // Renewal reminders: a list of "days before" values. Empty list disables the
+    // feature. updateSettings/viewSettings dedupe + sort; validate the range here.
+    if (body.renewalReminderDays !== undefined) {
+      const arr = body.renewalReminderDays;
+      if (!Array.isArray(arr)) return badRequest('renewalReminderDays must be a list of days.');
+      if (arr.length > 8) return badRequest('At most 8 renewal reminder days.');
+      if (arr.some((x) => { const n = Number(x); return !Number.isInteger(n) || n < 0 || n > 365; })) {
+        return badRequest('Each renewal reminder day must be a whole number between 0 and 365.');
+      }
+      patch.renewalReminderDays = arr.map(Number);
+    }
     // Proactive-assistant config (Admin → Assistant). Stored as-is; updateSettings
     // normalizes/validates the nested shape before persisting.
     if (body.proactive && typeof body.proactive === 'object') patch.proactive = body.proactive;
