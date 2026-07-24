@@ -1183,12 +1183,13 @@ async function captionRun(body) {
   const count = Math.min(Math.max(parseInt(body.count, 10) || 3, 1), 5);
   const base = ADAPTERS.caption.request(body);
   const sampleText = (body.sampleText || '').trim();
+  const images = captionImages(body);
   const pick = (raw) => {
     const d = deepBody(raw);
     return typeof d === 'string' ? d : (d?.result || d?.text || d?.content || d?.response || '');
   };
   const variations = await Promise.all(Array.from({ length: count }, (_, i) =>
-    postUpstream(UPSTREAMS.aiOptimiser, { ...base, variationIndex: i, sampleText, settings: { temperature: 0.75 + i * 0.02 } })
+    postUpstream(UPSTREAMS.aiOptimiser, { ...base, variationIndex: i, sampleText, ...(images.length ? { images } : {}), settings: { temperature: 0.75 + i * 0.02 } })
       .then(pick).catch(() => '')
   ));
   // The upstream may return each caption as a JSON object ({hook,body,cta,…}),
@@ -1198,6 +1199,28 @@ async function captionRun(body) {
   if (!clean.length) return { text: 'No caption generated. Please try again.' };
   if (clean.length === 1) return { text: clean[0] };
   return { text: clean.map((v, i) => `━━━ Variation ${i + 1} ━━━\n\n${v}`).join('\n\n\n') };
+}
+
+// Reference images for the caption run, normalised to the plain data-URL strings
+// the aiOptimiser `luxury_copy` branch expects.
+//
+// The field is `_images` (not `images`) on purpose: `publicInputs()` strips
+// `_`-prefixed keys, so the base64 never reaches the saved run record. Without
+// that, a 3-image run writes several MB into a DynamoDB item capped at 400KB —
+// `saveRun` is best-effort inside a try/catch, so the run would look fine and
+// the user would simply never see it in their history again.
+//
+// Capped at 3 even though the upstream allows 6: every variation is a separate
+// vision call, so images multiply by `count`, and this is a free-tier tool
+// metered at a flat 1 credit.
+const CAPTION_IMAGE_CAP = 3;
+function captionImages(body) {
+  const raw = body._images;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((img) => (typeof img === 'string' ? img : img?.dataUrl))
+    .filter((s) => typeof s === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(s))
+    .slice(0, CAPTION_IMAGE_CAP);
 }
 
 // A caption may come back as prose OR as a JSON object (optionally ```json-fenced)
@@ -6432,7 +6455,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { renderStrategy, competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sdxRankings, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
+export const __test = { captionImages, publicInputs, renderStrategy, competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sdxRankings, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
