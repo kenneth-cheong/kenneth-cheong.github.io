@@ -152,6 +152,7 @@ function StatCard({ it }) {
         : isEmpty
         ? <div className="mt-1 flex items-center gap-1 text-2xl font-bold leading-tight text-slate-300">—<InfoTip text="Not available — this metric couldn’t be measured for this site or page." size={14} /></div>
         : <div className={`mt-1 text-2xl font-bold leading-tight ${t.text}`}>{it.value}</div>}
+      {it.sub && <div className="mt-1 text-[11px] leading-tight text-faint">{it.sub}</div>}
       {it.delta && (
         <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600 dark:text-red-400' : it.deltaTone === 'green' ? 'text-emerald-600 dark:text-emerald-400' : 'text-faint'}`}>
           {it.deltaTone === 'green' ? <TrendingUp size={13} aria-hidden /> : it.deltaTone === 'red' ? <TrendingDown size={13} aria-hidden /> : null}

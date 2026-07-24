@@ -62,21 +62,25 @@ describe('sectionsPageSpeed', () => {
     const field = r.sections.filter((s) => s.type === 'stats')[1];
     expect(field.title).toBe('What real visitors experience');
     const cls = field.items.find((i) => i.label === 'Layout shift');
-    expect(cls).toEqual({ label: 'Layout shift', value: '1', tone: 'red' });
+    expect(cls).toEqual({ label: 'Layout shift', value: '1', tone: 'red', sub: 'Good: under 0.1' });
     expect(field.items.find((i) => i.label === 'Largest Contentful Paint').value).toBe('2.7s');
   });
 
-  // "Layout shift 1" is meaningless without the 0.1 it's meant to beat.
-  it('gives the good target for each field metric it shows', () => {
+  // "Layout shift 1" is meaningless without the 0.1 it's meant to beat, so each
+  // card carries its own good target as a subtitle.
+  it('gives the good target as a subtitle on each field card', () => {
     const r = sectionsPageSpeed(MOBILE, DESKTOP, 'https://example.com');
-    const fieldStatsIdx = r.sections.findIndex((s) => s.type === 'stats' && s.title === 'What real visitors experience');
-    const targets = r.sections[fieldStatsIdx + 1];
-    expect(targets.type).toBe('text');
-    expect(targets.text).toContain('Layout shift: under 0.1');
-    expect(targets.text).toContain('Largest Contentful Paint: under 2.5s');
-    expect(targets.text).toContain('Server response: under 0.8s');
-    // Only names metrics actually on the cards — INP has no field sample here.
-    expect(targets.text).not.toContain('Interaction to Next Paint');
+    const field = r.sections.find((s) => s.type === 'stats' && s.title === 'What real visitors experience');
+    const byLabel = Object.fromEntries(field.items.map((i) => [i.label, i.sub]));
+    expect(byLabel['Layout shift']).toBe('Good: under 0.1');
+    expect(byLabel['Largest Contentful Paint']).toBe('Good: under 2.5s');
+    expect(byLabel['Server response']).toBe('Good: under 0.8s');
+  });
+
+  it('subtitles the score cards with their good threshold', () => {
+    const r = sectionsPageSpeed(MOBILE, DESKTOP, 'https://example.com');
+    const score = r.sections.find((s) => s.type === 'stats' && s.title === 'Google PageSpeed score');
+    expect(score.items.every((i) => i.sub === 'Good: 90+')).toBe(true);
   });
 
   it('gives every lab row a good range to read the value against', () => {
@@ -138,7 +142,7 @@ describe('sectionsPageSpeed', () => {
   it('survives one probe failing, and soft-fails when both do', () => {
     const one = sectionsPageSpeed(MOBILE, null, 'https://example.com');
     expect(one.summary.pageSpeedDesktop).toBeNull();
-    expect(one.sections[0].items[1]).toEqual({ label: 'Desktop', value: '—', tone: 'slate' });
+    expect(one.sections[0].items[1]).toEqual({ label: 'Desktop', value: '—', tone: 'slate', sub: 'Good: 90+' });
 
     const none = sectionsPageSpeed(null, null, 'https://example.com');
     expect(none._failed).toBe(true);

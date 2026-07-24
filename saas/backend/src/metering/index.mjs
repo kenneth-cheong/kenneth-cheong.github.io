@@ -2253,8 +2253,8 @@ function sectionsPageSpeed(psmRes, psdRes, target) {
   const sections = [];
 
   sections.push({ type: 'stats', title: 'Google PageSpeed score', items: [
-    { label: 'Mobile', value: mobile ?? dash, tone: tone(mobile) },
-    { label: 'Desktop', value: desktop ?? dash, tone: tone(desktop) },
+    { label: 'Mobile', value: mobile ?? dash, tone: tone(mobile), sub: 'Good: 90+' },
+    { label: 'Desktop', value: desktop ?? dash, tone: tone(desktop), sub: 'Good: 90+' },
   ] });
 
   // Mobile carries the field data we lead on: it's the strategy whose CrUX
@@ -2268,13 +2268,11 @@ function sectionsPageSpeed(psmRes, psdRes, target) {
     const m = field.metrics || {};
     const order = [['lcp', 'Largest Contentful Paint'], ['inp', 'Interaction to Next Paint'], ['cls', 'Layout shift'], ['ttfb', 'Server response']];
     const shown = order.filter(([k]) => m[k]);
+    // Each card carries its own good target as a subtitle, so a value like a
+    // layout shift of 1 is read against the 0.1 it's meant to beat right where
+    // the number is, and the colour has an explicit scale.
     sections.push({ type: 'stats', title: 'What real visitors experience', items:
-      shown.map(([k, label]) => ({ label, value: fmt(m[k]), tone: rateTone(m[k].rating) })) });
-
-    // The scale the colours are measured against, in the same left-to-right
-    // order as the cards above them.
-    sections.push({ type: 'text', text:
-      `Google's "good" targets — ${shown.map(([k, label]) => `${label}: ${GOOD[k]}`).join(' · ')}. Cards are green (good), amber (needs work) or red (poor).` });
+      shown.map(([k, label]) => ({ label, value: fmt(m[k]), tone: rateTone(m[k].rating), sub: `Good: ${GOOD[k]}` })) });
 
     // The whole point of the section: when the lab score is healthy and the
     // field verdict isn't, say so plainly rather than letting the green score
