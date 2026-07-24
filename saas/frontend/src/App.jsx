@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
 import Logo from './components/Logo.jsx';
@@ -64,6 +64,17 @@ const Notifications = lazyWithReload(() => import('./pages/Notifications.jsx'));
 const OpenRun = lazyWithReload(() => import('./pages/OpenRun.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-faint">Loading…</div>;
+
+// The tools LIST is /tools but a single tool is /tool/:toolId, and the plural is
+// the natural guess — every hand-typed or externally-shared "/tools/technical-seo"
+// used to land on the 404 page. Redirect to the real route instead (replace: the
+// wrong URL shouldn't sit in history and come back on Back). An unknown toolId
+// still ends up on ToolRunner, which has its own handling for that.
+function ToolPathRedirect() {
+  const { toolId } = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate to={`/tool/${toolId}${search}${hash}`} replace />;
+}
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -133,6 +144,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/tools" element={<Tools />} />
+          <Route path="/tools/:toolId" element={<ToolPathRedirect />} />
           <Route path="/tool/:toolId" element={<ToolRunner />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
