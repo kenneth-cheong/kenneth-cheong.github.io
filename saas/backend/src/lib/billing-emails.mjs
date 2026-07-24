@@ -236,6 +236,70 @@ export function cancelEmailText(user = {}, opts = {}) {
   ].join('\n');
 }
 
+// ── Upcoming renewal / cancellation reminder ─────────────────────────────────
+// One email sent a set number of days before a paid subscription's period end.
+// Two shapes off the same template:
+//   • renewing (default) — "renews on X, card will be charged" → manage/update card
+//   • ending (opts.ending, i.e. cancel-at-period-end) — "access ends on X" → resubscribe
+// opts: { planName, renewalDateText, amountText, monthlyCredits, daysLeft, ending }
+function renewalCopy(opts = {}) {
+  const days = Number(opts.daysLeft) || 0;
+  const plural = days === 1 ? 'day' : 'days';
+  const when = days <= 0 ? 'today' : `in ${days} ${plural}`;
+  if (opts.ending) {
+    return {
+      subject: `Your Digimetrics ${opts.planName} plan ends ${when}`,
+      heading: `Your ${esc(opts.planName)} plan ends ${when}`,
+      introHtml: `Your subscription is set to cancel on <strong>${esc(opts.renewalDateText)}</strong>, after which your account moves to the Free plan. Nothing is deleted — your projects, run history and data stay safe, and resubscribing picks up right where you left off.`,
+      cardTitle: 'Subscription',
+      rows: [['Plan', `Digimetrics ${opts.planName}`], ['Access ends', opts.renewalDateText]],
+      noteHtml: `Meant to keep it? Reactivate any time before it ends and nothing changes.`,
+      ctaLabel: 'Keep my plan',
+      ctaUrl: `${dashUrl()}/account`,
+    };
+  }
+  const rows = [['Plan', `Digimetrics ${opts.planName}`], ['Renews on', opts.renewalDateText]];
+  if (opts.amountText) rows.push(['Amount', opts.amountText]);
+  return {
+    subject: `Your Digimetrics ${opts.planName} plan renews ${when}`,
+    heading: `Your ${esc(opts.planName)} plan renews ${when}`,
+    introHtml: `Just a heads-up that your subscription renews on <strong>${esc(opts.renewalDateText)}</strong>${opts.amountText ? ` and your card will be charged <strong>${esc(opts.amountText)}</strong>` : ''}. No action is needed to continue — you can update your card or change your plan any time before then.`,
+    cardTitle: 'Subscription',
+    rows,
+    noteHtml: `Need to update your card or change plans? Manage everything from your account, or just reply to this email.`,
+    ctaLabel: 'Manage subscription',
+    ctaUrl: `${dashUrl()}/account`,
+  };
+}
+
+export function renewalEmailHtml(user = {}, opts = {}) {
+  const c = renewalCopy(opts);
+  return shell({
+    title: c.subject,
+    preheader: c.subject,
+    name: esc(firstName(user)),
+    heading: c.heading,
+    introHtml: c.introHtml,
+    cardTitle: c.cardTitle,
+    rows: c.rows,
+    noteHtml: c.noteHtml,
+    ctaLabel: c.ctaLabel,
+    ctaUrl: c.ctaUrl,
+  });
+}
+
+export function renewalEmailText(user = {}, opts = {}) {
+  const c = renewalCopy(opts);
+  const lines = [`Hi ${firstName(user)},`, ''];
+  if (opts.ending) {
+    lines.push(`Your Digimetrics ${opts.planName} subscription is set to cancel on ${opts.renewalDateText}, after which your account moves to the Free plan. Nothing is deleted — resubscribe any time to pick up where you left off.`);
+  } else {
+    lines.push(`Your Digimetrics ${opts.planName} subscription renews on ${opts.renewalDateText}${opts.amountText ? ` and your card will be charged ${opts.amountText}` : ''}. No action is needed to continue — you can update your card or change your plan any time before then.`);
+  }
+  lines.push('', `${c.ctaLabel}: ${c.ctaUrl}`, '', 'Best regards,', 'The Digimetrics Team', WEBSITE_URL);
+  return lines.join('\n');
+}
+
 // ── Senders (best-effort; never throw) ───────────────────────────────────────
 export async function sendSubscribeEmail(user, opts = {}) {
   if (!user?.email) return false;
@@ -267,6 +331,23 @@ export async function sendCancelEmail(user, opts = {}) {
     });
   } catch (e) {
     console.warn('cancel_email_failed', e.message);
+    return false;
+  }
+}
+
+export async function sendRenewalEmail(user, opts = {}) {
+  if (!user?.email) return false;
+  try {
+    const { sendNotice, noticeFrom } = await import('./email.mjs');
+    return await sendNotice({
+      to: user.email,
+      subject: renewalCopy(opts).subject,
+      text: renewalEmailText(user, opts),
+      html: renewalEmailHtml(user, opts),
+      from: noticeFrom('Digimetrics'),
+    });
+  } catch (e) {
+    console.warn('renewal_email_failed', e.message);
     return false;
   }
 }

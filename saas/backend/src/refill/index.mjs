@@ -9,16 +9,22 @@
 //      more on the day it closes. Both windows are silent by nature (nothing
 //      happens until suddenly everything stops), so this is the only warning a
 //      user gets before being locked out.
+//   3. Remind paid subscribers ahead of their renewal (or, if they've cancelled,
+//      ahead of their access ending). The "how many days before" list is admin-
+//      editable (settings.renewalReminderDays); an empty list turns it off.
 //
 // Idempotent per user/period: refillFreeTier conditionally writes a 30-day-ahead
 // `freeRefillAt`, so a user is refilled at most once per period even if the daily
 // job overlaps or reruns. The notices carry their own per-stage stamp.
-import { scanAllUsers, refillFreeTier, addNotification, setAccessNotice } from '../lib/dynamo.mjs';
+import { scanAllUsers, refillFreeTier, addNotification, setAccessNotice, setRenewalNotice, getSettings } from '../lib/dynamo.mjs';
 import { PLANS, ACCESS } from '../../../shared/catalog.mjs';
 import { accessLocked, accessState } from '../lib/access.mjs';
+import { isStaff } from '../lib/admin.mjs';
 import { sendNotice } from '../lib/email.mjs';
+import { sendRenewalEmail, formatDate, formatMoney } from '../lib/billing-emails.mjs';
 
-const PERIOD_MS = 30 * 86400_000;
+const DAY = 86400_000;
+const PERIOD_MS = 30 * DAY;
 const APP_ORIGIN = (process.env.APP_ORIGIN || '').replace(/\/$/, '');
 
 // What to say at each stage. `stage` doubles as the idempotency stamp, so each
@@ -51,11 +57,16 @@ export const handler = async () => {
   const nextAt = new Date(now + PERIOD_MS).toISOString();
   const allowance = PLANS.free.monthlyCredits;
 
+  const settings = await getSettings();
+
   const users = await scanAllUsers();
-  let refilled = 0, warned = 0;
+  let refilled = 0, warned = 0, reminded = 0;
   for (const u of users) {
     try { warned += await warnIfClosing(u); }
     catch (e) { console.error('access_notice_failed', u.userId, e.message); }
+
+    try { reminded += await remindRenewal(u, settings.renewalReminderDays, now); }
+    catch (e) { console.error('renewal_notice_failed', u.userId, e.message); }
 
     if ((u.tier || 'free') !== 'free') continue;          // paid users refill via invoice.paid
     if (u.freeRefillAt && u.freeRefillAt > nowIso) continue; // not due yet
@@ -69,9 +80,59 @@ export const handler = async () => {
       if (res) refilled++;
     } catch (e) { console.error('free_refill_failed', u.userId, e.message); }
   }
-  console.log(JSON.stringify({ metric: 'free_refill', total: users.length, refilled, warned }));
-  return { refilled, warned };
+  console.log(JSON.stringify({ metric: 'free_refill', total: users.length, refilled, warned, reminded }));
+  return { refilled, warned, reminded };
 };
+
+/** One reminder ahead of a paid subscription's renewal (or, if cancelled, ahead
+ *  of access ending). Fires once at each configured "days before" value. Returns
+ *  1 if it sent, 0 otherwise.
+ *
+ *  `reminderDays` is the admin-editable list (already sanitized by getSettings);
+ *  empty ⇒ feature off. The idempotency stamp embeds `periodEnd`, so the next
+ *  billing cycle (a new periodEnd) re-arms every reminder with no reset step. */
+async function remindRenewal(user, reminderDays, now) {
+  if (!reminderDays?.length) return 0;
+  const tier = user.tier || 'free';
+  if (tier === 'free' || !PLANS[tier]) return 0; // only paid plans renew
+  if (isStaff(user)) return 0;                    // staff aren't on a billing clock
+  if (user.pastDue) return 0;                     // past-due gets its own warnings (warnIfClosing)
+
+  const end = Date.parse(user.periodEnd || '');
+  if (!Number.isFinite(end)) return 0;            // no renewal anchor on record
+  const daysLeft = Math.ceil((end - now) / DAY);
+  if (daysLeft <= 0 || !reminderDays.includes(daysLeft)) return 0;
+
+  const stage = `${user.periodEnd}:${daysLeft}`;
+  if (user.renewalNoticeStage === stage) return 0;
+
+  const plan = PLANS[tier];
+  const ending = !!user.cancelAtPeriodEnd;
+  const dateText = formatDate(user.periodEnd);
+  const plural = daysLeft === 1 ? 'day' : 'days';
+  const title = ending
+    ? `Your ${plan.name} plan ends in ${daysLeft} ${plural}`
+    : `Your ${plan.name} plan renews in ${daysLeft} ${plural}`;
+  const body = ending
+    ? `Your subscription is set to cancel on ${dateText}, after which your account moves to Free. Nothing is deleted — resubscribe any time to keep your ${plan.name} features.`
+    : `Your subscription renews on ${dateText}. No action needed to continue — update your card or change your plan any time from your account.`;
+
+  await addNotification({ userId: user.userId, title, body, link: '/account', kind: 'billing' });
+  // The plan's list price, not a per-user Stripe lookup: the daily job scans every
+  // account, so a Stripe call per subscriber would be a real rate-limit/cost hit.
+  // Good for the common monthly-at-list case; discounts/annual may differ.
+  await sendRenewalEmail(user, {
+    planName: plan.name,
+    renewalDateText: dateText,
+    amountText: ending ? '' : formatMoney((plan.priceMonthly || 0) * 100, 'usd'),
+    monthlyCredits: plan.monthlyCredits,
+    daysLeft,
+    ending,
+  }).catch((e) => console.error('renewal_notice_email', user.userId, e.message));
+
+  await setRenewalNotice(user.userId, stage);
+  return 1;
+}
 
 /** One in-app + email notice per stage of a closing access window. Returns 1 if
  *  it sent, 0 otherwise. */
@@ -113,4 +174,4 @@ async function warnIfClosing(user) {
 }
 
 // Exported for unit tests.
-export const __test = { noticeFor, warnIfClosing, ACCESS };
+export const __test = { noticeFor, warnIfClosing, remindRenewal, ACCESS };

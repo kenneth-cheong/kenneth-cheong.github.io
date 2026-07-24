@@ -462,7 +462,7 @@ export async function resetMonthlyAllowance({ userId, tier, monthlyCredits, peri
     TableName: TABLES.users, Key: { userId },
     // `pastDueSince` goes with `pastDue` — a paid invoice ends the grace window
     // as well as the flag, so a later failure starts a fresh 7 days.
-    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now REMOVE pastDue, pastDueSince, freeAccessEndsAt',
+    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now REMOVE pastDue, pastDueSince, freeAccessEndsAt, cancelAtPeriodEnd',
     ExpressionAttributeNames: { '#tier': 'tier' },
     ExpressionAttributeValues: { ':t': tier, ':c': monthlyCredits, ':p': periodEnd, ':now': new Date().toISOString() },
     ReturnValues: 'ALL_NEW',
@@ -499,6 +499,35 @@ export async function setAccessNotice(userId, stage) {
       ? 'SET accessNoticeStage = :s, updatedAt = :now'
       : 'REMOVE accessNoticeStage SET updatedAt = :now',
     ExpressionAttributeValues: stage ? { ':s': stage, ':now': new Date().toISOString() } : { ':now': new Date().toISOString() },
+  }));
+}
+
+/** Remember which upcoming-renewal reminder we last sent for a paid account
+ *  (e.g. '2026-08-24T…:10'). The stamp embeds the current `periodEnd`, so a new
+ *  billing cycle (a new periodEnd) never matches an old stamp — it re-arms all
+ *  the reminders automatically, with no clearing step. */
+export async function setRenewalNotice(userId, stage) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: stage
+      ? 'SET renewalNoticeStage = :s, updatedAt = :now'
+      : 'REMOVE renewalNoticeStage SET updatedAt = :now',
+    ExpressionAttributeValues: stage ? { ':s': stage, ':now': new Date().toISOString() } : { ':now': new Date().toISOString() },
+  }));
+}
+
+/** Record whether a live subscription is set to cancel at period end. Lets the
+ *  renewal-reminder job say "your plan ends on X" instead of "renews on X" for
+ *  someone who's cancelled. Synced from the subscription.updated webhook, both
+ *  ways — reactivating (uncancel) clears it. */
+export async function setCancelAtPeriodEnd(userId, value) {
+  const now = new Date().toISOString();
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: value
+      ? 'SET cancelAtPeriodEnd = :v, updatedAt = :now'
+      : 'REMOVE cancelAtPeriodEnd SET updatedAt = :now',
+    ExpressionAttributeValues: value ? { ':v': true, ':now': now } : { ':now': now },
   }));
 }
 
@@ -564,7 +593,23 @@ const DEFAULT_SETTINGS = {
   // Support-ticket lifecycle (admin-tunable). Days; 0 disables that behaviour.
   ticketReminderDays: 3,   // cadence of "please respond" nudges while awaiting the client
   ticketAutoCloseDays: 7,  // inactivity before a ticket auto-closes
+  // How many days before a paid subscription renews to email/notify the user
+  // (the daily refill job reads this). Each value fires one reminder; an empty
+  // list turns the feature off. Sorted high→low, deduped, whole days 0–365.
+  renewalReminderDays: [30, 10, 5],
 };
+
+/** Normalize a list of "days before" values: whole days 0–365, unique, sorted
+ *  high→low, capped at 8. A non-array (or all-junk) yields []. */
+function sanitizeDays(v) {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set();
+  for (const x of v) {
+    const n = Number(x);
+    if (Number.isInteger(n) && n >= 0 && n <= 365) seen.add(n);
+  }
+  return [...seen].sort((a, b) => b - a).slice(0, 8);
+}
 // Non-account rows that share the Users table: the settings singleton and the
 // `username:<lower>` uniqueness reservations. Both must stay out of user scans,
 // or they surface as phantom users in the admin list.
@@ -583,6 +628,11 @@ function viewSettings(item) {
     usernameAuthEnabled: s.usernameAuthEnabled === true,
     ticketReminderDays: num(s.ticketReminderDays, DEFAULT_SETTINGS.ticketReminderDays),
     ticketAutoCloseDays: num(s.ticketAutoCloseDays, DEFAULT_SETTINGS.ticketAutoCloseDays),
+    // An explicit array wins (including an empty one = feature off); only a
+    // missing/never-set key falls back to the shipped default.
+    renewalReminderDays: Array.isArray(s.renewalReminderDays)
+      ? sanitizeDays(s.renewalReminderDays)
+      : DEFAULT_SETTINGS.renewalReminderDays,
     // Proactive-assistant config: fall back to the seeded defaults until an admin
     // has saved a config of their own. Always normalized so clients get a clean shape.
     proactive: s.proactive ? normalizeProactive(s.proactive) : DEFAULT_PROACTIVE,
@@ -733,7 +783,7 @@ export async function applyDowngrade({ userId, monthlyCredits, freeAccessEndsAt 
     try {
       const res = await ddb.send(new UpdateCommand({
         TableName: TABLES.users, Key: { userId },
-        UpdateExpression: 'SET #tier = :t, credits = :c, freeAccessEndsAt = :fa, updatedAt = :now REMOVE pastDue, pastDueSince',
+        UpdateExpression: 'SET #tier = :t, credits = :c, freeAccessEndsAt = :fa, updatedAt = :now REMOVE pastDue, pastDueSince, cancelAtPeriodEnd',
         ConditionExpression: 'attribute_not_exists(credits) OR credits = :oc',
         ExpressionAttributeNames: { '#tier': 'tier' },
         ExpressionAttributeValues: { ':t': 'free', ':c': credits, ':fa': freeAccessEndsAt, ':oc': prev, ':now': new Date().toISOString() },

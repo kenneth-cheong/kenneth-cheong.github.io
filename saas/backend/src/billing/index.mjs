@@ -15,7 +15,7 @@ import {
   getUser, getUserByStripeCustomer, grantTopupCredits,
   claimStripeEvent, releaseStripeEvent,
   resetMonthlyAllowance, applyTierChange, applyDowngrade, linkStripeCustomer,
-  setPastDue, debitTopupCredits, unlinkStripeCustomer,
+  setPastDue, debitTopupCredits, unlinkStripeCustomer, setCancelAtPeriodEnd,
   addLifetimePaid, refundDeltaCents,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
@@ -686,6 +686,14 @@ async function onSubscriptionUpdated(sub) {
     // balance up to the new plan's allowance — atomic so a concurrent spend isn't
     // clobbered.
     await applyTierChange({ userId: user.userId, tier, monthlyCredits: PLANS[tier].monthlyCredits });
+  }
+
+  // Track cancel-at-period-end so the renewal-reminder job (src/refill) can say
+  // "your plan ends on X" instead of "renews on X". Only write on a real change —
+  // this webhook fires for many unrelated edits. Reactivating clears the flag.
+  const pendingCancel = !!sub.cancel_at_period_end;
+  if (pendingCancel !== !!user.cancelAtPeriodEnd) {
+    await setCancelAtPeriodEnd(user.userId, pendingCancel);
   }
 }
 

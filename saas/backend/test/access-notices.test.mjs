@@ -10,6 +10,13 @@ vi.mock('../src/lib/dynamo.mjs', () => ({
   refillFreeTier: async () => null,
   addNotification: async (n) => { sent.notifications.push(n); },
   setAccessNotice: async (userId, stage) => { sent.stamps.push({ userId, stage }); },
+  setRenewalNotice: async () => {},
+  getSettings: async () => ({ renewalReminderDays: [] }),
+}));
+vi.mock('../src/lib/billing-emails.mjs', () => ({
+  sendRenewalEmail: async () => {},
+  formatDate: () => '',
+  formatMoney: () => '',
 }));
 vi.mock('../src/lib/email.mjs', () => ({
   sendNotice: async (m) => { sent.emails.push(m); },
