@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { PLANS, TOOLS, CREDIT_COSTS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
 
 // ── driver.js base config (brand-themed via the .dm-tour popover class) ──────
 function run(steps, { onDone } = {}) {
@@ -765,7 +765,6 @@ function fieldHint(field) {
 // `hooks.clear()`    — reset the form and remove the result (called on exit).
 export function startToolTour(tool, fields, hooks = {}) {
   const steps = [];
-  const cost = CREDIT_COSTS[tool?.cost] ?? 0;
 
   steps.push({
     popover: {
@@ -788,9 +787,8 @@ export function startToolTour(tool, fields, hooks = {}) {
   steps.push({
     element: '[data-tour="tool-actions"]',
     popover: {
-      title: 'Cost & one-click examples',
+      title: 'One-click examples',
       description:
-        `${cost === 0 ? 'This tool is <b>free</b> to run — it never touches your credits.' : `Each run costs <b>${cost} credit${cost > 1 ? 's' : ''}</b> from the monthly allowance in the top bar.`} ` +
         'Not sure what to type? Click <b>“Try an example”</b> any time and the form fills itself with a working example.',
       side: 'top',
       align: 'start',
@@ -859,7 +857,6 @@ export function startToolTour(tool, fields, hooks = {}) {
 // genuine run. `hooks.clear()` resets the whole form + both results on exit (Done,
 // ✕, Esc or click-away). Steps whose target isn't on-screen are dropped.
 export function startSocialAuditTour(tool, hooks = {}) {
-  const cost = CREDIT_COSTS[tool?.cost] ?? 0;
   const steps = [
     {
       popover: {
@@ -938,7 +935,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       element: '[data-tour="sma-run"]',
       popover: {
         title: 'Run it (give it a moment)',
-        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and works in two phases (pull the live numbers → build the strategy), so it takes ~${etaLabel(tool)} with live progress. It keeps going even if you close the tab, and sends a notification when it’s done. We’ve pre-run the example so you can see the output ↓`,
+        description: `On your own data you’d hit run here — it works in two phases (pull the live numbers → build the strategy), so it takes ~${etaLabel(tool)} with live progress. It keeps going even if you close the tab, and sends a notification when it’s done. We’ve pre-run the example so you can see the output ↓`,
         side: 'top', align: 'start',
       },
     },
@@ -978,7 +975,6 @@ export function startSocialAuditTour(tool, hooks = {}) {
 
 // ── Performance Marketing Audit (bespoke page) ───────────────────────────────
 export function startPerfMarketingTour(tool, hooks = {}) {
-  const cost = CREDIT_COSTS[tool?.cost] ?? 0;
   const steps = [
     {
       popover: {
@@ -1034,7 +1030,7 @@ export function startPerfMarketingTour(tool, hooks = {}) {
       element: '[data-tour="pm-run"]',
       popover: {
         title: 'Run it',
-        description: `On your own data you’d run here — it costs <b>${cost} credits</b> and takes ~${etaLabel(tool)}. Starter returns a budget split + channel-mix chart; Pro returns the account diagnosis.`,
+        description: `On your own data you’d run here — it takes ~${etaLabel(tool)}. Starter returns a budget split + channel-mix chart; Pro returns the account diagnosis.`,
         side: 'top', align: 'start',
       },
     },

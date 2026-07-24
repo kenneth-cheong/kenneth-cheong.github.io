@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS, NORMALIZERS } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS, NORMALIZERS } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -589,14 +589,11 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
                 <Clock size={15} />Schedule
               </button>
             )}
-            {/* What this run costs, at the point of spending it. Locked tools run
-                a free preview, and integration pulls are free, so neither claims
-                a price it won't charge. */}
-            {unlocked && !tool.integration && cost > 0 && (
-              <span className="text-xs font-medium text-muted" data-tour="tool-cost">
-                {cost} credit{cost === 1 ? '' : 's'}
-                {etaLabel(tool) && <span className="text-faint"> · ~{etaLabel(tool)}</span>}
-              </span>
+            {/* How long it takes, never what it costs. Pricing the run button
+                turns starting work into a purchase decision — /credit-guide is
+                the one place that quotes a price. */}
+            {unlocked && !tool.integration && etaLabel(tool) && (
+              <span className="text-xs font-medium text-faint">~{etaLabel(tool)}</span>
             )}
             <button className={`btn-primary ${!ready ? 'opacity-60' : ''}`} disabled={busy} aria-disabled={busy || !ready}
               onClick={attemptRun} data-tour="tool-run">
@@ -1136,7 +1133,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
             Usage page already carry the balance for anyone who wants it. */}
         {hasContent && (
           <div className="ml-auto flex items-center gap-1.5">
-            <button onClick={explain} title={`Discuss these results with Monty — ask follow-up questions (${CREDIT_COSTS.ai_chat ?? 2} credits per message)`}
+            <button onClick={explain} title="Discuss these results with Monty — ask follow-up questions"
               className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
               <Sparkles size={13} aria-hidden /> Ask Monty
             </button>
@@ -1373,12 +1370,12 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
     domain && {
       key: 'timeToRank', label: 'Time to rank',
       // Never a bare blank: an un-estimated row spells out that it's one click
-      // (and one credit) away, so the empty column doesn't read as missing data.
+      // away, so the empty column doesn't read as missing data.
       render: (row) => pending.has(row.keyword)
         ? <span className="inline-flex items-center gap-1 text-faint"><span className="h-3 w-3 animate-spin rounded-full border-2 border-edge border-t-brand-500" aria-hidden /> estimating…</span>
         : row.timeToRank != null ? cell('timeToRank', row.timeToRank)
         : <button type="button" onClick={() => calculate([row.keyword])} disabled={running}
-            title={`Estimate time to rank for “${row.keyword}” against ${domain} — 1 credit`}
+            title={`Estimate time to rank for “${row.keyword}” against ${domain}`}
             className="dm-no-print whitespace-nowrap rounded-full border border-dashed border-edge px-2 py-0.5 text-xs font-medium text-dim hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-40">
             Calculate
           </button>,
@@ -1439,8 +1436,8 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
           </button>
           <span className="text-xs text-faint">
             {todo.length > 0
-              ? `costs ${todo.length} credit${todo.length > 1 ? 's' : ''} · estimated against ${domain}`
-              : selectableKws.length > 0 ? 'tick a keyword (or use the Calculate link in the table) · 1 credit each'
+              ? `estimated against ${domain}`
+              : selectableKws.length > 0 ? 'tick a keyword (or use the Calculate link in the table)'
               : 'all keywords estimated'}
           </span>
         </div>

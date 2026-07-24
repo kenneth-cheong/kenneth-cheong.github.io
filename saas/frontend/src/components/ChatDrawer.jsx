@@ -376,7 +376,7 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
           <div className="text-sm font-bold leading-tight text-strong">Monty</div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-muted">
             <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-pos" style={{ boxShadow: '0 0 0 3px rgb(var(--c-pos) / .22)' }} aria-hidden />
-            AI concierge · {COST} credit{COST === 1 ? '' : 's'} / message
+            AI concierge
           </div>
         </div>
         <div className="ml-auto flex items-center gap-1">

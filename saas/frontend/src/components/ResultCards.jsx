@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, RefreshCw, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart, Plug } from 'lucide-react';
-import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
+import { toolById } from '@shared/catalog.mjs';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -230,7 +230,6 @@ function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, empty, chi
   const html = run?.result?.html;
 
   const refreshTool = refresh && toolById(refresh.toolId);
-  const refreshCost = refreshTool ? (CREDIT_COSTS[refreshTool.cost] ?? 0) : 0;
 
   // Re-measure just this card. Stays on the page — no navigation, no tool form,
   // no re-running everything else the original audit happened to cover.
@@ -281,7 +280,7 @@ function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, empty, chi
                 type="button"
                 onClick={doRefresh}
                 disabled={busy}
-                title={`Re-measure ${run.target} without leaving this page — ${refreshCost} credit${refreshCost === 1 ? '' : 's'}`}
+                title={`Re-measure ${run.target} without leaving this page`}
                 className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-peri hover:underline disabled:cursor-wait disabled:opacity-60 disabled:no-underline"
               >
                 <RefreshCw size={11} className={busy ? 'animate-spin' : undefined} aria-hidden />
