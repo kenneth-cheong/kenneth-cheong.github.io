@@ -27,6 +27,7 @@ import {
   estCostUsd,
   toDomain,
   toHost,
+  toPageUrl,
 } from '../../../shared/catalog.mjs';
 import {
   ok,
@@ -3625,13 +3626,15 @@ function pushTrend(sections, title, series, defs) {
 async function backlinksRun(body) {
   const url = UPSTREAMS.dataforseoCrawler;
   const mode = body.mode || 'domain';
-  // The scope decides what `target` may be: a bare domain, one host (where
-  // `www.` is significant), or a whole page URL. Trimming the first two here
-  // keeps a schedule or raw API call in step with what the form sends.
+  // The scope decides what shape `target` has to be — a bare domain or a whole
+  // page URL — and reshaping it here (not only in the form) keeps a schedule or
+  // raw API call in step with what the UI sends, whichever address shape the
+  // caller happened to hold. `host` no longer appears on the form; runs and
+  // schedules saved while it did still arrive, and still mean that host.
   const raw = body.input || body.url;
   const target = mode === 'domain' ? cleanDomain(raw)
     : mode === 'host' ? toHost(raw)
-    : String(raw || '').trim();
+    : toPageUrl(raw);
   if (!target) throw new Error('A domain or URL is required.');
   const post = (action, extra = {}) => postUpstream(url, { action, target, mode, ...extra });
   const result0 = (res) => res?.tasks?.[0]?.result?.[0];

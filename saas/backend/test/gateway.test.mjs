@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { __test } from '../src/metering/index.mjs';
-import { INPUTS, NORMALIZERS, toDomain, toHost } from '../../shared/catalog.mjs';
+import { INPUTS, NORMALIZERS, toDomain, toHost, toPageUrl } from '../../shared/catalog.mjs';
 
 describe('gateway pure helpers', () => {
   it('schemaRun builds valid nested JSON-LD', () => {
@@ -38,6 +38,23 @@ describe('gateway pure helpers', () => {
     // is what fed the brand into the URL. Keep the form honest.
     expect(INPUTS['ai-discovery'].map((f) => f.name)).toEqual(['url']);
     expect(INPUTS['ai-discovery'][0].required).toBe(true);
+  });
+  it('toPageUrl makes a fetchable URL out of whatever address shape was typed', () => {
+    // The "One page" scope with a domain typed out of habit: the correction is a
+    // homepage, not a schemeless string the upstream answers nothing for.
+    expect(toPageUrl('x.co')).toBe('https://x.co');
+    expect(toPageUrl('x.co/blog/post')).toBe('https://x.co/blog/post');
+    expect(toPageUrl(' http://x.co/a ')).toBe('http://x.co/a'); // an explicit scheme is left alone
+    expect(toPageUrl('')).toBe('');
+  });
+  it('backlinks offers only the scopes the gateway still reshapes for', () => {
+    // "One subdomain" was retired: every scope on the form must still have a
+    // matching branch in backlinksRun, and a field that says what to type.
+    const [mode, ...boxes] = INPUTS.backlinks;
+    expect(mode.name).toBe('mode');           // scope first — it decides what the box means
+    expect(mode.options.map((o) => o.value)).toEqual(['domain', 'url']);
+    expect(boxes.map((b) => b.showWhen.in[0])).toEqual(['domain', 'url']);
+    expect(boxes.map((b) => b.label)).toEqual(['Domain', 'Page URL']);
   });
   it('every catalog `normalize` flag resolves to a real normalizer', () => {
     const flagged = Object.values(INPUTS).flat().filter((f) => f.normalize);

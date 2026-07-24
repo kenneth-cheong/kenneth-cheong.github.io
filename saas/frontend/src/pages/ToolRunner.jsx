@@ -86,6 +86,16 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       || (f.type !== 'textarea' && /example\.com|yoursite|https?:\/\//i.test(f.placeholder || ''));
     return looksSite ? bare : '';
   };
+  // A saved value can outlive the option that produced it: re-open a run (or a
+  // last-input) from before a choice was retired — backlinks' old "host" scope —
+  // and the picker seeds with a value it no longer offers, so nothing reads as
+  // selected and whatever field that choice used to reveal never appears. Fall
+  // back to the default the tool ships today.
+  const optValues = (f) => (f.options || []).map((o) => (typeof o === 'string' ? o : o.value));
+  const seedChoice = (f, v) => {
+    if (!['segmented', 'select'].includes(f.type) || !v) return v;
+    return optValues(f).includes(v) ? v : (f.default ?? optValues(f)[0] ?? '');
+  };
   const seedValues = () => {
     const fromHistory = embedded ? initialValues : location.state?.values;
     const last = fromHistory ? {} : (loadLastInput(toolId) || {});
@@ -94,7 +104,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     // Other fields keep their last-used value → default.
     return Object.fromEntries(fields.map((f) => {
       const p = siteDefault(f);
-      if (f.name in (fromHistory || {})) return [f.name, fromHistory[f.name]];
+      if (f.name in (fromHistory || {})) return [f.name, seedChoice(f, fromHistory[f.name])];
       if (p) return [f.name, p];
       // Staff-only switches never carry over. The content optimiser's "Generate
       // with" is the reason: tick Haiku AND DeepSeek once to compare quality and
@@ -102,7 +112,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       // AI cost and the runtime indefinitely, with nothing on screen to say so.
       // A power-user toggle should be a per-run decision, not a sticky one.
       if (f.staffOnly) return [f.name, f.default ?? ''];
-      return [f.name, last[f.name] ?? f.default ?? ''];
+      return [f.name, seedChoice(f, last[f.name]) ?? f.default ?? ''];
     }));
   };
   const [values, setValues] = useState(seedValues);
@@ -1739,6 +1749,7 @@ function AccountField({ provider, value, onChange, placeholder }) {
 const NORMALIZE_NOTE = {
   domain: 'We’ll use just the domain:',
   host: 'We’ll use just the host:',
+  pageUrl: 'We’ll analyse this page:',
 };
 function NormalizeNote({ field, value }) {
   const fn = NORMALIZERS[field.normalize];

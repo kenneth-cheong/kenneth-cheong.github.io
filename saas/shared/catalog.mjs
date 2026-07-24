@@ -1088,15 +1088,33 @@ export function toDomain(u, { keepWww = false } = {}) {
 }
 
 /**
- * Same trim, but `www.` is left on: to a host-scoped API (backlinks in "host"
- * mode) `www.example.com` and `example.com` are two different hosts with two
- * different link profiles, so dropping it would silently answer about the
- * other one.
+ * Same trim, but `www.` is left on: to a host-scoped API `www.example.com` and
+ * `example.com` are two different hosts with two different link profiles, so
+ * dropping it would silently answer about the other one.
+ *
+ * No form offers host scope any more (see the backlinks inputs), but runs and
+ * schedules saved while it did still replay through the gateway, so the trim
+ * has to keep working for them.
  */
 export const toHost = (u) => toDomain(u, { keepWww: true });
 
-/** Field `normalize` flag → the function that trims the value. */
-export const NORMALIZERS = { domain: toDomain, host: toHost };
+/**
+ * The mirror of `toDomain`, for a box that wants one page: whatever address
+ * shape was pasted → a fetchable URL. A bare "example.com/pricing" gains the
+ * scheme it was missing, and a bare domain resolves to its homepage — the one
+ * page that address can honestly mean.
+ *
+ * This is the correction for picking "One page" and then typing a domain out of
+ * habit: the value used to go upstream schemeless and come back empty.
+ */
+export function toPageUrl(u) {
+  const s = String(u || '').trim().replace(/\s+/g, '');
+  if (!s) return '';
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
+}
+
+/** Field `normalize` flag → the function that reshapes the value. */
+export const NORMALIZERS = { domain: toDomain, host: toHost, pageUrl: toPageUrl };
 
 export const INPUTS = {
   'keyword-analysis': [
@@ -1186,28 +1204,28 @@ export const INPUTS = {
   ],
   // The mode comes FIRST because it decides what the box below it means: the
   // box was labelled "Domain" whatever you picked, so "url" mode asked for a
-  // domain and then needed a full page URL. Three scopes, three labels, and the
-  // two host-shaped ones trim what you paste (host mode keeps `www.` — to a
-  // backlinks API that IS a different host).
+  // domain and then needed a full page URL. Two scopes, two labels — and each
+  // reshapes what you paste to the shape its scope needs, so picking "One page"
+  // and typing a bare domain (or the reverse) corrects itself instead of asking
+  // the upstream about something narrower or wider than the label promised.
+  //
+  // A third "One subdomain" scope was dropped: it turned on whether `www.` was
+  // present, which nobody could be expected to know, and every wrong guess
+  // quietly reported a different site's link profile.
   backlinks: [
     { name: 'mode', label: 'What to analyse', type: 'segmented', default: 'domain',
       options: [
         { value: 'domain', label: 'Whole site' },
-        { value: 'host', label: 'One subdomain' },
         { value: 'url', label: 'One page' },
       ],
       optionDesc: {
         domain: 'Every link to the site, subdomains included.',
-        host: 'Links to one host only, e.g. blog.example.com.',
         url: 'Links to a single page.',
       } },
     { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true, normalize: 'domain',
       hint: 'The whole site, subdomains included.',
       showWhen: { field: 'mode', in: ['domain'] } },
-    { name: 'input', label: 'Subdomain', type: 'text', placeholder: 'blog.example.com', required: true, normalize: 'host',
-      hint: 'One host only — www.example.com and example.com are different hosts here.',
-      showWhen: { field: 'mode', in: ['host'] } },
-    { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/blog/post', required: true,
+    { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/blog/post', required: true, normalize: 'pageUrl',
       hint: 'Links pointing at this one page.',
       showWhen: { field: 'mode', in: ['url'] } },
   ],
