@@ -27,6 +27,18 @@ describe('gateway pure helpers', () => {
     expect(toHost('https://www.x.co/page')).toBe('www.x.co');
     expect(toDomain('https://www.x.co/page')).toBe('x.co');
   });
+  it('AI Discovery refuses a value that is not a hostname', async () => {
+    // "Asana" makes a *valid* URL (https://Asana), so the URL parse alone let a
+    // brand name through and the audit crawled a host that doesn't exist.
+    await expect(__test.aiDiscoveryRun({ url: 'Asana' })).rejects.toThrow(/website address/);
+    await expect(__test.aiDiscoveryRun({ url: '' })).rejects.toThrow(/required/);
+  });
+  it('the ai-discovery form asks only for the field the run reads', () => {
+    // Brand name + Location were vestigial, and Brand being the *required* one
+    // is what fed the brand into the URL. Keep the form honest.
+    expect(INPUTS['ai-discovery'].map((f) => f.name)).toEqual(['url']);
+    expect(INPUTS['ai-discovery'][0].required).toBe(true);
+  });
   it('every catalog `normalize` flag resolves to a real normalizer', () => {
     const flagged = Object.values(INPUTS).flat().filter((f) => f.normalize);
     expect(flagged.length).toBeGreaterThan(0);

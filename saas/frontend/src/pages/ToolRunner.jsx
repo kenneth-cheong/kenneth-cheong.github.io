@@ -40,6 +40,19 @@ function emitRunFinished(toolName, status) {
   window.dispatchEvent(new CustomEvent('dm:proactive-event', { detail: { event: 'run_finished', status, toolName } }));
 }
 
+// Most handlers treat `url` as an alias for "the thing to work on" and read
+// `body.input || body.url`, so copying `input` into it is free. But four tools
+// declare their OWN `url` field with a narrower meaning, and for those the copy
+// sent a brand name or a pasted draft as an address: the AI Discovery Audit
+// crawled `https://<brand name>` and billed for the empty result, and the
+// Optimiser's Deep Compare — which its own comment says runs "only when they
+// gave us a URL (pasted text has no address to fetch)" — fired on pasted prose.
+// When the tool has a `url` box, what's in that box is the only answer.
+function urlAliasFor(fields, vals) {
+  const declared = (fields || []).some((f) => f.name === 'url');
+  return declared ? (vals.url || '') : (vals.url || vals.input);
+}
+
 // Runs one tool: the config form, the (metered, streaming, job-polling) run
 // engine, and the results renderer. Normally a routed PAGE, but it also mounts
 // INSIDE the run modal (`embedded`) so the whole run+results experience can stay
@@ -404,7 +417,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     setJob(null);
     const startedAt = Date.now();
     try {
-      let res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
+      let res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: urlAliasFor(fields, vals), projectId: activeId || undefined }, tool.slow);
       // Async job tools (content-writer): the first response is just a job id —
       // the run continues server-side (finishing even if this tab closes). Poll
       // for REAL stage/agent progress, then adopt the finished payload.

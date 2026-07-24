@@ -3670,6 +3670,12 @@ async function aiDiscoveryRun(body) {
   if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
   let u;
   try { u = new URL(target); } catch { throw new Error('Invalid URL format.'); }
+  // A single-word value ("Asana") survives both checks above — `https://Asana`
+  // is a *valid* URL — and the audit then crawls a host that doesn't exist and
+  // reports every check as missing, at full price. The form used to hand us
+  // exactly that (its required box was the brand name), and a schedule or raw
+  // API call still can, so the shape of a real hostname is checked here too.
+  if (!u.hostname.includes('.')) throw new Error(`“${u.hostname}” doesn’t look like a website address — enter the full site, e.g. example.com.`);
   const root = u.origin;
 
   const getHtmlBody = (path, ms) =>
@@ -3738,7 +3744,12 @@ async function aiDiscoveryRun(body) {
 async function aiVisibilityRun(body) {
   const brand = (body.input || '').trim();
   if (!brand) throw new Error('A brand name is required.');
-  const target = (body.url || '').trim();
+  // The website is genuinely optional here (no site → brand-only prompts). But
+  // it used to arrive as the BRAND NAME whenever the box was left empty, which
+  // sent "Acme Co" to a keywords-for-site pull and to citation matching. Take it
+  // only when it looks like a site; anything else is the brand leaking through.
+  const rawTarget = (body.url || '').trim();
+  const target = /\./.test(cleanDomain(rawTarget)) ? rawTarget : '';
   const location = LOC_NAME(body.location);
   const language = 'English';
 
@@ -6021,7 +6032,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl };
+export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

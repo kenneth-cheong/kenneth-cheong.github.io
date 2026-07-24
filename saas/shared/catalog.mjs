@@ -357,9 +357,13 @@ export const TOOLS = [
     desc: 'Pillar + subtopic + angle map for social cohesion.' },
 
   // ── AI Visibility (GEO) — the differentiator ──────────────────────────────
+  // "Are you cited in ChatGPT…" described the tool BEFORE it was re-pointed at a
+  // technical GEO-readiness audit (aiDiscoveryRun reads the home page, robots.txt
+  // and llms.txt — it asks no AI engine anything). That sentence is AI Mentions'
+  // job, and having both wear it is what made the two impossible to tell apart.
   { id: 'ai-discovery', name: 'AI Discovery Audit', category: 'AI Visibility', minTier: 'pro',
     cost: 'ai_visibility', upstream: 'aiMentions', slow: true,
-    desc: 'Are you cited in ChatGPT / Gemini / Perplexity answers?',
+    desc: 'Can AI assistants read and quote your site? Checks AI-bot access, llms.txt and how your pages are structured.',
     teaser: { reveal: 'summary-only' } },
   { id: 'ai-mentions', name: 'AI Mentions Tracker', category: 'AI Visibility', minTier: 'pro',
     cost: 'ai_visibility', upstream: 'aiMentions', slow: true,
@@ -903,7 +907,7 @@ export const EXAMPLES = {
   'content-writer': { mode: 'Optimise existing content', input: 'Project management is useful. Asana has tools for teams. Contact us to learn more.', keyword: 'project management software', analysis: 'Verify & QA' },
   'content-check': { input: "Asana is the best way to organise you're team's work. We offer alot of templates and the guaranteed cheapest plans.", keyword: 'project management software' },
   pillars: { input: 'Asana — work management platform for teams', businessModel: 'B2B', objectives: 'Brand authority', audienceType: 'Businesses' },
-  'ai-discovery': { input: 'Asana', url: 'https://asana.com', location: 'United States' },
+  'ai-discovery': { url: 'https://asana.com' },
   'ai-mentions': { input: 'Asana', url: 'https://asana.com', location: 'United States' },
   'llms-txt': { input: 'https://asana.com' },
   'geo-onpage': { input: 'https://asana.com/features', prompts: 'What is the best project management tool for small teams?', brand: 'Asana', market: 'United States' },
@@ -1359,10 +1363,16 @@ export const INPUTS = {
     { name: 'competitors', label: 'Key competitors', type: 'textarea', placeholder: 'competitor names or URLs' },
   ],
 
+  // Brand name and Location were left over from when this tool ran the *mentions*
+  // engine; the re-framed audit reads nothing but the site (see aiDiscoveryRun,
+  // whose only inputs are `url`/`input`). Worse, Brand was the required one and
+  // Website was optional, so the blank-Website path sent the brand as the address
+  // and audited `https://Acme` — a full-price report of a site that doesn't exist.
+  // No `normalize` here on purpose: this one really fetches the page, and a site
+  // that only answers on `www.` would 404 if we trimmed it to the bare domain.
   'ai-discovery': [
-    { name: 'input', label: 'Brand name', type: 'text', placeholder: 'Acme Co', required: true },
-    { name: 'url', label: 'Website', type: 'url', placeholder: 'https://acme.co' },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
+    { name: 'url', label: 'Website', type: 'url', placeholder: 'https://acme.co', required: true,
+      hint: 'We check the whole site — its home page, robots.txt and llms.txt.' },
   ],
   'ai-mentions': [
     { name: 'input', label: 'Brand name', type: 'text', placeholder: 'Acme Co', required: true },
