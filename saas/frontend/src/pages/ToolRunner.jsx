@@ -1183,7 +1183,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
 
         {hasRows && (tool.id === 'keyword-analysis'
           ? <KeywordAnalysisResult rows={r.rows} timeRank={r.timeRank} tool={tool} onCredits={onCredits} />
-          : <ResultTable rows={r.rows} />)}
+          : <ResultTable rows={r.rows} defaultColumns={r.defaultColumns} />)}
         {postRowSections.length > 0 && <ResultSections sections={postRowSections} context={recContext} />}
 
         {/* Summary-only teaser reveal ({ summary, detailsLocked }): surface the
@@ -1306,7 +1306,12 @@ function ResultBtn({ children, onClick }) {
 }
 
 // Sortable table with per-column formatting + badges.
-function ResultTable({ rows }) {
+//
+// `defaultColumns` (opt-in, set by the runner) names the columns to open on; the
+// rest go behind a "Columns" picker. The site crawler returns ~40 fields a page
+// and every one of them used to be dropped on the floor here, because this
+// table only ever showed what the runner chose to put in the row.
+function ResultTable({ rows, defaultColumns }) {
   const columns = Object.keys(rows[0] || {}).map((c) => ({
     key: c,
     // Split camelCase boundaries so "timeToRank" reads "time To Rank" (→ header
@@ -1315,6 +1320,7 @@ function ResultTable({ rows }) {
     render: (row) => cell(c, row[c]),
   }));
   const n = rows.length;
+  const picker = defaultColumns?.length > 0 && defaultColumns.length < columns.length;
   return (
     <div>
       <div className="mb-1.5 flex justify-end">
@@ -1322,7 +1328,10 @@ function ResultTable({ rows }) {
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>
-      <SortableTable columns={columns} rows={rows} filterable={rows.length > 8} />
+      <SortableTable
+        columns={columns} rows={rows} filterable={rows.length > 8}
+        columnPicker={picker} defaultColumns={defaultColumns} stickyFirstCol={picker}
+      />
     </div>
   );
 }
@@ -1565,6 +1574,11 @@ function cell(col, val) {
   if (c === 'difficulty') { const n = parseFloat(s); if (Number.isFinite(n)) return <span className={n < 30 ? 'font-medium text-green-600 dark:text-green-400' : n < 60 ? 'font-medium text-amber-600 dark:text-amber-400' : 'font-medium text-red-600 dark:text-red-400'}>{n}</span>; }
   if (['volume', 'impressions', 'clicks', 'sessions', 'users', 'backlinks', 'traffic', 'conversions'].includes(c)) return <span className="tabular-nums">{fmtNum(s)}</span>;
   if (c === 'url' && /^https?:\/\//i.test(s)) return <a href={s} target="_blank" rel="noreferrer" className="break-all text-brand-600 dark:text-brand-400 hover:underline">{s.replace(/^https?:\/\//i, '')}</a>;
+  // Prose columns (meta descriptions, joined H2s) run to hundreds of characters.
+  // The full text stays the cell VALUE — search, sort and CSV export all still
+  // see it — and picker tables clamp the display to three lines; this just makes
+  // the whole thing reachable on hover.
+  if (s.length > 140) return <span title={s}>{s}</span>;
   return s;
 }
 

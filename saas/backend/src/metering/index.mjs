@@ -1701,14 +1701,7 @@ async function crawlRun(body, tool) {
     return { text: 'The crawl started but returned no pages within the time limit. Try a smaller page count or check the URL.' };
   }
 
-  const rows = pages.map((p) => ({
-    url: p.url,
-    status: p.status_code ?? '—',
-    title: p.meta?.title || '—',
-    h1: p.meta?.htags?.h1?.[0] || '—',
-    score: p.onpage_score != null ? Math.round(p.onpage_score) : '—',
-    issues: pageIssues(p),
-  }));
+  const rows = crawlRows(pages);
   const scored = rows.map((r) => (typeof r.score === 'number' ? r.score : null)).filter((n) => n != null);
   const summary = {
     pagesCrawled: pages.length,
@@ -1719,10 +1712,97 @@ async function crawlRun(body, tool) {
   const rec = await aiRecommendations({
     label: 'Technical SEO Crawler',
     context: 'Prioritise the technical SEO fixes that will most improve crawlability and rankings, based on the crawled pages, on-page scores and issue counts.',
-    findings: `${summaryToFindings(summary)}\nPages (url; status; on-page score; issue count):\n${rowsToFindings(rows)}`,
+    // Only the headline fields go to the model. The rows now carry ~40 columns
+    // each for the table's column picker; dumping all of them would spend the
+    // prompt on cache-control headers and stylesheet counts instead of pages.
+    findings: `${summaryToFindings(summary)}\nPages (url; status; on-page score; issue count):\n${rowsToFindings(rows.map(pickKeys(CRAWL_DEFAULT_COLUMNS)))}`,
   });
-  return withRecs({ rows, summary }, rec);
+  return withRecs({ rows, defaultColumns: CRAWL_DEFAULT_COLUMNS, summary }, rec);
 }
+
+/** Crawled page items → the table rows the result renders.
+ *
+ *  The crawler hands back far more per page than the six fields this used to
+ *  keep; the rest were dropped on the floor. They're all here now, and the
+ *  table's "Columns" picker is what makes them reachable without turning the
+ *  default view into a forty-column wall. */
+function crawlRows(pages) {
+  return pages.map((p) => {
+    const m = p.meta || {}, t = p.page_timing || {}, c = p.checks || {};
+    return {
+      // ── Shown by default (CRAWL_DEFAULT_COLUMNS) ──
+      url: p.url,
+      status: p.status_code ?? '—',
+      title: m.title || '—',
+      h1: m.htags?.h1?.[0] || '—',
+      score: p.onpage_score != null ? Math.round(p.onpage_score) : '—',
+      issues: pageIssues(p),
+      // ── Behind the column picker ──
+      description: clip(m.description),
+      'title length': m.title_length ?? '—',
+      'description length': m.description_length ?? '—',
+      h2: joinTags(m.htags?.h2),
+      h3: joinTags(m.htags?.h3),
+      canonical: clip(m.canonical),
+      'word count': m.content?.plain_text_word_count ?? '—',
+      readability: round1(m.content?.flesch_kincaid_readability_index),
+      'internal links': m.internal_links_count ?? '—',
+      'external links': m.external_links_count ?? '—',
+      'inbound links': m.inbound_links_count ?? '—',
+      images: m.images_count ?? '—',
+      scripts: m.scripts_count ?? '—',
+      stylesheets: m.stylesheets_count ?? '—',
+      'click depth': p.click_depth ?? '—',
+      'page size': kb(p.size),
+      'transfer size': kb(p.total_transfer_size),
+      'dom size': p.total_dom_size ?? '—',
+      'load time': ms(t.dom_complete),
+      'waiting time': ms(t.waiting_time),
+      lcp: ms(t.largest_contentful_paint),
+      cls: round1(m.cumulative_layout_shift),
+      'resource type': p.resource_type || '—',
+      'media type': p.media_type || '—',
+      'last modified': p.last_modified?.header || '—',
+      'broken links': p.broken_links ?? '—',
+      'broken resources': p.broken_resources ?? '—',
+      'duplicate title': yesNo(p.duplicate_title),
+      'duplicate description': yesNo(p.duplicate_description),
+      'duplicate content': yesNo(p.duplicate_content),
+      https: yesNo(c.is_https),
+      redirect: yesNo(c.is_redirect),
+      follow: yesNo(m.follow),
+      'has canonical': yesNo(c.canonical),
+      'has schema': yesNo(c.has_micromarkup),
+      'images missing alt': yesNo(c.no_image_alt),
+      'render-blocking': m.render_blocking_scripts_count ?? '—',
+      'seo-friendly url': yesNo(c.seo_friendly_url),
+    };
+  });
+}
+
+// The columns the crawler table opens on — exactly what it showed before the
+// picker existed, so the default view is unchanged.
+const CRAWL_DEFAULT_COLUMNS = ['url', 'status', 'title', 'h1', 'score', 'issues'];
+
+/** Project a row down to `keys` — used to keep the AI prompt to the headlines. */
+const pickKeys = (keys) => (row) => Object.fromEntries(keys.map((k) => [k, row[k]]));
+
+// Cell formatters. Every value stays a scalar so the table can sort, search and
+// export it; "—" is the shared empty marker the UI already renders.
+//
+// The lengths are capped because the whole result is stored as ONE DynamoDB run
+// item (400KB hard limit): a 50-page crawl of a site with thirty H2s per page
+// would otherwise be the thing that makes runs silently fail to save.
+const clip = (s, max = 300) => {
+  const t = String(s ?? '').trim();
+  if (!t) return '—';
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+};
+const joinTags = (a) => (Array.isArray(a) && a.length ? clip(a.slice(0, 12).join(' | ')) : '—');
+const round1 = (n) => (typeof n === 'number' ? Math.round(n * 10) / 10 : '—');
+const kb = (n) => (typeof n === 'number' ? `${Math.round(n / 1024).toLocaleString()} KB` : '—');
+const ms = (n) => (typeof n === 'number' ? `${Math.round(n).toLocaleString()} ms` : '—');
+const yesNo = (v) => (v === true ? 'Yes' : v === false ? 'No' : '—');
 
 /** Count obvious on-page problems on a crawled page (safe, polarity-known checks). */
 function pageIssues(p) {

@@ -1,5 +1,5 @@
-import { useState, useMemo, cloneElement, isValidElement } from 'react';
-import { Search } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef, cloneElement, isValidElement } from 'react';
+import { Search, Columns3 } from 'lucide-react';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
 import { usePrinting } from '../lib/ui.js';
 
@@ -73,6 +73,76 @@ function highlight(text, q) {
   return out;
 }
 
+// "Columns ▾" — show/hide any column on a wide table. The backend can hand back
+// far more per row than fits on screen (the site crawler returns ~35 fields per
+// page); this is what makes the rest of them reachable instead of dropped.
+//
+// The list has its own search box because at ~35 entries scanning it is its own
+// chore, and the last column can't be unticked: a table with no columns is a
+// blank box with no way back other than Reset.
+function ColumnPicker({ cols, shown, onChange, onReset }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    setQ(''); // a stale filter would reopen the list showing four of forty columns
+    const onDocClick = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const toggle = (key) => onChange((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) { if (next.size > 1) next.delete(key); } else next.add(key);
+    return next;
+  });
+
+  const t = q.trim().toLowerCase();
+  const listed = t ? cols.filter((c) => c.label.toLowerCase().includes(t) || c.key.toLowerCase().includes(t)) : cols;
+
+  return (
+    <div ref={rootRef} className="relative ml-auto">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className="inline-flex items-center gap-1.5 rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
+      >
+        <Columns3 size={13} aria-hidden /> Columns
+        <span className="tabular-nums text-faint">{shown.size}/{cols.length}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-64 rounded-xl border border-line bg-surface p-2 shadow-lg">
+          <input
+            value={q} onChange={(e) => setQ(e.target.value)} autoFocus
+            placeholder="Find a column…" aria-label="Find a column"
+            className="mb-2 w-full rounded-lg border border-edge px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+          />
+          <div className="max-h-64 overflow-auto">
+            {listed.length === 0 && <p className="px-1 py-3 text-center text-xs text-faint">No matching column</p>}
+            {listed.map((c) => (
+              <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm text-dim hover:bg-sunken">
+                <input type="checkbox" checked={shown.has(c.key)} onChange={() => toggle(c.key)} className="accent-brand-600" />
+                <span className="truncate" title={c.label}>{c.label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2 border-t border-hair pt-2 text-xs font-medium">
+            <button onClick={() => onChange(new Set(cols.map((c) => c.key)))} className="text-brand-600 dark:text-brand-400 hover:underline">Select all</button>
+            <button onClick={onReset} className="ml-auto text-muted hover:underline">Reset</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Cell wrapper that clamps to three lines on picker tables and is a no-op
+// everywhere else — so no existing table's cells change shape.
+const CellBox = ({ on, children }) => (on ? <div className="line-clamp-3">{children}</div> : children);
+
 export default function SortableTable({
   columns,
   rows = [],
@@ -87,14 +157,46 @@ export default function SortableTable({
   exportName, // opt-in: when set, a CSV download button (filename base) appears
   pageSize = 0, // opt-in: rows per page (0 = show everything, the default)
   defaultSort, // opt-in: {key, dir} to sort by on first render (dir: 1 asc, -1 desc)
+  columnPicker = false, // opt-in: a "Columns" dropdown to show/hide columns
+  defaultColumns, // opt-in: keys visible on first render (default: all of them)
 }) {
-  const cols = useMemo(() => {
+  const allCols = useMemo(() => {
     const base = columns || Object.keys(rows[0] || {}).map((k) => ({ key: k }));
     return base.map((c) => {
       const label = c.label ?? humanise(c.key);
       return { sortable: true, align: 'left', ...c, label, tip: c.tip ?? glossaryFor(label) ?? glossaryFor(c.key) };
     });
   }, [columns, rows]);
+
+  // Which columns are on screen. Only meaningful with `columnPicker`; without it
+  // this is every column and nothing below can change that.
+  const initialShown = () => new Set(
+    columnPicker && defaultColumns?.length
+      ? allCols.filter((c) => defaultColumns.includes(c.key)).map((c) => c.key)
+      : allCols.map((c) => c.key),
+  );
+  const [shown, setShown] = useState(initialShown);
+  const sig = allCols.map((c) => c.key).join(' ');
+  // A new result reuses this component, so a stale `shown` from the previous
+  // table would hide every column of the new one. Re-seed when the column set
+  // itself changes — not on every render, which would undo the user's picks.
+  const lastSig = useRef(sig);
+  useEffect(() => {
+    if (lastSig.current === sig) return;
+    lastSig.current = sig;
+    setShown(initialShown());
+  }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cols = useMemo(
+    () => (columnPicker ? allCols.filter((c) => shown.has(c.key)) : allCols),
+    [allCols, shown, columnPicker],
+  );
+
+  // Past a handful of columns the table stops fitting and starts scrolling
+  // sideways, which needs sized, height-capped cells. Below that it should look
+  // exactly like it did before the picker existed — so the sizing rules only
+  // switch on once the user has actually widened it.
+  const wide = columnPicker && cols.length > 8;
 
   const [sort, setSort] = useState(defaultSort ? { dir: 1, ...defaultSort } : { key: null, dir: 1 });
   const [q, setQ] = useState('');
@@ -168,7 +270,7 @@ export default function SortableTable({
 
   return (
     <>
-      {(filterable || exportName) && (
+      {(filterable || exportName || columnPicker) && (
         // Search box and CSV button are controls, not findings — they printed
         // as a dead input and a dead button at the top of every exported table.
         <div className="dm-no-print mb-2 flex items-center gap-2">
@@ -186,7 +288,15 @@ export default function SortableTable({
             </div>
           )}
           {filterable && q && <span className="text-xs text-faint tabular-nums">{sorted.length.toLocaleString()} match{sorted.length === 1 ? '' : 'es'}</span>}
-          {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400">CSV</button>}
+          {columnPicker && (
+            <ColumnPicker
+              cols={allCols}
+              shown={shown}
+              onChange={setShown}
+              onReset={() => setShown(initialShown())}
+            />
+          )}
+          {exportName && <button onClick={exportCsv} className={`rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400 ${columnPicker ? '' : 'ml-auto'}`}>CSV</button>}
         </div>
       )}
       {/* dm-print-open: paper can't scroll, so the print stylesheet releases the
@@ -235,13 +345,21 @@ export default function SortableTable({
               {cols.map((c, ci) => (
                 <td
                   key={c.key}
-                  className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
+                  // On a sideways-scrolling table, without a floor the browser
+                  // squeezes text columns to one word per line; without a
+                  // ceiling one prose column eats the width.
+                  className={`px-3 py-2 ${wide ? 'min-w-[10rem] max-w-[22rem] align-top' : ''} ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
                 >
-                  {c.render
-                    ? highlightNode(c.render(row, i), q)
-                    : (accessorOf(c)(row) == null || accessorOf(c)(row) === ''
-                        ? '—'
-                        : highlight(accessorOf(c)(row), q))}
+                  {/* Three lines per cell keeps the row height predictable when
+                      forty columns are on screen; the print stylesheet releases
+                      the clamp so a PDF still carries the full text. */}
+                  <CellBox on={wide}>
+                    {c.render
+                      ? highlightNode(c.render(row, i), q)
+                      : (accessorOf(c)(row) == null || accessorOf(c)(row) === ''
+                          ? '—'
+                          : highlight(accessorOf(c)(row), q))}
+                  </CellBox>
                 </td>
               ))}
             </tr>

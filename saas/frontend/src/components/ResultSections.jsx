@@ -393,7 +393,7 @@ function TableSection({ s }) {
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>
-      <Table columns={s.columns} rows={rows} exportName={s.title || 'table'} />
+      <Table columns={s.columns} defaultColumns={s.defaultColumns} rows={rows} exportName={s.title || 'table'} />
     </div>
   );
 }
@@ -404,12 +404,20 @@ function TableSection({ s }) {
 const isPreviewCol = (c) => /^(preview|thumbnail)$/i.test(String(c).trim());
 const isImageUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v);
 
-function Table({ columns, rows, exportName }) {
+function Table({ columns, defaultColumns, rows, exportName }) {
   const cols = columns.map((c) => (isPreviewCol(c)
     // Sorting a column of thumbnails sorts by URL, which is noise, not an order.
     ? { key: c, label: c, sortable: false, render: (r) => (isImageUrl(r[c]) ? <Thumb src={r[c]} alt={r.Image || ''} /> : <span className="text-faint">—</span>) }
     : { key: c, label: c, render: (r) => String(r[c] ?? '—') }));
-  return <SortableTable columns={cols} rows={rows} filterable={rows.length > 8} exportName={exportName} />;
+  // A section that ships MORE columns than it wants on screen opts into the
+  // picker by naming the opening set.
+  const picker = defaultColumns?.length > 0 && defaultColumns.length < columns.length;
+  return (
+    <SortableTable
+      columns={cols} rows={rows} filterable={rows.length > 8} exportName={exportName}
+      columnPicker={picker} defaultColumns={defaultColumns} stickyFirstCol={picker}
+    />
+  );
 }
 
 // Thumbnails come from the audited site, so a dead URL, a hotlink block or a
