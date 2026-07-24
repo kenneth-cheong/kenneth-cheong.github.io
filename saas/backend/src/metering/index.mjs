@@ -145,7 +145,9 @@ export const handler = async (event, context) => {
   // per item. `fullCost` is the per-item cost × item count.
   const fanItems = tool.fanout ? splitItems(body[tool.fanout]).slice(0, 50) : null;
   if (fanItems && fanItems.length === 0) return badRequest('Add at least one keyword.');
-  const fullCost = fanItems ? unitCost * fanItems.length : unitCost;
+  // Reconciled down below if some items fail — the credit gate still reserves
+  // against the whole list, but only the items that came back get charged.
+  let fullCost = fanItems ? unitCost * fanItems.length : unitCost;
 
   // ── Tier gate ─────────────────────────────────────────────────────────────
   let teaser = false;
@@ -173,20 +175,36 @@ export const handler = async (event, context) => {
   let result;
   try {
     if (fanItems) {
-      const settled = await Promise.all(
-        fanItems.map(async (item) => {
+      // One item per upstream call, but NOT all at once and NOT all-or-nothing.
+      // Both mattered (TKT-ZP4FVQ): fanning 50 keywords out concurrently is what
+      // starves the upstream into the 29s gateway cap in the first place, and a
+      // bare Promise.all then threw the whole run away because keyword #4 timed
+      // out — the user got a 500 and an empty screen with four good positions
+      // already in hand. Failed items come back as rows saying so, and only the
+      // items that answered are charged for.
+      const settled = await mapLimit(fanItems, FANOUT_CONCURRENCY, async (item) => {
+        try {
           const r = await callUpstream(tool, { ...body, [tool.fanout]: item });
-          return { keyword: item, result: r?.text ?? r?.position ?? JSON.stringify(r) };
-        })
-      );
-      result = { rows: settled };
+          return { keyword: item, result: r?.text ?? r?.position ?? JSON.stringify(r), _ok: true };
+        } catch (err) {
+          console.error('fanout_item_failed', tool.id, item, err?.message);
+          return { keyword: item, result: 'Couldn’t be checked this time — not charged', _ok: false };
+        }
+      });
+      const ok = settled.filter((s) => s._ok);
+      // Everything failed → this is an outage, not a partial result. Fall through
+      // to the catch below so it stays a no-charge failure rather than a table of
+      // apologies the user paid nothing for but has to read.
+      if (!ok.length) throw new Error(`all ${settled.length} fan-out items failed`);
+      fullCost = unitCost * ok.length;
+      result = { rows: settled.map(({ _ok, ...row }) => row) };
       // Rank Checker: add an AI pass over the positions (striking-distance pushes,
       // what to do for unranked keywords). Other fan-out tools keep raw rows.
       if (tool.id === 'rank-checker') {
         const rec = await aiRecommendations({
           label: 'Rank Checker',
           context: `Domain: ${body.target || ''}; Location: ${body.location || 'Singapore'}. Flag striking-distance keywords (roughly positions 4-20) to prioritise, and advise what to do for keywords not ranking in the top 100.`,
-          findings: settled.map((s) => `${s.keyword}: ${s.result}`).join('\n'),
+          findings: ok.map((s) => `${s.keyword}: ${s.result}`).join('\n'),
         });
         result = withRecs(result, rec);
       }
@@ -210,6 +228,20 @@ export const handler = async (event, context) => {
   // error payload (e.g. "couldn't fetch the homepage") rather than throwing.
   // Surface the message but NEVER charge for it — credits are only for results.
   const softFailed = isSoftFailure(result);
+  // Log WHICH soft failure this was. Every one of the ~40 `_failed` returns in
+  // this file says something different about what went wrong, and until now none
+  // of it reached CloudWatch — a support ticket for a failed run showed only
+  // `softFailed: true` and a duration, so TKT-OXT0KV sat unexplained for two
+  // days with the run's own diagnosis sitting in a variable we then threw away.
+  // The message is ours (never upstream text), so it's safe to log verbatim.
+  if (softFailed) {
+    console.log(JSON.stringify({
+      metric: 'soft_failure',
+      tool: tool.id,
+      userId: c.userId,
+      reason: String(result.text || result.html || firstCalloutText(result) || '').slice(0, 300),
+    }));
+  }
   if (result && typeof result === 'object') delete result._failed; // strip internal flag from client payload
   // Free sub-steps (e.g. Social Media Audit discover/scrape/poll) opt out of
   // billing with `{ _noCharge: true }`: proxied like a run, but never charged,
@@ -360,6 +392,27 @@ function splitItems(v) {
     .split(/[\n,]+/)
     .map((s) => s.trim())
     .filter((s) => s && !seen.has(s) && seen.add(s));
+}
+
+// How many fan-out items may be in flight against one upstream at a time. The
+// cap is the point: firing a 50-keyword list at rankChecker all at once is what
+// pushed individual calls past its gateway's 29s cap, so the list "failed" from
+// self-inflicted load. Five keeps a long list roughly as fast while leaving the
+// upstream able to answer each one.
+const FANOUT_CONCURRENCY = 5;
+
+/** Map `fn` over `items` with at most `limit` in flight, preserving input order. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 // Per-upstream resilience config for backends that hit transient 503s/timeouts
@@ -617,6 +670,14 @@ function safeParse(s) {
  */
 function isSoftFailure(result) {
   return !!(result && typeof result === 'object' && result._failed === true);
+}
+
+/** A few runners phrase their soft failure as a callout section instead of
+ *  `text` (the crawl and AI-discoverability paths). Dig it out so the
+ *  soft_failure log line has a reason for those too. */
+function firstCalloutText(result) {
+  const s = Array.isArray(result?.sections) ? result.sections : [];
+  return s.find((x) => x && typeof x.text === 'string' && x.text)?.text || '';
 }
 
 /** Best-effort: turn an arbitrary upstream payload into { rows | text | html }. */
@@ -5724,7 +5785,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale };
+export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

@@ -269,6 +269,31 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
     if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }
 
+  // Following the stream to the bottom is right WHILE it types and wrong the
+  // moment it stops: a long answer ends with its opening line scrolled off the
+  // top, so you're left staring at the last paragraph of something you haven't
+  // read, having to scroll back up to find where it started (TKT-YXAEVP —
+  // "Monty starts generating but hard to find"). Once the reply is complete,
+  // put its FIRST line at the top instead. Only when it's too tall to fit: a
+  // short answer is already fully on screen and moving it would just jolt.
+  const lastReplyRef = useRef(null);
+  const wasBusyRef = useRef(false);
+  useEffect(() => {
+    const justFinished = wasBusyRef.current && !busy;
+    wasBusyRef.current = busy;
+    if (!justFinished || view !== 'chat') return;
+    const el = threadRef.current;
+    const reply = lastReplyRef.current;
+    if (!el || !reply || reply.offsetHeight <= el.clientHeight - 24) return;
+    // Measured off the rects, not offsetTop: the thread isn't a positioned
+    // ancestor, so offsetTop would be relative to the fixed panel instead.
+    const top = el.scrollTop + (reply.getBoundingClientRect().top - el.getBoundingClientRect().top);
+    el.scrollTo({ top: Math.max(0, top - 12), behavior: 'smooth' });
+    // We've deliberately left the bottom — don't let the auto-scroll drag them
+    // back. Every send re-sticks (see submit), so this only holds for this reply.
+    stickRef.current = false;
+  }, [busy, view]);
+
   // Focus the input when the panel opens, when returning to the chat view, and
   // after a reply finishes — so you can keep typing without reaching for the mouse.
   useEffect(() => {
@@ -514,7 +539,7 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
               // Assistant reply — front it with the mascot so guidance reads as
               // coming from one character (skip on error bubbles: no face on failures).
               return (
-                <div key={i} className="flex items-end gap-2">
+                <div key={i} ref={i === msgs.length - 1 ? lastReplyRef : null} className="flex items-end gap-2">
                   {mascot && !m.error && <Mascot size={40} className="mb-0.5 shrink-0" />}
                   {bubble}
                 </div>
