@@ -792,14 +792,17 @@ export const handler = async (event) => {
       const targets = body.trackId ? tracked.filter((t) => t.trackId === body.trackId) : tracked;
 
       // ── Historical backfill (billable) — pull past dated SERP snapshots and
-      // merge them in. Charges rank_backfill credits per keyword; the client
-      // confirms the cost before calling. Bill only keywords we actually fetch.
+      // merge them in. Charges rank_backfill credits per keyword. The client
+      // confirms the SCOPE before calling, not the price, so an unaffordable
+      // backfill comes back as a plain 402 like every other spend — quoting the
+      // shortfall here would put the price straight back in front of the user.
+      // Bill only keywords we actually fetch.
       if (body.backfill) {
         if (!targets.length) return badRequest('No keywords to backfill.');
         const per = CREDIT_COSTS.rank_backfill;
         const need = per * targets.length;
         const have = totalCredits(user);
-        if (have < need) return badRequest(`Backfilling ${targets.length} keyword${targets.length > 1 ? 's' : ''} costs ${need} credits — you have ${have}. Top up or select fewer keywords.`);
+        if (have < need) return paymentRequired({ creditsRemaining: have, creditsNeeded: need, tier: user.tier, topUpAvailable: true });
         let charged = 0;
         for (let i = 0; i < targets.length; i += 5) {
           await Promise.all(targets.slice(i, i + 5).map(async (t) => {

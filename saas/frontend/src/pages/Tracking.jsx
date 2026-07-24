@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass } from 'lucide-react';
-import { PLANS, CREDIT_COSTS } from '@shared/catalog.mjs';
+import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import LineChart from '../components/LineChart.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
-import { api } from '../lib/api.js';
+import { api, ApiError } from '../lib/api.js';
 import { toast, downloadCsv, markStepDone, confirmDialog } from '../lib/ui.js';
 import { startTrackingTour, TRACKING_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
 
@@ -34,7 +34,6 @@ export default function Tracking() {
   const [customTo, setCustomTo] = useState('');
   const [nudge, setNudge] = useState(false); // highlight empty keyword/domain after an incomplete add attempt
   const limit = PLANS[user.tier]?.trackedKeywords ?? 0;
-  const backfillCost = CREDIT_COSTS.rank_backfill * tracked.length;
 
   // While a tour previews sample data, an in-flight load() must not clobber it.
   const tourActiveRef = useRef(false);
@@ -99,7 +98,12 @@ export default function Tracking() {
       await refresh(); // reflect the spent credits in the header balance
       setPeriod('all'); // reveal the newly filled history
       toast(charged ? `History backfilled — ${charged} credits used.` : 'History backfilled.', 'success');
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) {
+      const msg = err instanceof ApiError && err.status === 402
+        ? 'Not enough credits to backfill every keyword — top up, or remove a few from tracking.'
+        : err.message;
+      toast(msg, 'error');
+    }
     finally { setBackfilling(false); }
   }
   // Removing a keyword throws away its whole position history, which no amount
@@ -388,7 +392,9 @@ export default function Tracking() {
         </>
       )}
 
-      {/* Backfill confirmation — historical SERP lookups cost extra credits. */}
+      {/* Backfill confirmation. It stays a confirmation because it fans out over
+          every tracked keyword at once — but it states the scope, not a price;
+          /credit-guide is the one place that quotes one. */}
       {confirmBackfill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmBackfill(false)}>
           <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -396,23 +402,10 @@ export default function Tracking() {
             <p className="mt-2 text-sm text-dim">
               We'll pull past dated Google rankings for all <strong>{tracked.length}</strong> tracked keyword{tracked.length > 1 ? 's' : ''} and fill in the gaps in your charts.
             </p>
-            <div className="mt-3 rounded-lg bg-raised p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Cost</span>
-                <span className="font-semibold">{backfillCost} credits</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-muted">Your balance</span>
-                <span className={(user.credits || 0) + (user.topupCredits || 0) < backfillCost ? 'font-semibold text-red-600 dark:text-red-400' : 'font-semibold'}>
-                  {(user.credits || 0) + (user.topupCredits || 0)} credits
-                </span>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-faint">{CREDIT_COSTS.rank_backfill} credits per keyword. Existing checked dates are kept — only missing dates are filled.</p>
+            <p className="mt-2 text-xs text-faint">Existing checked dates are kept — only missing dates are filled.</p>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setConfirmBackfill(false)} className="btn-ghost text-sm">Cancel</button>
-              <button onClick={runBackfill} disabled={(user.credits || 0) + (user.topupCredits || 0) < backfillCost}
-                className="btn-primary text-sm">Backfill for {backfillCost} credits</button>
+              <button onClick={runBackfill} className="btn-primary text-sm">Backfill history</button>
             </div>
           </div>
         </div>

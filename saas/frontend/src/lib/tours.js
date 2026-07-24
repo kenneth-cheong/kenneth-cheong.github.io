@@ -1295,7 +1295,7 @@ export function startTrackingTour({ limit } = {}, hooks = {}) {
       element: '[data-tour="trk-actions"]',
       popover: {
         title: 'Keep it fresh',
-        description: '<b>Refresh positions</b> re-checks right now. <b>Backfill history</b> pulls <i>past</i> rankings so your charts start full (it costs credits per keyword and always asks first). <b>Export CSV</b> and <b>Share</b> work like everywhere else.',
+        description: '<b>Refresh positions</b> re-checks right now. <b>Backfill history</b> pulls <i>past</i> rankings so your charts start full (it asks first, since it covers every tracked keyword). <b>Export CSV</b> and <b>Share</b> work like everywhere else.',
         side: 'bottom', align: 'end',
       },
     },
