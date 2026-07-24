@@ -343,9 +343,12 @@ export const TOOLS = [
     desc: 'Visual JSON-LD builder for rich snippets. No data fetch.' },
 
   // ── AI Content Studio ─────────────────────────────────────────────────────
+  // `slow` because a run with reference images fans N variations out to a vision
+  // model — the extra latency (and the ~1.5MB request) doesn't fit the API
+  // Gateway's 30s cap, so it routes through the buffered Function URL instead.
   { id: 'caption', name: 'Caption Generator', category: 'Content', minTier: 'free',
-    cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: 'Platform-tuned captions for IG / LinkedIn / FB / TikTok.' },
+    cost: 'ai_short', upstream: 'aiOptimiser', slow: true,
+    desc: 'Platform-tuned captions for IG / LinkedIn / FB / TikTok — attach the post image and the copy is written to match it.' },
   { id: 'content-writer', name: 'AI Content Optimiser', category: 'Content', minTier: 'starter',
     cost: 'ai_long_research', upstream: 'aiOptimiser', slow: true,
     desc: 'Researches who currently ranks for your keyword, then writes from a topic (outline → sections → polish) or rewrites existing copy to close content gaps, then runs up to 18 QA agents (you pick the depth) — with AI-Links, a suggested meta title/description and a readability score.' },
@@ -1268,6 +1271,14 @@ export const INPUTS = {
     { name: 'input', label: 'Core content / topic', type: 'textarea', placeholder: 'What the post is about…', required: true },
     { name: 'brand', label: 'Brand name', type: 'text', placeholder: 'Acme Co' },
     { name: 'platform', label: 'Content type', type: 'select', options: ['Instagram', 'Facebook', 'LinkedIn', 'TikTok'], default: 'Instagram' },
+    // Reference images. `_`-prefixed so `publicInputs()` strips the base64 out of
+    // the saved run record — a few MB of image data would blow DynamoDB's 400KB
+    // item ceiling and silently cost the user their history. `primary` keeps the
+    // picker out of the advanced collapse; a caption tool that can look at the
+    // post is the headline, not an option buried under 19 others.
+    { name: '_images', label: 'Post image', type: 'images', accept: 'image/png,image/jpeg,image/webp,image/gif',
+      max: 3, primary: true,
+      hint: 'Optional — attach up to 3 images and the caption will reference what’s actually in them.' },
     { name: 'count', label: 'Variations', type: 'select', options: ['1', '2', '3', '5'], default: '3' },
     { name: 'coreMessage', label: 'Core message', type: 'text', placeholder: 'The one thing this post must land' },
     { name: 'postRole', label: 'Post role / objective', type: 'select', options: ['Build awareness', 'Build trust/credibility', 'Educate/explain', 'Drive consideration', 'Prompt action'], default: 'Build awareness' },

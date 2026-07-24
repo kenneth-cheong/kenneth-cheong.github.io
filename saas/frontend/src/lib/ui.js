@@ -182,9 +182,14 @@ export function isStepDone(key) {
   try { return localStorage.getItem(`dm_step_${key}`) === '1'; } catch { return false; }
 }
 
-// Per-tool last-used inputs.
+// Per-tool last-used inputs. `_`-prefixed fields are never persisted: they carry
+// per-run payloads (the caption tool's base64 reference images) that would blow
+// the ~5MB localStorage quota — and the failure is silent, because the throw
+// lands in the catch below and every LATER tool quietly stops remembering its
+// inputs too. Same convention as the gateway's `publicInputs()`.
 export function saveLastInput(toolId, values) {
-  try { localStorage.setItem(`dm_lastinput_${toolId}`, JSON.stringify(values)); } catch { /* ignore */ }
+  const keep = Object.fromEntries(Object.entries(values || {}).filter(([k]) => !k.startsWith('_')));
+  try { localStorage.setItem(`dm_lastinput_${toolId}`, JSON.stringify(keep)); } catch { /* ignore */ }
 }
 export function loadLastInput(toolId) {
   try { return JSON.parse(localStorage.getItem(`dm_lastinput_${toolId}`) || 'null'); } catch { return null; }

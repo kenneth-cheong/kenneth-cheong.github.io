@@ -20,7 +20,7 @@ import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus, X } from 'lucide-react';
 
 // Tell the proactive assistant a run finished. Status is a coarse read of the
 // payload so triggers can distinguish "here are your results" from "nothing came
@@ -1132,7 +1132,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollow
   };
 
   // Context handed to each recommendation card so the assistant answers in the
-  // tool's frame ("from the X tool, for your site Y") and "Add to plan" links back.
+  // tool's frame ("from the X tool, for your site Y").
   //
   // `target` is the URL/domain THIS RUN was actually about, and it matters more
   // than the project domain: it used to fall back to `project?.domain` alone, so
@@ -1221,7 +1221,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollow
 
         {hasRows && (tool.id === 'keyword-analysis'
           ? <KeywordAnalysisResult rows={r.rows} timeRank={r.timeRank} tool={tool} onCredits={onCredits} />
-          : <ResultTable rows={r.rows} />)}
+          : <ResultTable rows={r.rows} defaultColumns={r.defaultColumns} />)}
         {postRowSections.length > 0 && <ResultSections sections={postRowSections} context={recContext} />}
 
         {/* Summary-only teaser reveal ({ summary, detailsLocked }): surface the
@@ -1344,7 +1344,11 @@ function ResultBtn({ children, onClick }) {
 }
 
 // Sortable table with per-column formatting + badges.
-function ResultTable({ rows }) {
+// `defaultColumns` (opt-in, set by the runner) names the columns to open on; the
+// rest go behind a "Columns" picker. The site crawler returns ~40 fields a page
+// and every one of them used to be dropped on the floor here, because this
+// table only ever showed what the runner chose to put in the row.
+function ResultTable({ rows, defaultColumns }) {
   const columns = Object.keys(rows[0] || {}).map((c) => ({
     key: c,
     // Split camelCase boundaries so "timeToRank" reads "time To Rank" (→ header
@@ -1353,6 +1357,7 @@ function ResultTable({ rows }) {
     render: (row) => cell(c, row[c]),
   }));
   const n = rows.length;
+  const picker = defaultColumns?.length > 0 && defaultColumns.length < columns.length;
   return (
     <div>
       <div className="mb-1.5 flex justify-end">
@@ -1360,7 +1365,10 @@ function ResultTable({ rows }) {
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>
-      <SortableTable columns={columns} rows={rows} filterable={rows.length > 8} />
+      <SortableTable
+        columns={columns} rows={rows} filterable={rows.length > 8}
+        columnPicker={picker} defaultColumns={defaultColumns} stickyFirstCol={picker}
+      />
     </div>
   );
 }
@@ -1603,6 +1611,11 @@ function cell(col, val) {
   if (c === 'difficulty') { const n = parseFloat(s); if (Number.isFinite(n)) return <span className={n < 30 ? 'font-medium text-green-600 dark:text-green-400' : n < 60 ? 'font-medium text-amber-600 dark:text-amber-400' : 'font-medium text-red-600 dark:text-red-400'}>{n}</span>; }
   if (['volume', 'impressions', 'clicks', 'sessions', 'users', 'backlinks', 'traffic', 'conversions'].includes(c)) return <span className="tabular-nums">{fmtNum(s)}</span>;
   if (c === 'url' && /^https?:\/\//i.test(s)) return <a href={s} target="_blank" rel="noreferrer" className="break-all text-brand-600 dark:text-brand-400 hover:underline">{s.replace(/^https?:\/\//i, '')}</a>;
+  // Prose columns (meta descriptions, joined H2s) run to hundreds of characters.
+  // The full text stays the cell VALUE — search, sort and CSV export all still
+  // see it — and picker tables clamp the display to three lines; this just makes
+  // the whole thing reachable on hover.
+  if (s.length > 140) return <span title={s}>{s}</span>;
   return s;
 }
 
@@ -1862,6 +1875,77 @@ function FileField({ field, onFill }) {
   );
 }
 
+// Attach reference images for a vision run. Unlike FileField above — which
+// extracts TEXT and leaves the file in the browser — these images are the
+// payload: each one is downscaled, re-encoded, and sent to the model as a
+// base64 data URL. The field is `_`-prefixed in the catalog so neither the saved
+// run record nor localStorage ends up holding megabytes of image data.
+function ImageField({ field, value, onChange }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const images = Array.isArray(value) ? value : [];
+  const max = field.max || 3;
+
+  async function handle(e) {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = ''; // let the same file be re-picked
+    if (!picked.length) return;
+
+    const room = max - images.length;
+    if (room <= 0) {
+      toast(`You can attach up to ${max} images.`, 'error');
+      return;
+    }
+    // Say what we dropped rather than silently taking the first N — a picker
+    // that quietly ignores half your selection reads as a bug.
+    if (picked.length > room) {
+      toast(`Only ${room} more image${room === 1 ? '' : 's'} fit — using the first ${room}.`, 'error');
+    }
+
+    setBusy(true);
+    try {
+      const { fileToVisionImage } = await import('../lib/imageInput.js');
+      const added = [];
+      for (const file of picked.slice(0, room)) {
+        try {
+          added.push(await fileToVisionImage(file));
+        } catch (err) {
+          toast(`Couldn’t use ${file.name}: ${err.message}`, 'error');
+        }
+      }
+      if (added.length) onChange([...images, ...added]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-1.5">
+      <input ref={inputRef} type="file" multiple accept={field.accept} onChange={handle} className="hidden" />
+      <button type="button" disabled={busy || images.length >= max} onClick={() => inputRef.current?.click()}
+        className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-body hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-60">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {busy ? 'Preparing…' : images.length ? 'Add another image' : 'Attach an image'}
+      </button>
+      {!!images.length && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {images.map((img, i) => (
+            <span key={`${img.name}-${i}`} className="group relative">
+              <img src={img.dataUrl} alt={img.name}
+                className="h-16 w-16 rounded-lg border border-line object-cover" />
+              <button type="button" aria-label={`Remove ${img.name}`}
+                onClick={(e) => { e.preventDefault(); onChange(images.filter((_, j) => j !== i)); }}
+                className="absolute -right-1.5 -top-1.5 rounded-full border border-line bg-card p-0.5 text-faint hover:text-body">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The single "AI suggest" for a form with several suggestible boxes. Sits above
 // the first of them and reads as covering the group, rather than three identical
 // buttons that each trigger the same one crawl.
@@ -1933,6 +2017,8 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid, s
       </span>
       {field.type === 'file' ? (
         <FileField field={field} onFill={(text) => setValue(field.fills || field.name, text)} />
+      ) : field.type === 'images' ? (
+        <ImageField field={field} value={value} onChange={onChange} />
       ) : field.type === 'account' ? (
         <AccountField provider={provider} value={value} onChange={onChange} placeholder={field.placeholder} />
       ) : field.type === 'tags' ? (
