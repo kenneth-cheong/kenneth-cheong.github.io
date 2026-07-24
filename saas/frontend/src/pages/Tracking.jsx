@@ -277,10 +277,10 @@ export default function Tracking() {
             </div>
             <div className="flex flex-wrap items-end gap-3">
               {bulk ? (
-                <textarea value={bulkText} onChange={(e) => { setNudge(false); setBulkText(e.target.value); }} rows={4} placeholder={'self storage singapore\ncheap storage\nstorage units sg'}
+                <textarea value={bulkText} onChange={(e) => { setNudge(false); setBulkText(e.target.value); }} rows={4} placeholder={'One keyword per line'}
                   className={`block w-full flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !bulkText.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-edge focus:border-brand-500'}`} />
               ) : (
-                <input value={keyword} onChange={(e) => { setNudge(false); setKeyword(e.target.value); }} placeholder="self storage singapore"
+                <input value={keyword} onChange={(e) => { setNudge(false); setKeyword(e.target.value); }} placeholder="Type a keyword to track"
                   className={`block flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !keyword.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-edge focus:border-brand-500'}`} />
               )}
               <label className="block flex-1">
