@@ -1047,6 +1047,13 @@ const urlish = (v) => { const s = String(v ?? '').trim(); return !/[\s,]/.test(s
 function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
   // The exact subtree the PDF export prints — the result card and nothing else.
   const printRef = useRef(null);
+  // Schema Generator output is editable in place (see SchemaResult). Hold the
+  // edited text here so the card's own Copy / Ask Monty act on what the user is
+  // looking at, not the superseded original.
+  const [editedText, setEditedText] = useState(null);
+  // A different result (new run, or a switch to a tool with no editable output)
+  // must not leave the previous edit behind for Copy to pick up.
+  useEffect(() => { setEditedText(null); }, [out]);
   // A connection that isn't set up yet reads as an error at the transport layer
   // but is really a setup step — route it to the connect widget either way.
   const errReason = out.error && tool.integration ? connectReasonFor(out.error) : null;
@@ -1082,8 +1089,10 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
 
   // Plain-English explainer: hand the result to the assistant ("what does this
   // mean + what do I do"). Reuses the dm:ask event the right-click menu fires.
+  const copySource = () => (editedText != null ? editedText : copyableOf(r));
+
   const explain = () => {
-    const text = copyableOf(r).slice(0, 4000);
+    const text = copySource().slice(0, 4000);
     const prompt = `I just ran the "${tool.name}" tool. In plain, simple English (explain any jargon), tell me: 1) what these results mean, 2) what's good and what's a problem, and 3) the top 3 things I should do next.\n\nHere are the results:\n${text}`;
     window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text: prompt } }));
   };
@@ -1138,7 +1147,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
               : r.rows && r.rows.length > 0
               ? <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>
               : sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
-            <ResultBtn onClick={() => copyText(copyableOf(r))}>Copy</ResultBtn>
+            <ResultBtn onClick={() => copyText(copySource())}>Copy</ResultBtn>
             <PdfButton targetRef={printRef} />
             <ShareResult tool={tool} out={out} project={project} user={user} />
           </div>
@@ -1161,7 +1170,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
         {out.runId && hasContent && !out.teaser && !NO_TLDR_TOOLS.has(tool.id) && <TldrPanel tool={tool} r={r} runId={out.runId} />}
 
         {isSchema ? (
-          <SchemaResult json={r.text} />
+          <SchemaResult json={r.text} onChange={setEditedText} />
         ) : (
           <>
             {r.text && (VARIATION_RE.test(r.text)
