@@ -378,21 +378,41 @@ const SAMPLE_RESULTS = {
   },
 
   // ── AI Visibility (GEO) ──────────────────────────────────────────────────────
+  // Was a *mentions* preview ("Brand mentions", "does ChatGPT cite you") — the
+  // shape this tool returned before it was re-pointed at a technical
+  // GEO-readiness audit, and identical to the AI Mentions sample below it. What
+  // follows is the real thing: asana.com's own pages run through the audit's own
+  // parsers (faParseHomeHtml / faParseRobots / faValidTxt) on 2026-07-24. The
+  // one failure is real too — asana.com/llms-full.txt 404s to an HTML page.
   'ai-discovery': {
     result: {
       source: 'live',
       sections: [
-        stats('AI search visibility · Asana · United States', [
-          { label: 'Brand mentions', value: '122,574', tone: 'green' },
-          { label: 'Citations', value: '68,697', tone: 'green' },
-          { label: 'Avg position in AI answers', value: '4.1', tone: 'green' },
-          { label: 'AI traffic opportunity', value: '58,044' },
+        stats('AI Discovery audit · asana.com', [
+          { label: 'GEO readiness', value: '89%', tone: 'green' },
+          { label: 'Checks passed', value: '8/9', tone: 'amber' },
+          { label: 'llms.txt', value: 'Present', tone: 'green' },
+          { label: 'AI bots', value: 'Allowed', tone: 'green' },
+          { label: 'Structured data', value: 'Yes', tone: 'green' },
+          // The run always emits this card, and asana.com's HTML names no CMS —
+          // so the preview shows the same "—" a real run does, rather than a
+          // tidier five-card row that no user would actually get.
+          { label: 'CMS', value: '—', tone: 'slate' },
         ]),
-        list('Does each AI assistant cite asana.com when users ask buying questions?', [
-          '✓ Google AI Overviews — names Asana and links asana.com (avg position 6.1)',
-          '✓ ChatGPT — names Asana and cites asana.com',
-          '✓ Gemini — names Asana and cites asana.com',
-          '✓ Perplexity — names Asana and cites asana.com',
+        { type: 'table', title: 'Discoverability checklist', columns: ['Factor', 'Status'],
+          rows: [
+            { Factor: 'llms.txt file', Status: '✓ Pass' },
+            { Factor: 'llms-full.txt file', Status: '✗ Fix' },
+            { Factor: 'AI crawlers allowed', Status: '✓ Pass' },
+            { Factor: 'Structured data (JSON-LD)', Status: '✓ Pass' },
+            { Factor: 'Semantic HTML', Status: '✓ Pass' },
+            { Factor: 'Meta title', Status: '✓ Pass' },
+            { Factor: 'Meta description', Status: '✓ Pass' },
+            { Factor: 'H1 heading', Status: '✓ Pass' },
+            { Factor: 'robots.txt present', Status: '✓ Pass' },
+          ] },
+        list('🎯 Prioritised fixes', [
+          'llms-full.txt file: Add an llms-full.txt with expanded page content for richer AI context.',
         ]),
       ],
     },
