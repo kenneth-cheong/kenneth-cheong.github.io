@@ -24,6 +24,12 @@ export const UPSTREAMS = {
   // one call per image.
   altTextGenerator: 'https://ty3ndlwcnk.execute-api.ap-southeast-1.amazonaws.com/altTextGenerator',
   serpCompetitors: 'https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors',
+  // Competitors Identifier step 2: every keyword you AND one rival both rank
+  // for, with each side's position, plus the keyword's volume/CPC/competition.
+  // Returns { keyword: { search_volume, cpc, competition_level, <domain>: [rank, url] } }
+  // — note the domain keys come back however DataForSEO spells them, so `www.`
+  // may be present on one side and not the other. Match loosely.
+  domainIntersection: 'https://8llvcx7m6e.execute-api.ap-southeast-1.amazonaws.com/domainIntersection',
   checkContent: 'https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent',
   // Content Pillar Framework uses its own Lambda (action 'pillar_framework').
   contentPillar: 'https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/contentPillar',

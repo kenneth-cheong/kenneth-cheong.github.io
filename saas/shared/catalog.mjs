@@ -899,7 +899,7 @@ export const EXAMPLES = {
   'anchor-cleaner': { input: 'https://asana.com/features', keyword: 'project management' },
   'technical-seo': { input: 'https://asana.com', maxPages: '10', maxDepth: '4' },
   onpage: { input: 'https://asana.com/features', keywords: 'project management software, work management' },
-  competitors: { input: 'project management software', location: 'United States', language: 'English' },
+  competitors: { domain: 'asana.com', input: 'project management software', location: 'United States', language: 'English' },
   'page-analysis': { input: 'https://asana.com' },
   backlinks: { input: 'asana.com', mode: 'domain' },
   schema: { type: 'Organization', name: 'Asana', url: 'https://asana.com', telephone: '+1 415 525 3888', address: '633 Folsom St, San Francisco, CA' },
@@ -1186,7 +1186,13 @@ export const INPUTS = {
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
+  // "How you stack up" needs a YOU. Without a domain the run could only ever
+  // list who ranks — it had no benchmark, so the report answered "who is out
+  // there" and never "where am I against them". The domain marks your own row
+  // in the overlap table and is the target of the head-to-head compare step.
   competitors: [
+    { name: 'domain', label: 'Your domain', type: 'url', placeholder: 'example.com', required: true, normalize: 'domain',
+      hint: 'The site you’re benchmarking — we mark your rankings and compare you head-to-head.' },
     { name: 'input', label: 'Keywords or domains', type: 'tags', placeholder: 'add a keyword or domain', required: true },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },

@@ -855,12 +855,30 @@ function recsFrom(raw) {
 // a table; the SaaS adapter left it unadapted so it rendered as a raw JSON blob.
 // Fan out in small batches (avoids upstream 504s), then render a position matrix
 // plus a best-effort `competitor_insights` LLM pass.
+//
+// Two steps, one tool — the same shape index.html's Competitors panel has always
+// had. Step 1 DISCOVERS who shares the SERP; step 2 (`compareWith`) takes the
+// domains the user ticked and pulls every keyword they and the user BOTH rank
+// for, so the report finally answers "how do I stack up" rather than only "who
+// is out there".
+// DataForSEO spells domains however it found them — `www.` on one side of a
+// comparison and not the other — so every match here goes through toDomain.
+const sameDomain = (a, b) => !!a && toDomain(a) === toDomain(b);
+
 async function competitorsRun(body) {
+  const rivals = (Array.isArray(body.compareWith) ? body.compareWith : String(body.compareWith || '').split(/[\n,]+/))
+    .map((s) => cleanDomain(s)).filter(Boolean);
+  // De-duplicate, drop the user's own domain (comparing you to you is an empty
+  // table), and cap: each rival is its own upstream round-trip.
+  const unique = [...new Set(rivals)].filter((d) => !sameDomain(d, body.domain)).slice(0, 3);
+  if (unique.length) return competitorsCompare(body, unique);
+
   const keywords = String(body.input || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
   if (!keywords.length) throw new Error('Enter at least one keyword to find competitors.');
   const location = body.location || 'Singapore';
   const language = body.language || 'English';
   const email = body._email || 'saas-user';
+  const you = cleanDomain(body.domain || body.url);
 
   const merged = {};
   for (const batch of chunkArr(keywords, 3)) {
@@ -881,41 +899,76 @@ async function competitorsRun(body) {
   // Most-overlapping competitors first.
   domains.sort((a, b) => Object.keys(merged[b]).length - Object.keys(merged[a]).length);
 
+  // Where the user themselves landed. The upstream spells domains however
+  // DataForSEO does (`www.` on some, not others), so match loosely.
+  const mine = you ? domains.find((d) => sameDomain(d, you)) : null;
+  const myRanks = mine ? Object.values(merged[mine]).map(Number).filter(Number.isFinite) : [];
+  const label = (d) => (d === mine ? `${d} (you)` : d);
+
+  const stats = [
+    { label: 'Competitors found', value: domains.length - (mine ? 1 : 0), tone: 'blue' },
+    { label: 'Keywords analysed', value: keywords.length, tone: 'slate' },
+  ];
+  if (you) {
+    stats.push({ label: 'Keywords you rank for', value: `${myRanks.length} of ${keywords.length}`, tone: myRanks.length ? 'green' : 'red' });
+    if (myRanks.length) stats.push({ label: 'Your best position', value: `#${Math.min(...myRanks)}`, tone: 'blue' });
+  }
+
   const sections = [
     { type: 'heading', text: `Competitors for: ${keywords.join(', ')}` },
-    { type: 'stats', items: [
-      { label: 'Competitors found', value: domains.length, tone: 'blue' },
-      { label: 'Keywords analysed', value: keywords.length, tone: 'slate' },
-    ] },
+    { type: 'stats', items: stats },
   ];
+  // Not appearing at all is the single most useful finding here, and a table of
+  // other people's rankings doesn't say it out loud.
+  if (you && !mine) {
+    sections.push({ type: 'callout', text: `${you} doesn’t rank in the top results for any of these keywords — every domain below is currently ahead of you. Pick two or three and compare head-to-head to see which keywords are realistically winnable.` });
+  }
 
   // Position matrix when the keyword set is small enough to be columns; else a
   // compact joined "positions" column.
   if (keywords.length <= 8) {
     const columns = ['Competitor', ...keywords];
     const rows = domains.map((d) => {
-      const row = { Competitor: d };
+      const row = { Competitor: label(d) };
       for (const kw of keywords) { const r = merged[d][kw]; row[kw] = (r == null) ? '—' : `#${r}`; }
       return row;
     });
     sections.push({ type: 'table', title: 'SERP position overlap', columns, rows });
   } else {
     const rows = domains.map((d) => ({
-      Competitor: d,
+      Competitor: label(d),
       'Keyword positions': Object.entries(merged[d]).map(([kw, r]) => `${kw} #${r}`).join(', '),
       'Keywords ranked': Object.keys(merged[d]).length,
     }));
     sections.push({ type: 'table', title: 'SERP position overlap', columns: ['Competitor', 'Keyword positions', 'Keywords ranked'], rows });
   }
 
+  // Step 2 — pick rivals, compare against yourself. Rendered as a picker the
+  // user acts on in place (ResultSections `select`), so the sequel doesn't
+  // require them to know it exists.
+  const options = domains.filter((d) => d !== mine).slice(0, 25).map((d) => {
+    const n = Object.keys(merged[d]).length;
+    return { value: cleanDomain(d), label: d, meta: `${n} keyword${n === 1 ? '' : 's'} shared` };
+  });
+  if (options.length) {
+    sections.push({
+      type: 'select', name: 'compareWith', max: 3, options,
+      title: 'Compare yourself against them',
+      note: you
+        ? `Pick up to 3 and we’ll pull every keyword ${you} and they BOTH rank for, side by side with each side’s position.`
+        : 'Add your domain above, then pick up to 3 to see every keyword you and they both rank for.',
+      action: { label: 'Compare ranked keywords', requires: 'domain' },
+    });
+  }
+
   // Best-effort AI insights (same monday lambda, action competitor_insights).
   try {
     const summary = domains
-      .map((d) => `- ${d}: ${Object.entries(merged[d]).map(([kw, r]) => `"${kw}" #${r}`).join(', ') || 'manually added'}`)
+      .map((d) => `- ${label(d)}: ${Object.entries(merged[d]).map(([kw, r]) => `"${kw}" #${r}`).join(', ') || 'manually added'}`)
       .join('\n');
     const raw = await postUpstream(UPSTREAMS.strategyEngine, {
       action: 'competitor_insights',
-      targetDomain: (body.domain || body.url || '').trim(),
+      targetDomain: you,
       location, summary, keywords: keywords.join(', '),
     });
     const items = parseInsightsArray(raw).map((it) => {
@@ -932,6 +985,119 @@ async function competitorsRun(body) {
   } catch (e) { console.error('competitor_insights_failed', e.message); }
 
   return { sections };
+}
+
+// Step 2: head-to-head ranked-keyword comparison against the domains the user
+// ticked in step 1. `domainIntersection` returns only keywords BOTH sides rank
+// for, keyed as { keyword: { search_volume, cpc, competition_level, <domain>:
+// [rank, url] } } — one call per rival, so we fan out and merge on keyword.
+const COMPARE_MAX_ROWS = 300;   // keeps the saved run well under DynamoDB's item ceiling
+
+async function competitorsCompare(body, rivals) {
+  const you = cleanDomain(body.domain || body.url);
+  if (!you) throw new Error('Add your domain first — the comparison needs a "you" to benchmark against.');
+  const location = body.location || 'Singapore';
+  const language = body.language || 'English';
+
+  const settled = await mapLimit(rivals, FANOUT_CONCURRENCY, async (rival) => {
+    try {
+      const data = unwrapBody(await postUpstream(UPSTREAMS.domainIntersection,
+        { language, location, target1: you, target2: rival }));
+      return { rival, data: (data && typeof data === 'object' && !Array.isArray(data)) ? data : null };
+    } catch (e) {
+      console.error('competitors_compare_failed', rival, e.message);
+      return { rival, data: null, error: e.message };
+    }
+  });
+
+  // keyword → { volume, cpc, competition, mine, theirs: { rival: rank } }
+  const META = new Set(['search_volume', 'cpc', 'competition_level']);
+  const rank = (entry) => {
+    if (Array.isArray(entry)) return Number(entry[0]);
+    if (typeof entry === 'number') return entry;
+    if (entry && typeof entry === 'object') return Number(entry.rank ?? entry.position ?? entry.pos);
+    return NaN;
+  };
+  const pick = (obj, domain) => {
+    if (!obj || typeof obj !== 'object') return undefined;
+    for (const k of Object.keys(obj)) if (!META.has(k) && sameDomain(k, domain)) return obj[k];
+    return undefined;
+  };
+
+  const rows = new Map();
+  for (const { rival, data } of settled) {
+    for (const [kw, v] of Object.entries(data || {})) {
+      if (!v || typeof v !== 'object') continue;
+      const theirRank = rank(pick(v, rival));
+      if (!Number.isFinite(theirRank)) continue;
+      const row = rows.get(kw) || { volume: Number(v.search_volume) || 0, cpc: Number(v.cpc) || 0, competition: v.competition_level || '—', mine: NaN, theirs: {} };
+      row.theirs[rival] = theirRank;
+      const myRank = rank(pick(v, you));
+      if (Number.isFinite(myRank) && !(row.mine <= myRank)) row.mine = myRank;
+      rows.set(kw, row);
+    }
+  }
+
+  const failed = settled.filter((s) => !s.data).map((s) => s.rival);
+  if (!rows.size) {
+    return { sections: [{ type: 'callout', text: failed.length === rivals.length
+      ? `We couldn’t reach the comparison data for ${failed.join(', ')}. Try again in a minute.`
+      : `${you} and ${rivals.join(', ')} don’t share any ranking keywords in ${location}. That usually means you’re chasing different searches — or that ${you} isn’t ranking yet for the terms they own.` }] };
+  }
+
+  // The keywords worth acting on first: they rank, you don't (or you're well
+  // behind), and there's real search volume behind it. Rank by that gap.
+  const best = (r) => Math.min(...Object.values(r.theirs));
+  const gapOf = (r) => (Number.isFinite(r.mine) ? r.mine : 101) - best(r);
+  const all = [...rows.entries()];
+  const ahead = all.filter(([, r]) => Number.isFinite(r.mine) && r.mine < best(r)).length;
+  const behind = all.filter(([, r]) => gapOf(r) > 0).length;
+  const winnable = all.filter(([, r]) => best(r) <= 10 && (!Number.isFinite(r.mine) || r.mine > 10));
+
+  all.sort((a, b) => (gapOf(b[1]) * Math.log10((b[1].volume || 0) + 10)) - (gapOf(a[1]) * Math.log10((a[1].volume || 0) + 10)));
+  const shown = all.slice(0, COMPARE_MAX_ROWS);
+
+  const pos = (n) => (Number.isFinite(n) ? `#${n}` : '—');
+  const columns = ['Keyword', 'Volume/mo', 'CPC', 'You', ...rivals, 'Gap'];
+  const tableRows = shown.map(([kw, r]) => {
+    const row = {
+      Keyword: kw,
+      'Volume/mo': r.volume || 0,
+      CPC: r.cpc ? `$${r.cpc.toFixed(2)}` : '—',
+      You: pos(r.mine),
+      // A gap is only meaningful once we know where you actually are; "you don't
+      // rank at all" is a different (worse) story than "you're 12 places back",
+      // and collapsing them into one number hides it.
+      Gap: !Number.isFinite(r.mine) ? 'Not ranking' : r.mine < best(r) ? `+${best(r) - r.mine} ahead` : r.mine === best(r) ? 'Level' : `−${r.mine - best(r)} behind`,
+    };
+    for (const rival of rivals) row[rival] = pos(r.theirs[rival]);
+    return row;
+  });
+
+  const sections = [
+    { type: 'heading', text: `${you} vs ${rivals.join(', ')}` },
+    { type: 'stats', items: [
+      { label: 'Shared keywords', value: rows.size, tone: 'blue' },
+      { label: 'You rank ahead', value: ahead, tone: ahead ? 'green' : 'slate' },
+      { label: 'They rank ahead', value: behind, tone: behind ? 'red' : 'slate' },
+      { label: 'Winnable (they’re top 10, you’re not)', value: winnable.length, tone: 'amber' },
+    ] },
+  ];
+  if (failed.length) {
+    sections.push({ type: 'callout', text: `We couldn’t reach the data for ${failed.join(', ')} — the table below covers the rest.` });
+  }
+  sections.push({
+    type: 'table',
+    title: `Keywords you both rank for — biggest gaps first${all.length > shown.length ? ` (top ${shown.length} of ${all.length})` : ''}`,
+    columns, rows: tableRows,
+  });
+
+  const recs = await aiRecommendations({
+    label: `${you} vs ${rivals.join(', ')} ranked-keyword comparison`,
+    context: `Location: ${location}. ${rows.size} shared keywords. The user ranks ahead on ${ahead} and behind on ${behind}. "You"/rival columns are Google positions; "—" means not ranking.`,
+    findings: rowsToFindings(tableRows, 30),
+  });
+  return withRecs({ sections }, recs);
 }
 
 // Pull a JSON array out of an LLM response that may be fenced/truncated.
@@ -6109,7 +6275,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
+export const __test = { competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

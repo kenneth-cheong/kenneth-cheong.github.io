@@ -240,6 +240,27 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     run();
   }
 
+  // A result that asks a question back (ResultSections' `select` — currently the
+  // Competitors Identifier's "compare me against these two") answers it with
+  // another run of the SAME tool, carrying the form's values plus the picks.
+  // It spends a credit like any run, which is why it's a deliberate click rather
+  // than something the first run does on the user's behalf.
+  //
+  // `action.requires` names a form field the follow-up can't work without — the
+  // comparison needs a "you" to benchmark against. Nudge rather than send a
+  // request we know will come back as an error.
+  function followUp(extra, action = {}) {
+    const need = action.requires;
+    if (need && !String(values[need] || '').trim()) {
+      setNudge(true);
+      document.querySelector(`[data-tour-field="${need}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('Add your domain first — the comparison needs something to benchmark against.', 'info');
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return run({ ...values, ...extra });
+  }
+
   // Long forms overwhelm beginners: keep required fields + the first couple of
   // optional ones visible, and tuck the rest behind an "Advanced options" toggle.
   // Fields flagged `advanced` in the catalog (raw GAQL, expert knobs) collapse
@@ -651,7 +672,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         </div>
       )}
       {busy && !reconciling && tool.slow && <SlowProgress tool={tool} job={job} />}
-      {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} onRetry={() => run()} />}
+      {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} onRetry={() => run()} onFollowUp={followUp} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
 
@@ -882,6 +903,9 @@ function sectionsToText(sections) {
       case 'callout': case 'text': out.push(s.text); break;
       case 'stats': out.push((s.items || []).map((it) => `${it.label}: ${it.value}`).join('  ·  ')); break;
       case 'list': for (const x of s.items || []) out.push(`• ${x}`); break;
+      // The picker's checkboxes don't survive a copy, but the SHORTLIST does —
+      // and it's the useful part in a pasted report or an "Ask Monty" prompt.
+      case 'select': for (const o of s.options || []) out.push(`• ${o.label ?? o.value}${o.meta ? ` — ${o.meta}` : ''}`); break;
       case 'cards':
         for (const c of s.items || []) {
           out.push(`${c.title}${c.badge ? ` [${c.badge}]` : ''}${c.meta ? ` — ${c.meta}` : ''}`);
@@ -1054,7 +1078,7 @@ const SITE_KEYS = ['url', 'input', 'target', 'domain', 'website', 'site'];
 const SITE_RE = /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+([/?#]|$)/i;
 const urlish = (v) => { const s = String(v ?? '').trim(); return !/[\s,]/.test(s) && SITE_RE.test(s) ? s : ''; };
 
-function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
+function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollowUp }) {
   // The exact subtree the PDF export prints — the result card and nothing else.
   const printRef = useRef(null);
   // Schema Generator output is editable in place (see SchemaResult). Hold the
@@ -1133,6 +1157,9 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
     inputs,
     toolId: tool.id,
     route: tool.route || `/tool/${tool.id}`,
+    // Lets a `select` section re-run this tool with the user's picks. Absent in
+    // History/shared views, where those sections render read-only.
+    onAction: onFollowUp,
   };
 
   return (

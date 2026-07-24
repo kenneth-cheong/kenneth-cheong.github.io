@@ -82,6 +82,8 @@ function Section({ s, context }) {
           </div>
         </Block>
       );
+    case 'select':
+      return <SelectSection s={s} context={context} />;
     case 'accordion':
       return <AccordionSection s={s} />;
     case 'table':
@@ -263,6 +265,88 @@ function Card({ c }) {
       {(c.lines || []).map((l, i) => <div key={i} className="text-[13px] text-dim">{l.label && <strong className="text-body">{l.label}: </strong>}{l.value}</div>)}
       {c.body && <p className="mt-1 text-sm leading-relaxed text-dim">{c.body}</p>}
     </div>
+  );
+}
+
+// ── Select (a result that asks a question back) ──────────────────────────────
+// Some reports only get you halfway: the Competitors Identifier tells you WHO
+// shares your keywords, and the obvious next question — "so how do I stack up
+// against those two?" — used to mean re-reading the table, copying domains, and
+// finding somewhere to paste them. index.html always had this as a visible
+// Step 2; here the result asks it directly.
+//
+// The server ships { name, options, max, action }. Ticking is free; the button
+// hands the picks back to whoever rendered us (`context.onAction`) as a follow-up
+// run — which costs a credit like any other, so it stays an explicit click.
+// Without an `onAction` (History, shared reports, the Performance Audit page)
+// there is nothing to re-run into, so the section renders as a plain list.
+function SelectSection({ s, context }) {
+  const options = (s.options || []).filter((o) => o && o.value != null);
+  const max = s.max || 3;
+  const [picked, setPicked] = useState(() => new Set());
+  const [sent, setSent] = useState(false);
+  const onAction = context?.onAction;
+  if (!options.length) return null;
+
+  const toggle = (v) => setPicked((prev) => {
+    const next = new Set(prev);
+    if (next.has(v)) next.delete(v);
+    else if (next.size < max) next.add(v);
+    else toast(`Pick up to ${max} — untick one first.`, 'info');
+    return next;
+  });
+
+  const go = () => {
+    if (!picked.size || sent) return;
+    setSent(true);
+    Promise.resolve(onAction({ [s.name]: [...picked] }, s.action || {})).catch(() => setSent(false));
+  };
+
+  return (
+    <Block title={s.title}>
+      {s.note && <p className="-mt-1 mb-3 text-sm text-muted">{s.note}</p>}
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => {
+          const on = picked.has(o.value);
+          const disabled = !onAction;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              disabled={disabled}
+              aria-pressed={on}
+              onClick={() => toggle(o.value)}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-[13px] transition ${
+                on ? 'border-brand-400 bg-brand-50 dark:border-brand-500/50 dark:bg-brand-500/15' : 'border-line bg-surface'
+              } ${disabled ? 'cursor-default' : 'hover:border-brand-300 dark:hover:border-brand-500/40'}`}
+            >
+              {!disabled && (
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? 'border-brand-500 bg-brand-500 text-white' : 'border-line'}`} aria-hidden>
+                  {on && <Check size={11} strokeWidth={3} />}
+                </span>
+              )}
+              <span className="font-medium text-strong">{o.label ?? o.value}</span>
+              {o.meta && <span className="text-faint">{o.meta}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {onAction && (
+        <div className="dm-no-print mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={go}
+            disabled={!picked.size || sent}
+            className="rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {s.action?.label || 'Continue'}
+          </button>
+          <span className="text-xs text-faint">
+            {picked.size ? `${picked.size} of ${max} picked` : `Pick up to ${max}`}
+          </span>
+        </div>
+      )}
+    </Block>
   );
 }
 
