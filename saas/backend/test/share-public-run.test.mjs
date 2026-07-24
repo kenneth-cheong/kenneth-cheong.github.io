@@ -13,6 +13,7 @@ vi.mock('../src/lib/dynamo.mjs', () => ({
   createShare: async () => {},
   revokeShare: async () => {},
   setRunShareId: async () => {},
+  setRunTldr: async () => {},
 }));
 
 const { handler } = await import('../src/share/index.mjs');
@@ -31,6 +32,7 @@ beforeEach(() => {
     target: 'example.com', ts: '2026-07-24T00:00:00.000Z',
     inputs: { url: 'https://example.com', _apiKey: 'secret', projectId: 'p9' },
     result: { html: '<h1>Report</h1>', sections: [{ type: 'stats', items: [] }] },
+    tldr: 'Looking good: fast site. Do this next: add H1 tags.',
   };
 });
 
@@ -44,6 +46,17 @@ describe('GET /s/{shareId}/run.json', () => {
     expect(out.target).toBe('example.com');
     expect(out.ts).toBe('2026-07-24T00:00:00.000Z');
     expect(out.result).toEqual(run.result);
+  });
+
+  it('includes the persisted plain-English summary (tldr)', async () => {
+    const out = bodyOf(await call('s1')).run;
+    expect(out.tldr).toContain('Looking good');
+  });
+
+  it('tldr is null when the run never had one', async () => {
+    delete run.tldr;
+    const out = bodyOf(await call('s1')).run;
+    expect(out.tldr).toBeNull();
   });
 
   it('NEVER exposes the original inputs (API keys, project ids)', async () => {
@@ -80,7 +93,8 @@ describe('GET /s/{shareId}/run.json', () => {
 
   it('resolves a snapshot share (dashboard tools with no saved run)', async () => {
     share = { shareId: 's2', userId: 'u1', revoked: false, snapshot: {
-      tool: 'report', toolName: 'Site Audit', target: '', result: { sections: [{ type: 'stats', items: [{ label: 'Score', value: '92' }] }] },
+      tool: 'report', toolName: 'Site Audit', target: '', tldr: 'Snapshot summary.',
+      result: { sections: [{ type: 'stats', items: [{ label: 'Score', value: '92' }] }] },
     } };
     run = null; // no saved run — the snapshot supplies the body
     const res = await call('s2');
@@ -88,5 +102,6 @@ describe('GET /s/{shareId}/run.json', () => {
     const out = bodyOf(res).run;
     expect(out.toolName).toBe('Site Audit');
     expect(out.result.sections[0].items[0].value).toBe('92');
+    expect(out.tldr).toBe('Snapshot summary.');
   });
 });

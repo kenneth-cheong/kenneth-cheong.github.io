@@ -17,16 +17,18 @@ export default function ShareResult({
   force = false,
   snapshot = false,
   label = 'Share',
+  onDownloadPdf,
+  tldr = '',
   className = 'inline-flex items-center gap-1 rounded-md border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/15',
 }) {
   const [open, setOpen] = useState(false);
   if (!out || (!force && !isShareable(out))) return null;
   return (
     <>
-      <button onClick={() => setOpen(true)} title="Create a branded image to share on social media" className={className}>
+      <button onClick={() => setOpen(true)} title="Share this report — public link, branded card, or PDF" className={className}>
         <Share2 size={13} aria-hidden /> {label}
       </button>
-      <ShareModal open={open} onClose={() => setOpen(false)} tool={tool} out={out} project={project} user={user} snapshot={snapshot} />
+      <ShareModal open={open} onClose={() => setOpen(false)} tool={tool} out={out} project={project} user={user} snapshot={snapshot} onDownloadPdf={onDownloadPdf} tldr={tldr} />
     </>
   );
 }

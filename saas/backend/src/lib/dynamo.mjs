@@ -1216,6 +1216,23 @@ export async function setRunShareId(userId, runId, shareId) {
   }));
 }
 
+/**
+ * Persist the plain-English "what this means" summary on a run so the public
+ * share page can show it. The frontend generates it lazily (authed, AI) when a
+ * result is viewed and hands it to us at share-mint time — we never generate it
+ * here. Capped so it can't bloat the run item toward the 400KB limit.
+ */
+export async function setRunTldr(userId, runId, tldr) {
+  const text = String(tldr || '').slice(0, 4000).trim();
+  if (!text) return;
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.runs,
+    Key: { userId, runId },
+    UpdateExpression: 'SET tldr = :t',
+    ExpressionAttributeValues: { ':t': text },
+  }));
+}
+
 /** Revoke every share the user minted for a given run (a run has at most one). */
 export async function revokeShare(shareId, userId) {
   await ddb.send(new UpdateCommand({

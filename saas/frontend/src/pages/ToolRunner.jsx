@@ -13,7 +13,7 @@ import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ResultTable, { cell } from '../components/ResultTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
-import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
+import PrintBrand, { printReport } from '../components/PdfExport.jsx';
 import NextSteps from '../components/NextSteps.jsx';
 import ConnectPrompt, { connectReasonFor } from '../components/ConnectPrompt.jsx';
 import { useIntegrationGate, IntegrationGate } from '../components/IntegrationGate.jsx';
@@ -22,7 +22,7 @@ import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { toast, copyText, downloadCsv, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus, X } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus, X, Link2, ExternalLink } from 'lucide-react';
 
 // Tell the proactive assistant a run finished. Status is a coarse read of the
 // payload so triggers can distinguish "here are your results" from "nothing came
@@ -1087,9 +1087,13 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollow
   // edited text here so the card's own Copy / Ask Monty act on what the user is
   // looking at, not the superseded original.
   const [editedText, setEditedText] = useState(null);
+  // The public report link, once the user clicks "Share link". Kept here (not in
+  // the button) so the resolved URL can reveal on its own row below the toolbar.
+  const [shareLinkUrl, setShareLinkUrl] = useState('');
+  const [shareLinking, setShareLinking] = useState(false);
   // A different result (new run, or a switch to a tool with no editable output)
   // must not leave the previous edit behind for Copy to pick up.
-  useEffect(() => { setEditedText(null); }, [out]);
+  useEffect(() => { setEditedText(null); setShareLinkUrl(''); }, [out]);
   // A connection that isn't set up yet reads as an error at the transport layer
   // but is really a setup step — route it to the connect widget either way.
   const errReason = out.error && tool.integration ? connectReasonFor(out.error) : null;
@@ -1131,6 +1135,26 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollow
     const text = copySource().slice(0, 4000);
     const prompt = `I just ran the "${tool.name}" tool. In plain, simple English (explain any jargon), tell me: 1) what these results mean, 2) what's good and what's a problem, and 3) the top 3 things I should do next.\n\nHere are the results:\n${text}`;
     window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text: prompt } }));
+  };
+
+  // One-click public link. First click mints (idempotent) + copies + reveals it;
+  // later clicks just re-copy. We pass along the plain-English summary the user
+  // already generated (tldrCache) so the public report can lead with it.
+  const downloadPdf = () => printReport(printRef.current);
+  const makeShareLink = async () => {
+    if (shareLinkUrl) { copyText(shareLinkUrl); toast('Report link copied', 'success'); return; }
+    setShareLinking(true);
+    try {
+      const r2 = await api.shareRun(out.runId, undefined, tldrCache.get(out.runId)?.text || '');
+      const report = String(r2.url || '').replace('/s/', '/share/');
+      setShareLinkUrl(report);
+      copyText(report);
+      toast('Public report link created & copied', 'success');
+    } catch (e) {
+      toast(`Couldn't create link — ${e?.message || 'please try again'}`, 'error');
+    } finally {
+      setShareLinking(false);
+    }
   };
 
   // Context handed to each recommendation card so the assistant answers in the
@@ -1187,11 +1211,33 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollow
               ? <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>
               : sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
             <ResultBtn onClick={() => copyText(copySource())}>Copy</ResultBtn>
-            <PdfButton targetRef={printRef} />
-            <ShareResult tool={tool} out={out} project={project} user={user} />
+            {/* One-click public link, surfaced directly (not buried in the Share
+                dialog). Only for saved runs — a public link needs something to
+                point at. The branded card, social posting and PDF live inside
+                the Share dialog. */}
+            {out.runId && (
+              <button
+                onClick={makeShareLink}
+                disabled={shareLinking}
+                title="Create a public link to this report and copy it"
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/15 disabled:opacity-60"
+              >
+                {shareLinking ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Link2 size={13} aria-hidden />} Share link
+              </button>
+            )}
+            <ShareResult tool={tool} out={out} project={project} user={user} onDownloadPdf={hasContent ? downloadPdf : undefined} tldr={tldrCache.get(out.runId)?.text || ''} />
           </div>
         )}
       </div>
+
+      {/* Revealed report link — kept visible so it's never hidden behind a menu. */}
+      {shareLinkUrl && (
+        <div className="dm-no-print mb-2 flex items-center gap-1.5">
+          <input readOnly value={shareLinkUrl} className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-dim" />
+          <button onClick={() => { copyText(shareLinkUrl); toast('Report link copied', 'success'); }} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Copy link"><Link2 size={14} /></button>
+          <a href={shareLinkUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Open report in a new tab"><ExternalLink size={14} /></a>
+        </div>
+      )}
 
       <div ref={printRef} className="card p-5">
         <PrintBrand title={tool.name} project={project} user={user} />

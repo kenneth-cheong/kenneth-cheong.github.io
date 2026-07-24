@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { Resvg, initWasm } from '@resvg/resvg-wasm';
-import { getRun, createShare, getShare, revokeShare, setRunShareId } from '../lib/dynamo.mjs';
+import { getRun, createShare, getShare, revokeShare, setRunShareId, setRunTldr } from '../lib/dynamo.mjs';
 import { buildShareSummary, renderCardSvg, FORMATS, CTA_HOST, CTA_URL } from '../../../shared/shareCard.mjs';
 import { claims, json } from '../lib/http.mjs';
 
@@ -105,7 +105,7 @@ function sanitizeSnapshotResult(result) {
 async function runForShare(share) {
   if (share.snapshot) {
     const s = share.snapshot;
-    return { tool: s.tool, toolName: s.toolName, result: s.result || {}, target: s.target || '' };
+    return { tool: s.tool, toolName: s.toolName, result: s.result || {}, target: s.target || '', tldr: s.tldr || '' };
   }
   return share.runId ? getRun(share.userId, share.runId) : null;
 }
@@ -198,6 +198,9 @@ export async function handler(event) {
               toolName: run.toolName || run.tool,
               target: run.target || '',
               ts: run.ts || null,
+              // Plain-English summary, if the owner viewed the result before
+              // sharing (persisted at mint time). Snapshot shares carry it inline.
+              tldr: run.tldr || null,
               result: run.result || {},
             },
           }),
@@ -249,19 +252,25 @@ export async function handler(event) {
     //  • snapshot: the client posts a self-contained stats summary (dashboard
     //    tools with no saved run) which we embed on a fresh share record.
     if (path.endsWith('/share')) {
-      const snap = safeJson(event.body).snapshot;
+      const body = safeJson(event.body);
+      // Optional plain-English summary the client generated when the result was
+      // viewed — persisted so the public report can lead with it.
+      const tldr = clip(body.tldr, 4000);
+      const snap = body.snapshot;
       if (snap) {
         const result = sanitizeSnapshotResult(snap.result);
         if (!result) return json(400, { error: 'Invalid snapshot' });
         const shareId = randomBytes(9).toString('base64url');
         await createShare({
           userId, shareId,
-          snapshot: { tool: clip(snap.toolId, 64) || 'report', toolName: clip(snap.toolName, 80) || 'Report', result, target: clip(snap.target, 200) },
+          snapshot: { tool: clip(snap.toolId, 64) || 'report', toolName: clip(snap.toolName, 80) || 'Report', result, target: clip(snap.target, 200), tldr },
         });
         return json(200, { shareId, url: `${baseUrl(event)}/s/${shareId}` });
       }
       const run = await getRun(userId, runId);
       if (!run) return json(404, { error: 'Run not found' });
+      // Save the summary on the run (best-effort) so a re-share keeps it too.
+      if (tldr && tldr !== run.tldr) await setRunTldr(userId, runId, tldr).catch(() => {});
       let shareId = run.shareId || null;
       const existing = shareId ? await getShare(shareId) : null;
       if (!existing || existing.revoked) {

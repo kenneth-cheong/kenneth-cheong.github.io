@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Copy, Share2, X as XIcon, Image as ImageIcon, Globe, Link2, Loader2, ExternalLink } from 'lucide-react';
+import { Download, Copy, Share2, X as XIcon, Image as ImageIcon, Globe, Link2, Loader2, ExternalLink, FileDown } from 'lucide-react';
 import { toast, copyText } from '../lib/ui.js';
 import { api } from '../lib/api.js';
 import {
@@ -11,7 +11,7 @@ import {
 // client-rendered SVG; the exported PNG prefers the server card (ShareFn,
 // pixel-identical but with the embedded brand font) when the run was saved,
 // falling back to client-side <canvas> rasterisation otherwise.
-export default function ShareModal({ open, onClose, tool, out, project, user, snapshot = false }) {
+export default function ShareModal({ open, onClose, tool, out, project, user, snapshot = false, onDownloadPdf, tldr = '' }) {
   const [format, setFormat] = useState('square');
   const [shareUrl, setShareUrl] = useState('');
   const [snapShareId, setSnapShareId] = useState(''); // shareId of a minted snapshot (dashboard tools)
@@ -70,10 +70,10 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
   // Mint the public link. Saved runs mint by runId; dashboard snapshots post the
   // compact summary and the server persists it on the share. Returns { url }.
   const mint = async () => {
-    if (out?.runId) return api.shareRun(out.runId);
+    if (out?.runId) return api.shareRun(out.runId, undefined, tldr);
     const r = await api.shareRun('snap', {
       toolId: tool.id, toolName: tool.name, result: out.result, target: project?.domain || '',
-    });
+    }, tldr);
     if (r.shareId) setSnapShareId(r.shareId);
     return r;
   };
@@ -140,9 +140,14 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={onDownload} className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}><Download size={15} /> Download</button>
+            <button onClick={onDownload} className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}><Download size={15} /> Download image</button>
             <button onClick={onCopyImage} className={`${btn} border border-line text-body hover:border-brand-300 dark:hover:border-brand-500/40`}><Copy size={15} /> Copy image</button>
             <button onClick={onShare} className={`${btn} col-span-2 border border-line text-body hover:border-brand-300 dark:hover:border-brand-500/40`}><Share2 size={15} /> Share…</button>
+            {/* The full branded report as a PDF (not the card image). Close first
+                so the dialog isn't on screen when the print sheet opens. */}
+            {onDownloadPdf && (
+              <button onClick={() => { onClose(); onDownloadPdf(); }} className={`${btn} col-span-2 border border-line text-body hover:border-brand-300 dark:hover:border-brand-500/40`}><FileDown size={15} /> Download report (PDF)</button>
+            )}
           </div>
 
           <div>

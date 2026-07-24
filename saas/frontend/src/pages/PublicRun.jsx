@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import { api, ApiError } from '../lib/api.js';
 import { CTA_URL, CTA_HOST } from '../lib/shareCard.js';
 import Logo from '../components/Logo.jsx';
 import ResultSections from '../components/ResultSections.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
 import ResultTable from '../components/ResultTable.jsx';
+
+// Plain-English summary, formatted like the in-app panel (bold the "Looking
+// good / Needs attention / Do this next" leads; one line per paragraph).
+function TldrText({ text }) {
+  const lines = String(text).replace(/\*\*/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  return (
+    <div className="mt-2 space-y-1 text-sm leading-relaxed text-body">
+      {lines.map((l, i) => {
+        const m = l.match(/^(Looking good|Needs attention|Do this next)\s*:?\s*(.*)$/i);
+        return m
+          ? <p key={i}><strong className="font-semibold text-heading">{m[1]}:</strong> {m[2]}</p>
+          : <p key={i}>{l}</p>;
+      })}
+    </div>
+  );
+}
 
 // Signals to the shared section renderers that there's no signed-in session or
 // assistant behind this view, so they drop controls that would no-op or bounce
@@ -109,6 +126,15 @@ export default function PublicRun() {
         <h1 className="text-xl font-bold text-heading">{run.toolName}</h1>
         {run.target && <p className="mt-0.5 text-sm text-dim">{run.target}</p>}
       </div>
+
+      {run.tldr && (
+        <div className="mb-4 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-4">
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+            <Sparkles size={13} aria-hidden /> What this means — in plain English
+          </div>
+          <TldrText text={run.tldr} />
+        </div>
+      )}
 
       <div className="card p-5">
         {empty ? (

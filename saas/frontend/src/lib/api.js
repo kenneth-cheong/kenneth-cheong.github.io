@@ -220,7 +220,7 @@ export const api = {
   // First-run onboarding state (welcome flow, chosen goal, dismissed checklist).
   setOnboarding: (patch) => call('/me/onboarding', { method: 'POST', body: patch }),
   // Soft-launch Free Trial + NDA acceptance (company form + NDA). Persists a
-  // durable proof-of-acceptance and notifies tom@mediaone.co server-side.
+  // durable proof-of-acceptance and notifies tom@digimetrics.ai server-side.
   acceptNda: (payload) => call('/me/nda', { method: 'POST', body: payload }),
   // Progressive-profiling answers; completing the whole profile pays a one-time bonus.
   saveProfile: (patch) => call('/me/profile', { method: 'POST', body: { patch } }),
@@ -295,7 +295,12 @@ export const api = {
   // Public share link (opt-in, auto-redacted). Mint is idempotent per run. For
   // dashboard tools with no saved run, pass a `snapshot` ({toolId,toolName,
   // result,target}) — the server embeds it on the share and returns its shareId.
-  shareRun: (runId, snapshot) => call(`/me/runs/${encodeURIComponent(runId)}/share`, { method: 'POST', body: snapshot ? { snapshot } : undefined }),
+  // `tldr` (optional) persists the plain-English summary the user already saw, so
+  // the public report can lead with it.
+  shareRun: (runId, snapshot, tldr) => call(`/me/runs/${encodeURIComponent(runId)}/share`, {
+    method: 'POST',
+    body: (snapshot || tldr) ? { ...(snapshot ? { snapshot } : {}), ...(tldr ? { tldr } : {}) } : undefined,
+  }),
   // Revoke by run (run-backed shares) or by shareId (snapshot shares).
   revokeShare: (runId, shareId) => call(`/me/runs/${encodeURIComponent(runId)}/share/revoke`, { method: 'POST', body: shareId ? { shareId } : undefined }),
   // Public: the full report body behind a share link. No auth — anyone with the
