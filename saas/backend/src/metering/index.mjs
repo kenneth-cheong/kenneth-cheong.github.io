@@ -572,10 +572,7 @@ async function directFetchHtml(url, ms = 12000) {
 
 // Deterministic-ish data tools whose results we cache (TTL seconds). Live/AI
 // and user-data tools are never cached.
-// On-Page is absent on purpose: it caches its FETCHED page data instead, one
-// level down (see onpageRun), so a change to how the report renders shows up on
-// the next run rather than a day later.
-const CACHE_TTL = { 'keyword-analysis': 86400, backlinks: 86400, competitors: 86400, 'time-to-rank': 86400 };
+const CACHE_TTL = { 'keyword-analysis': 86400, backlinks: 86400, competitors: 86400, 'time-to-rank': 86400, onpage: 86400 };
 function cacheKey(tool, body) {
   const pub = {};
   for (const [k, v] of Object.entries(body)) if (!k.startsWith('_') && k !== 'projectId' && k !== 'url') pub[k] = v;
@@ -1171,22 +1168,21 @@ function renderFunnel(f) {
 // plus the vision pass that proposes alt text per image (altTextGenerator) —
 // image_data is stripped from the recommender payload, so the alt suggestions
 // have never had anywhere else to come from.
+// Whatever address shape arrived → one the upstreams can actually fetch. A bare
+// "example.com/page" reaches onPageContentRecommendations schemeless and comes
+// back `[]`, while getImages tolerates it — so the report renders complete apart
+// from one missing section and reads as "this page has nothing to improve".
+// Applied here rather than in the form because Monty, plan steps and schedules
+// call the gateway directly and never touch a field `normalize` flag.
+function onpageUrl(u) {
+  const s = String(u || '').trim().replace(/\s+/g, '');
+  return !s || /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
+}
+
 async function onpageRun(body) {
-  const url = (body.input || body.url || '').trim();
+  const url = onpageUrl(body.input || body.url);
   if (!url) throw new Error('A page URL is required.');
   const keywords = String(body.keywords || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-
-  // What the day-long cache holds is the four upstream answers, NOT the report
-  // built from them. Caching the rendered sections meant a shipped rendering
-  // change (alt-text thumbnails) was invisible for 24h to anyone who had run
-  // the page before — the deploy was live, the screen still showed yesterday.
-  const dataKey = onpageDataKey(url, keywords);
-  const cached = await getCache(dataKey).catch(() => null);
-  if (cached) {
-    const sections = sectionsOnpage(url, cached.recs || {}, cached.extraction || {}, cached.contentRows || [], cached.images || [], new Map(cached.alt || []), keywords);
-    if (sections.some((s) => s.type === 'table')) return { sections, cached: true };
-    // A cached miss-shaped payload re-fetches rather than returning nothing.
-  }
 
   // 1. Extract page elements (headings, meta, images).
   let extraction = {};
@@ -1230,19 +1226,7 @@ async function onpageRun(body) {
   // "did this run find anything" is a question about the tables, not the
   // section count.
   if (!sections.some((s) => s.type === 'table')) return { text: 'No on-page recommendations were returned. Check the URL and target keywords.' };
-  // Only the fields the report is built from — the raw extraction carries the
-  // full image_data and would push the item at the 400KB row ceiling.
-  const { meta_title, meta_description, canonical_url, headings } = extraction;
-  putCache(dataKey, {
-    extraction: { meta_title, meta_description, canonical_url, headings },
-    recs, contentRows, images, alt: [...altBySrc],
-  }, ONPAGE_TTL).catch(() => {});
   return { sections };
-}
-
-const ONPAGE_TTL = 86400;
-function onpageDataKey(url, keywords) {
-  return createHash('sha256').update(`onpage-data|${url}|${keywords.join(',')}`).digest('hex');
 }
 
 // Page images as { src, alt }, absolute-URL only (the vision endpoint has to be
@@ -6010,7 +5994,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale };
+export const __test = { mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

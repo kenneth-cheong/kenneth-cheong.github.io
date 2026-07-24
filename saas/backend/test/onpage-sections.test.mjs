@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { __test } from '../src/metering/index.mjs';
 
-const { sectionsOnpage, onpageImages, altRationale } = __test;
+const { sectionsOnpage, onpageImages, altRationale, onpageUrl } = __test;
 
 const KNOWN = new Set(['heading', 'callout', 'text', 'stats', 'list', 'chart', 'cards', 'table']);
 const assertShape = (sections) => {
@@ -23,6 +23,29 @@ const EXTRACTION = {
     { 'data:image/png;base64,AAA': 'inline' },
   ],
 };
+
+// The content recommender answers `[]` for a schemeless address while getImages
+// answers normally, so an un-normalised URL loses exactly one section and the
+// report still looks finished. These are the shapes a user actually types.
+describe('onpageUrl', () => {
+  it('gives a bare address the scheme the upstream needs', () => {
+    expect(onpageUrl('mediaonemarketing.com.sg')).toBe('https://mediaonemarketing.com.sg');
+    expect(onpageUrl('example.com/blog/post')).toBe('https://example.com/blog/post');
+    expect(onpageUrl('  example.com/a b  ')).toBe('https://example.com/ab');
+    expect(onpageUrl('/example.com/x')).toBe('https://example.com/x');
+  });
+
+  it('leaves an address that already has one alone, path and query included', () => {
+    expect(onpageUrl('https://example.com/p?a=1#top')).toBe('https://example.com/p?a=1#top');
+    expect(onpageUrl('HTTP://Example.com/P')).toBe('HTTP://Example.com/P');
+  });
+
+  it('keeps empty empty, so the missing-URL error still fires', () => {
+    expect(onpageUrl('')).toBe('');
+    expect(onpageUrl('   ')).toBe('');
+    expect(onpageUrl(undefined)).toBe('');
+  });
+});
 
 describe('onpageImages', () => {
   it('absolutises, de-duplicates and drops data: URIs', () => {
