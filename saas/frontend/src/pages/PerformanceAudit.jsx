@@ -8,6 +8,7 @@ import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
 import ResultSections from '../components/ResultSections.jsx';
+import NextSteps from '../components/NextSteps.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Microscope, ScanSearch, X, Plus, Pencil, Check, PlugZap, Compass } from 'lucide-react';
 import { renderPerfMarketing, renderPerfMarketingPro, installPmGlobals, pmApplyInteractive, PM_CURRENCIES } from '../lib/pmRender.js';
@@ -493,6 +494,9 @@ export default function PerformanceAudit() {
         )}
         {savedSections && (
           <ResultSections sections={savedSections.sections} context={{ toolName: 'Performance Marketing Audit', domain: website, target: website }} />
+        )}
+        {(resultHtml || savedSections) && (
+          <NextSteps toolId="perf-marketing" tier={user?.tier} context={{ domain: website, target: website, inputs: { input: website } }} />
         )}
       </div>
     </div>
