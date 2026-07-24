@@ -56,10 +56,14 @@ export default function Usage() {
           columns={[
             { key: 'when', label: 'When', accessor: (r) => r.at || String(r.ts || '').split('#')[0],
               render: (r) => <span className="text-muted">{fmtWhen(r)}</span> },
-            { key: 'tool', label: 'Tool', accessor: (r) => toolById(r.tool)?.name || r.tool,
-              render: (r) => toolById(r.tool)?.name || r.tool },
+            { key: 'tool', label: 'Tool', accessor: rowLabel,
+              render: rowLabel },
             { key: 'delta', label: 'Credits', align: 'right', numeric: true,
-              render: (r) => <span className="font-medium text-red-500">{r.delta}</span> },
+              render: (r) => (
+                <span className={`font-medium ${r.delta > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {r.delta > 0 ? `+${r.delta}` : r.delta}
+                </span>
+              ) },
             { key: 'balanceAfter', label: 'Balance', align: 'right', numeric: true,
               render: (r) => <span className="text-muted">{r.balanceAfter}</span> },
           ]}
@@ -75,6 +79,24 @@ function fmtWhen(r) {
   const iso = r.at || String(r.ts || '').split('#')[0];
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+}
+
+// Non-tool ledger rows (top-ups, resets, admin nudges) carry no `tool`, so the
+// Tool column was blank. Fall back to a human label keyed off `action`.
+const ACTION_LABELS = {
+  topup: 'Credit top-up',
+  monthly_reset: 'Monthly credits',
+  monthly_reset_free: 'Monthly credits',
+  tier_change: 'Plan change',
+  subscription_cancelled: 'Subscription cancelled',
+  admin_adjust: 'Credit adjustment',
+  admin_set_tier: 'Plan change',
+  admin_set_status: 'Account update',
+  admin_set_role: 'Account update',
+};
+
+function rowLabel(r) {
+  return toolById(r.tool)?.name || r.tool || ACTION_LABELS[r.action] || r.action || '—';
 }
 
 function Stat({ label, value, sub, tip }) {
