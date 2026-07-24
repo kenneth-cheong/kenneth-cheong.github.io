@@ -25,6 +25,7 @@ import {
   PLANS,
   tierMeets,
   estCostUsd,
+  toDomain,
 } from '../../../shared/catalog.mjs';
 import {
   ok,
@@ -4904,7 +4905,12 @@ async function keywordAnalysisRun(body) {
   // Time-to-rank is no longer auto-computed here — it's an explicit, per-keyword
   // step the user triggers from the results (choose keywords → calculate). We
   // just surface the domain/locale so the frontend knows where to estimate from.
-  const domain = (body.domain || (/(ranking|webpage)/i.test(mode) ? (body.target || body.input) : '') || '').trim();
+  // Ranking mode is whole-site, so the follow-up time-to-rank estimates must be
+  // too: a pasted page URL left intact here would quietly estimate for that one
+  // page instead of the site the rows came from. From-webpage mode keeps the
+  // full URL — there, the page IS the subject.
+  const rawDomain = body.domain || (/(ranking|webpage)/i.test(mode) ? (body.target || body.input) : '') || '';
+  const domain = /ranking/i.test(mode) ? cleanDomain(rawDomain) : String(rawDomain).trim();
 
   return withRecs({ rows, timeRank: { domain, location, language } }, await kaRecs(rows));
 }
@@ -4942,9 +4948,10 @@ async function enrichTimeToRank(rows, domain, location, language, email, cap = 1
   return rows;
 }
 
-function cleanDomain(u) {
-  return String(u || '').replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].trim();
-}
+// Shared with the form (a field flagged `normalize: 'domain'` trims before it
+// sends), so a pasted page URL means the same site at both ends — and a request
+// that skips the form still gets trimmed here.
+const cleanDomain = toDomain;
 
 /** Shape a { keyword: {metrics} } map into rows with the requested columns. */
 function kwRows(map, cols) {

@@ -1065,6 +1065,24 @@ export const FIELD_GROUPS = {
   },
 };
 
+/**
+ * A pasted address → the bare domain a domain-scoped API wants:
+ * "https://www.Example.com/blog/post?a=1#top" → "example.com".
+ *
+ * Fields flagged `normalize: 'domain'` run through this before the form is sent,
+ * and the gateway repeats it on the way in — so a user who pastes a page URL into
+ * a whole-site box gets the site they asked for, whichever end reads it.
+ */
+export function toDomain(u) {
+  return String(u || '').trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '') // protocol
+    .replace(/^[^@/]*@/, '')                 // user:pass@
+    .split(/[/?#]/)[0]                       // path, query, fragment
+    .replace(/^www\./i, '')
+    .replace(/:\d+$/, '')                    // port
+    .toLowerCase();
+}
+
 export const INPUTS = {
   'keyword-analysis': [
     { name: 'mode', label: 'What do you want to do?', type: 'segmented',
@@ -1078,8 +1096,17 @@ export const INPUTS = {
       default: 'Keyword metrics' },
     { name: 'input', label: 'Keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true,
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
-    { name: 'target', label: 'Domain or page URL', type: 'url', placeholder: 'https://example.com', required: true,
-      showWhen: { field: 'mode', in: ['Ranking keywords (for a domain)', 'Keywords from a webpage'] } },
+    // One stored value (`target`), two labels. "Domain or page URL" covered both
+    // modes and told the user which one THIS run wants: nothing. Ranking mode
+    // looks at a whole site, from-webpage mode reads one page — so each mode
+    // names the thing it actually needs, and ranking mode says out loud that a
+    // pasted URL gets trimmed to its domain (`normalize`, applied before send).
+    { name: 'target', label: 'Domain', type: 'url', placeholder: 'example.com', required: true, normalize: 'domain',
+      hint: 'The whole site — every page of it, not one page. A pasted page URL is fine.',
+      showWhen: { field: 'mode', in: ['Ranking keywords (for a domain)'] } },
+    { name: 'target', label: 'Page URL', type: 'url', placeholder: 'https://example.com/blog/post', required: true,
+      hint: 'One specific page — we read its content to work out what it targets.',
+      showWhen: { field: 'mode', in: ['Keywords from a webpage'] } },
     { name: 'domain', label: 'Your website (optional)', type: 'url', placeholder: 'https://yoursite.com',
       help: 'Adds a “time to rank” estimate — roughly how long it could take your site to reach Google page 1 for each keyword.',
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },

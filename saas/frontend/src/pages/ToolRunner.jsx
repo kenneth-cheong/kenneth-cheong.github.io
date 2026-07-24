@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS, toDomain } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -371,7 +371,16 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     });
   }
 
-  async function run(vals = values, { confirmed = false } = {}) {
+  async function run(rawVals = values, { confirmed = false } = {}) {
+    // A box that says "Domain" takes a pasted page URL without complaining, then
+    // the run silently means something narrower (or wider) than the label. Trim
+    // it here, before anything else sees it: the request, the saved run values
+    // and the cache key then all agree with what the form promised.
+    const vals = (shownRef.current || []).reduce(
+      (v, f) => (f.normalize === 'domain' && v[f.name] ? { ...v, [f.name]: toDomain(v[f.name]) } : v),
+      rawVals,
+    );
+    if (vals !== rawVals) setValues((s) => ({ ...s, ...vals })); // show what actually ran
     // Index removal and sitemap deletion act on the user's real Search Console
     // property the moment we send them, and nothing in this app can undo either.
     // Gate them behind an explicit yes that SHOWS what's about to be sent — the
@@ -1851,6 +1860,13 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid, s
           value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       )}
       {invalid && <span className="mt-1 block text-xs font-semibold text-amber-600 dark:text-amber-400">Please fill this in to continue.</span>}
+      {/* A whole-site box quietly trimming the URL you pasted looks like it
+          ignored you. Say what the run will actually use, as you type. */}
+      {field.normalize === 'domain' && toDomain(value) && toDomain(value) !== String(value || '').trim() && (
+        <span className="mt-1 block text-xs text-brand-700 dark:text-brand-300">
+          We’ll use just the domain: <strong className="font-semibold">{toDomain(value)}</strong>
+        </span>
+      )}
       {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-faint">{field.hint}</span>}
     </label>
   );
