@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS, toDomain } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS, NORMALIZERS } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -383,7 +383,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     // it here, before anything else sees it: the request, the saved run values
     // and the cache key then all agree with what the form promised.
     const vals = (shownRef.current || []).reduce(
-      (v, f) => (f.normalize === 'domain' && v[f.name] ? { ...v, [f.name]: toDomain(v[f.name]) } : v),
+      (v, f) => (NORMALIZERS[f.normalize] && v[f.name] ? { ...v, [f.name]: NORMALIZERS[f.normalize](v[f.name]) } : v),
       rawVals,
     );
     if (vals !== rawVals) setValues((s) => ({ ...s, ...vals })); // show what actually ran
@@ -1735,21 +1735,45 @@ function AccountField({ provider, value, onChange, placeholder }) {
 
 // Visible mode picker: selectable cards so every option is discoverable up
 // front (vs. a collapsed <select> that hides all but the default).
+// A field that trims what you type (`normalize`) shows the trimmed value the
+// moment it differs from what's in the box — silence there reads as "it ignored
+// the URL I pasted", which is exactly the confusion the labels are fixing.
+const NORMALIZE_NOTE = {
+  domain: 'We’ll use just the domain:',
+  host: 'We’ll use just the host:',
+};
+function NormalizeNote({ field, value }) {
+  const fn = NORMALIZERS[field.normalize];
+  if (!fn) return null;
+  const trimmed = fn(value);
+  if (!trimmed || trimmed === String(value || '').trim()) return null;
+  return (
+    <span className="mt-1 block text-xs text-brand-700 dark:text-brand-300">
+      {NORMALIZE_NOTE[field.normalize]} <strong className="font-semibold">{trimmed}</strong>
+    </span>
+  );
+}
+
+// Options are plain strings, or {value,label} where the stored value is a code
+// the backend needs verbatim (backlinks' domain/host/url scope) but nobody
+// should have to read off the screen. `optionDesc` is keyed by the value.
 function Segmented({ options, optionDesc = {}, value, onChange }) {
   return (
     <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
       {options.map((o) => {
-        const on = o === value;
+        const v = typeof o === 'string' ? o : o.value;
+        const l = typeof o === 'string' ? o : o.label;
+        const on = v === value;
         return (
           <button
-            key={o}
+            key={v}
             type="button"
             aria-pressed={on}
-            onClick={() => onChange(o)}
+            onClick={() => onChange(v)}
             className={`rounded-lg border p-3 text-left transition ${on ? 'border-brand-600 bg-brand-50 dark:bg-brand-500/10 ring-4 ring-brand-600/10' : 'border-line bg-surface hover:border-brand-300 dark:hover:border-brand-500/40'}`}
           >
-            <span className={`block text-sm font-semibold ${on ? 'text-brand-700 dark:text-brand-300' : 'text-body'}`}>{o}</span>
-            {optionDesc[o] && <span className="mt-0.5 block text-xs text-muted">{optionDesc[o]}</span>}
+            <span className={`block text-sm font-semibold ${on ? 'text-brand-700 dark:text-brand-300' : 'text-body'}`}>{l}</span>
+            {optionDesc[v] && <span className="mt-0.5 block text-xs text-muted">{optionDesc[v]}</span>}
           </button>
         );
       })}
@@ -1909,11 +1933,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid, s
       {invalid && <span className="mt-1 block text-xs font-semibold text-amber-600 dark:text-amber-400">Please fill this in to continue.</span>}
       {/* A whole-site box quietly trimming the URL you pasted looks like it
           ignored you. Say what the run will actually use, as you type. */}
-      {field.normalize === 'domain' && toDomain(value) && toDomain(value) !== String(value || '').trim() && (
-        <span className="mt-1 block text-xs text-brand-700 dark:text-brand-300">
-          We’ll use just the domain: <strong className="font-semibold">{toDomain(value)}</strong>
-        </span>
-      )}
+      <NormalizeNote field={field} value={value} />
       {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-faint">{field.hint}</span>}
     </label>
   );

@@ -1073,15 +1073,26 @@ export const FIELD_GROUPS = {
  * and the gateway repeats it on the way in — so a user who pastes a page URL into
  * a whole-site box gets the site they asked for, whichever end reads it.
  */
-export function toDomain(u) {
-  return String(u || '').trim()
+export function toDomain(u, { keepWww = false } = {}) {
+  const host = String(u || '').trim()
     .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '') // protocol
     .replace(/^[^@/]*@/, '')                 // user:pass@
     .split(/[/?#]/)[0]                       // path, query, fragment
-    .replace(/^www\./i, '')
     .replace(/:\d+$/, '')                    // port
     .toLowerCase();
+  return keepWww ? host : host.replace(/^www\./, '');
 }
+
+/**
+ * Same trim, but `www.` is left on: to a host-scoped API (backlinks in "host"
+ * mode) `www.example.com` and `example.com` are two different hosts with two
+ * different link profiles, so dropping it would silently answer about the
+ * other one.
+ */
+export const toHost = (u) => toDomain(u, { keepWww: true });
+
+/** Field `normalize` flag → the function that trims the value. */
+export const NORMALIZERS = { domain: toDomain, host: toHost };
 
 export const INPUTS = {
   'keyword-analysis': [
@@ -1107,7 +1118,7 @@ export const INPUTS = {
     { name: 'target', label: 'Page URL', type: 'url', placeholder: 'https://example.com/blog/post', required: true,
       hint: 'One specific page — we read its content to work out what it targets.',
       showWhen: { field: 'mode', in: ['Keywords from a webpage'] } },
-    { name: 'domain', label: 'Your website (optional)', type: 'url', placeholder: 'https://yoursite.com',
+    { name: 'domain', label: 'Your website (optional)', type: 'url', placeholder: 'yoursite.com', normalize: 'domain',
       help: 'Adds a “time to rank” estimate — roughly how long it could take your site to reach Google page 1 for each keyword.',
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
@@ -1115,7 +1126,11 @@ export const INPUTS = {
   ],
   'rank-checker': [
     { name: 'input', label: 'Keywords', type: 'tags', placeholder: 'add keywords to check', required: true },
-    { name: 'target', label: 'Your domain', type: 'text', placeholder: 'example.com', required: true },
+    // Positions are matched against the host in each SERP URL, so this is a
+    // domain no matter how it was typed. The adapter used to trim it with its
+    // own regex; the field now trims it first, in front of the user.
+    { name: 'target', label: 'Your domain', type: 'text', placeholder: 'example.com', required: true, normalize: 'domain',
+      hint: 'We look for this site anywhere in the top 100 — any page of it counts.' },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
@@ -1127,7 +1142,11 @@ export const INPUTS = {
       help: 'How many clicks away from your homepage to look. 4 is right for most sites.' },
   ],
   'time-to-rank': [
-    { name: 'domain', label: 'Your domain', type: 'url', placeholder: 'https://example.com', required: true },
+    // The forecast is "how long for THIS SITE to reach page 1" — whole-site, so
+    // the label ("Your domain") and the box now agree. It used to say domain and
+    // show a https:// placeholder.
+    { name: 'domain', label: 'Your domain', type: 'url', placeholder: 'example.com', required: true, normalize: 'domain',
+      hint: 'The site you want to rank — not one page of it.' },
     { name: 'input', label: 'Target keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
@@ -1150,16 +1169,43 @@ export const INPUTS = {
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
+  // "Website or page URL" stays deliberately either/or — unlike the other
+  // ambiguous boxes, this run genuinely uses both halves (speed and on-page
+  // signals come from the exact URL, authority and backlinks from its domain),
+  // so the hint explains that rather than forcing a choice that doesn't exist.
   'page-analysis': [
-    { name: 'input', label: 'Website or page URL', type: 'url', placeholder: 'https://example.com', required: true },
+    { name: 'input', label: 'Website or page URL', type: 'url', placeholder: 'https://example.com', required: true,
+      hint: 'Either works: page speed and on-page checks run on the exact URL, while authority, backlinks and traffic are for its whole domain.' },
   ],
   'page-speed': [
     { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com', required: true },
   ],
+  // The mode comes FIRST because it decides what the box below it means: the
+  // box was labelled "Domain" whatever you picked, so "url" mode asked for a
+  // domain and then needed a full page URL. Three scopes, three labels, and the
+  // two host-shaped ones trim what you paste (host mode keeps `www.` — to a
+  // backlinks API that IS a different host).
   backlinks: [
-    { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true },
-    { name: 'mode', label: 'What to analyse', type: 'select', options: ['domain', 'host', 'url'], default: 'domain',
-      help: 'Domain = the whole site including subdomains. Host = one subdomain only. URL = just this single page.' },
+    { name: 'mode', label: 'What to analyse', type: 'segmented', default: 'domain',
+      options: [
+        { value: 'domain', label: 'Whole site' },
+        { value: 'host', label: 'One subdomain' },
+        { value: 'url', label: 'One page' },
+      ],
+      optionDesc: {
+        domain: 'Every link to the site, subdomains included.',
+        host: 'Links to one host only, e.g. blog.example.com.',
+        url: 'Links to a single page.',
+      } },
+    { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true, normalize: 'domain',
+      hint: 'The whole site, subdomains included.',
+      showWhen: { field: 'mode', in: ['domain'] } },
+    { name: 'input', label: 'Subdomain', type: 'text', placeholder: 'blog.example.com', required: true, normalize: 'host',
+      hint: 'One host only — www.example.com and example.com are different hosts here.',
+      showWhen: { field: 'mode', in: ['host'] } },
+    { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/blog/post', required: true,
+      hint: 'Links pointing at this one page.',
+      showWhen: { field: 'mode', in: ['url'] } },
   ],
   // Visual JSON-LD builder — fields surface by the chosen schema type (showWhen).
   schema: [

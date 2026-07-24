@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { __test } from '../src/metering/index.mjs';
+import { INPUTS, NORMALIZERS, toDomain, toHost } from '../../shared/catalog.mjs';
 
 describe('gateway pure helpers', () => {
   it('schemaRun builds valid nested JSON-LD', () => {
@@ -14,6 +15,22 @@ describe('gateway pure helpers', () => {
   });
   it('cleanDomain strips protocol/www/path', () => {
     expect(__test.cleanDomain('https://www.x.co/page')).toBe('x.co');
+  });
+  it('cleanDomain also strips query, fragment and port', () => {
+    // The regex this replaced only split on "/", so these reached the upstream.
+    expect(__test.cleanDomain('x.co?utm=1')).toBe('x.co');
+    expect(__test.cleanDomain('https://x.co:8443/a#top')).toBe('x.co');
+    expect(__test.cleanDomain('HTTPS://WWW.X.CO/')).toBe('x.co');
+    expect(__test.cleanDomain('blog.x.co/page')).toBe('blog.x.co'); // subdomains survive
+  });
+  it('toHost keeps www — it is a different host to a backlinks API', () => {
+    expect(toHost('https://www.x.co/page')).toBe('www.x.co');
+    expect(toDomain('https://www.x.co/page')).toBe('x.co');
+  });
+  it('every catalog `normalize` flag resolves to a real normalizer', () => {
+    const flagged = Object.values(INPUTS).flat().filter((f) => f.normalize);
+    expect(flagged.length).toBeGreaterThan(0);
+    for (const f of flagged) expect(NORMALIZERS[f.normalize]).toBeTypeOf('function');
   });
   it('kwRows maps requested columns', () => {
     const rows = __test.kwRows({ a: { search_volume: 100, difficulty: 20, cpc: 1.5 } }, ['volume', 'difficulty', 'cpc']);

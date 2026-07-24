@@ -10,7 +10,7 @@
 //
 // Tools without an adapter fall through to a raw pass-through.
 
-import { INPUTS } from '../../../shared/catalog.mjs';
+import { INPUTS, toDomain } from '../../../shared/catalog.mjs';
 
 // The form seeds every select with its catalog default, but other callers don't:
 // Monty, a schedule and the raw API all send just `{ input }`. Mapping those
@@ -191,8 +191,9 @@ export const ADAPTERS = {
       // Normalise the domain so "example.com", "https://example.com" and
       // "https://www.example.com/path" all resolve to the same bare host —
       // otherwise the match against SERP URLs depends on how it was typed.
-      target: (body.target || '').trim()
-        .replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, ''),
+      // Shared with the form (`normalize: 'domain'`); the regex this replaced
+      // missed a query string or a port, which then reached the SERP matcher.
+      target: toDomain(body.target),
       language: body.language || 'English',
       location: body.location || 'Singapore',
     }),

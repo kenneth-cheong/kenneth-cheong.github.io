@@ -26,6 +26,7 @@ import {
   tierMeets,
   estCostUsd,
   toDomain,
+  toHost,
 } from '../../../shared/catalog.mjs';
 import {
   ok,
@@ -3252,9 +3253,15 @@ function pushTrend(sections, title, series, defs) {
 // paths (tasks[0].result[0]). Renders the overview as an HTML report.
 async function backlinksRun(body) {
   const url = UPSTREAMS.dataforseoCrawler;
-  const target = (body.input || body.url || '').trim();
-  if (!target) throw new Error('A domain or URL is required.');
   const mode = body.mode || 'domain';
+  // The scope decides what `target` may be: a bare domain, one host (where
+  // `www.` is significant), or a whole page URL. Trimming the first two here
+  // keeps a schedule or raw API call in step with what the form sends.
+  const raw = body.input || body.url;
+  const target = mode === 'domain' ? cleanDomain(raw)
+    : mode === 'host' ? toHost(raw)
+    : String(raw || '').trim();
+  if (!target) throw new Error('A domain or URL is required.');
   const post = (action, extra = {}) => postUpstream(url, { action, target, mode, ...extra });
   const result0 = (res) => res?.tasks?.[0]?.result?.[0];
 
@@ -4913,7 +4920,7 @@ async function keywordAnalysisRun(body) {
   // page instead of the site the rows came from. From-webpage mode keeps the
   // full URL — there, the page IS the subject.
   const rawDomain = body.domain || (/(ranking|webpage)/i.test(mode) ? (body.target || body.input) : '') || '';
-  const domain = /ranking/i.test(mode) ? cleanDomain(rawDomain) : String(rawDomain).trim();
+  const domain = /webpage/i.test(mode) ? String(rawDomain).trim() : cleanDomain(rawDomain);
 
   return withRecs({ rows, timeRank: { domain, location, language } }, await kaRecs(rows));
 }
@@ -4984,7 +4991,9 @@ function kwRows(map, cols) {
 async function timeToRankRun(body) {
   const keywords = splitItems(body.input).slice(0, 8);
   if (!keywords.length) throw new Error('Add at least one keyword.');
-  const domain = (body.domain || body.url || '').trim();
+  // Whole-site forecast, so a pasted page URL is trimmed to its domain — the
+  // form does this too, but a schedule or a raw API call skips the form.
+  const domain = cleanDomain(body.domain || body.url);
   const location = body.location || 'Singapore';
   const language = body.language || 'English';
 
