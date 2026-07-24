@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { TERMS_VERSION } from '@shared/catalog.mjs';
 import {
   TERMS_BLOCKS, PRIVACY_BLOCKS, LEGAL_UPDATED, LEGAL_EFFECTIVE,
-  PLATFORM_OWNER, LEGAL_ADDRESS, LEGAL_EMAIL, LEGAL_PHONE,
+  PLATFORM_OWNER, LICENSEE, LEGAL_ADDRESS, LEGAL_EMAIL, LEGAL_PHONE,
 } from '../lib/legalContent.js';
 
 // Terms and Conditions of Use (Part A) + Privacy Notice (Part B), rendered from
@@ -95,9 +95,13 @@ function Shell({ title, blocks, intro, other, otherLabel }) {
         Last updated: {LEGAL_UPDATED} · Effective: {LEGAL_EFFECTIVE} · v{TERMS_VERSION}
       </p>
 
-      {/* Who you are actually contracting with — Section 1 of Part A. */}
+      {/* Who you are actually contracting with — see the Corporate, Licensing and
+          Contact Information section at the end of the instrument. Apsolute.ai owns
+          and licenses the platform; MediaOne is the authorised licensee/operator and
+          the contact entity. */}
       <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-sm text-dim">
-        <p><span className="font-semibold text-body">Owner &amp; operator:</span> {PLATFORM_OWNER.name} (UEN {PLATFORM_OWNER.uen})</p>
+        <p><span className="font-semibold text-body">Platform owner:</span> {PLATFORM_OWNER.name} (UEN {PLATFORM_OWNER.uen})</p>
+        <p className="mt-1"><span className="font-semibold text-body">Authorised licensee &amp; operator:</span> {LICENSEE.name} (UEN {LICENSEE.uen})</p>
         <p className="mt-1">
           {LEGAL_ADDRESS} · <a className="text-brand-600 dark:text-brand-400" href={`mailto:${LEGAL_EMAIL}`}>{LEGAL_EMAIL}</a> · {LEGAL_PHONE}
         </p>

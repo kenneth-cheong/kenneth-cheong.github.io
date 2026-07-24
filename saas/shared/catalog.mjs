@@ -13,12 +13,16 @@ export const CURRENCY = { code: 'USD', symbol: 'US$' };
  * the first-run consent gate re-prompts any user whose accepted version differs,
  * so a bump forces everyone to re-accept. Keep in sync with Legal.jsx's date.
  */
-// The .2 bump (payment processor Stripe → Airwallex) is staged but NOT live: it
-// re-prompts every user with terms naming Airwallex as the card processor, and
-// the Airwallex billing backend is not deployed yet, so those terms would be
-// factually wrong in the gap. Restore it to '.2' in the same change that ships
-// src/billing/index.mjs + lib/airwallex.mjs — not before.
-export const TERMS_VERSION = '2026-07-25.1';
+// '.2' ships the 25 Jul 2026 revised instrument (Corporate/Contact info moved to
+// the end; operator named as MediaOne; contact channel contact@mediaone.co). These
+// terms name Stripe/PayPal/GIRO/PayNow/PayLah! as payment providers — i.e. they
+// match the LIVE billing, so re-prompting on them is factually correct.
+//
+// The Airwallex switch (payment processor Stripe → Airwallex) is a SEPARATE, still
+// un-shipped change: its terms would name Airwallex before the Airwallex billing
+// backend is live and be wrong in the gap. When it ships (src/billing/index.mjs +
+// lib/airwallex.mjs), take the NEXT bump ('.3') in that same change — not before.
+export const TERMS_VERSION = '2026-07-25.2';
 
 /**
  * Account access policy. A Free account is a time-limited trial, not a
