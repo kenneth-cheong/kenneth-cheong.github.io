@@ -141,7 +141,11 @@ export const handler = async (event, context) => {
   body._isStaff = isStaff(user);
   // Connected-integration state for the Integrations tools (gsc/ga4/google-ads).
   body._integrations = user.integrations || {};
-  const unitCost = CREDIT_COSTS[tool.cost] ?? 0;
+  // SEO Diagnostics' step-2 "Get rankings" is a keyword lookup, not the run that
+  // earns the tool's ai_long price — billing 5 credits just to populate the table
+  // would cost more than the diagnosis is worth to get to.
+  const costClass = (tool.id === 'seo-diagnostics' && body.fetchRankings) ? 'keyword_lookup' : tool.cost;
+  const unitCost = CREDIT_COSTS[costClass] ?? 0;
 
   // ── Fan-out tools (e.g. rank checker over many keywords) ──────────────────
   // The named field holds a list; we call the upstream once per item and charge
@@ -352,7 +356,7 @@ export const handler = async (event, context) => {
   // Only count real, charged runs; teaser/soft-failed/zero-cost pulls don't spend.
   if (charge && !softFailed) {
     const units = fanItems ? Math.max(1, fanItems.length) : 1;
-    emitUsageMetric({ source, tool: tool.id, creditsUsed, estCostUSD: estCostUsd(tool.cost) * units });
+    emitUsageMetric({ source, tool: tool.id, creditsUsed, estCostUSD: estCostUsd(costClass) * units });
   }
 
   return ok({
@@ -623,7 +627,8 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'forensic-audit') return forensicAuditRun(body);
   // SEO Diagnostics: guided keyword→fix wizard — technical lanes + SERP landscape
   // + keyword buckets + AI narrative (manual keyword entry; no third-party suite).
-  if (tool.id === 'seo-diagnostics') return seoDiagnosticsRun(body);
+  // Step 2's "Get rankings" is a keyword lookup, not the diagnosis — see sdxRankings.
+  if (tool.id === 'seo-diagnostics') return body.fetchRankings ? sdxRankings(body) : seoDiagnosticsRun(body);
   // Page Technical & Domain Analysis: lighter probe fan-out → metric-card grid.
   if (tool.id === 'page-analysis') return pageAnalysisRun(body);
   // Page Speed Check: mobile + desktop PageSpeed for ONE url. Nothing else.
@@ -2516,6 +2521,94 @@ function sdxBucketFor(k) {
   if (pos != null && pos >= 16 && pos <= 30) return 'page2';
   if ((pos == null || pos > 30) && vol > 0) return 'missing';
   return 'other';
+}
+
+// ── Step 2 "Get rankings" ─────────────────────────────────────────────────────
+// The wizard used to ask people to hand-type `keyword, volume, position, change`,
+// so the table was mostly em-dashes and the buckets — which key off position and
+// volume — collapsed to "Other". This fills those columns from real data:
+//
+//   rankingKeywords(domain) → every keyword the domain ALREADY ranks for, with
+//                             search volume, position and difficulty.
+//   mangoolsKeywords(list)  → volume + difficulty for keywords they typed. A
+//                             keyword the site does not rank for simply has no
+//                             row in the first map; that's the "Not ranking"
+//                             bucket (the point of the tool), not missing data.
+//
+// Priced as a keyword lookup, not the tool's ai_long diagnosis — see runTool.
+async function sdxRankings(body) {
+  const target = cleanDomain(body.input || body.url || body.domain);
+  if (!target) return { _failed: true, text: 'Enter your domain in step 1 first — rankings are looked up against it.' };
+  const location = String(body.location || 'Singapore');
+  const language = String(body.language || 'English');
+  // Accepts either the wizard's row objects or a plain list of strings.
+  const typed = [...new Set((Array.isArray(body.keywords) ? body.keywords : splitItems(body.keywords))
+    .map((k) => String((k && k.keyword) ?? k ?? '').trim()).filter(Boolean).slice(0, 50))];
+
+  const [rankedRaw, metricsRaw] = await Promise.all([
+    postUpstream(UPSTREAMS.rankingKeywords, { target, location, user: body._email || 'saas' })
+      .then(deepBody).catch(() => null),
+    typed.length
+      ? postUpstream(UPSTREAMS.mangoolsKeywords, { keywords: typed, location, language }).then(deepBody).catch(() => null)
+      : null,
+  ]);
+  // Upstream Lambda error envelopes must not become keyword rows (they'd render
+  // "errorMessage" as a keyword and still bill). Treat them as absent.
+  const usable = (m) => (m && typeof m === 'object' && !m.errorMessage && !m.errorType && !m.stackTrace) ? m : {};
+  const ranked = usable(rankedRaw);
+  const metrics = usable(metricsRaw);
+
+  // The upstreams echo keywords back with their own casing/spacing, so match on
+  // a normalised key rather than the string the user typed.
+  const norm = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+  const rankedByKey = new Map(Object.entries(ranked).map(([k, v]) => [norm(k), { keyword: k, m: v || {} }]));
+  // mangoolsKeywords returns a row for EVERY keyword asked for, with all-null
+  // fields when it knows nothing — so "has a row" is not "has data".
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+  // The two upstreams disagree on the difficulty scale: rankingKeywords answers
+  // 0-1 (0.12, 0.55) and mangoolsKeywords answers 0-100 (26, 23). Verified by
+  // curl on 2026-07-24. Normalise on the SOURCE, not the magnitude — a real KD
+  // of 1 is indistinguishable from a fractional 1.0 by value alone.
+  // The null/'' guard is load-bearing: mangools sends `difficulty: null` for a
+  // keyword it doesn't know, and Number(null) is 0 — which would print as a
+  // confident "KD 0" (easiest possible keyword) for a keyword with no data at all.
+  const kd = (v, fractional) => {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.min(100, Math.round(fractional ? n * 100 : n));
+  };
+
+  const rowFor = (keyword, r, m) => ({
+    keyword,
+    volume: num(r.search_volume ?? r.volume ?? m.search_volume ?? m.volume),
+    position: num(r.rank ?? r.best_position ?? r.position),
+    // Position history isn't part of either upstream, so the wizard hides the Δ
+    // column unless the user pasted their own changes. Never invent one.
+    change: null,
+    difficulty: r.difficulty != null ? kd(r.difficulty, true) : kd(m.difficulty, false),
+    url: r.url ?? r.relative_url ?? r.relevant_url ?? null,
+  });
+
+  let rows;
+  if (typed.length) {
+    rows = typed.map((keyword) => {
+      const hit = rankedByKey.get(norm(keyword));
+      return rowFor(keyword, hit?.m || {}, metrics[keyword] || metrics[norm(keyword)] || {});
+    });
+  } else {
+    // Empty box: give them the site's own ranking keywords rather than an error.
+    rows = [...rankedByKey.values()].map(({ keyword, m }) => rowFor(keyword, m, {}));
+  }
+  rows.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+  rows = rows.slice(0, 100);
+
+  if (!rows.length) {
+    return { _failed: true, text: typed.length
+      ? 'No data came back for those keywords — no credits were charged. Check the spelling, or try a different location.'
+      : `We couldn't find any keywords ${target} ranks for in ${location} — no credits were charged. Paste the keywords you want to diagnose instead.` };
+  }
+  return { rows, matched: rows.filter((r) => r.position != null).length, _skipHistory: true };
 }
 
 async function seoDiagnosticsRun(body) {
@@ -6339,7 +6432,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { renderStrategy, competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
+export const __test = { renderStrategy, competitorsRun, competitorsCompare, mapLimit, firstCalloutText, FANOUT_CONCURRENCY, cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, crawlGateway, crawlRows, crawlSummary, crawlPartial, aiDiscoveryRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor, sdxRankings, sectionsOnpage, onpageImages, altRationale, onpageUrl, sectionsPageSpeed };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
