@@ -80,6 +80,17 @@ describe('sectionsPageSpeed', () => {
     expect(allText(sectionsPageSpeed(m, d, 'https://example.com'))).toContain('no real-visitor data for this page yet');
   });
 
+  // Google writes descriptions in markdown; the card renders plain text, so an
+  // unstripped doc link reaches the user as literal brackets.
+  it('strips markdown doc links out of the fix descriptions', () => {
+    const m = { ...MOBILE, opportunities: [{ title: 'Reduce unused CSS', display: 'Est savings of 18 KiB',
+      description: 'Reduce unused rules. [Learn how to reduce unused CSS](https://developer.chrome.com/docs/x/).', savingsMs: 0, savingsBytes: 18432 }] };
+    const body = sectionsPageSpeed(m, DESKTOP, 'https://example.com').sections.find((s) => s.type === 'cards').items[0].body;
+    expect(body).not.toContain('](');
+    expect(body).not.toContain('https://developer.chrome.com');
+    expect(body).toContain('Learn how to reduce unused CSS.');
+  });
+
   it('orders fixes by what they save, and costs each one', () => {
     const r = sectionsPageSpeed(MOBILE, DESKTOP, 'https://example.com');
     const cards = r.sections.find((s) => s.type === 'cards');

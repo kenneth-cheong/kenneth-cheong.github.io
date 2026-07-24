@@ -2221,7 +2221,11 @@ function sectionsPageSpeed(psmRes, psdRes, target) {
       note: 'Savings are Google’s estimate for this page on mobile.',
       items: opps.slice(0, 10).map((o) => ({
         title: o.title,
-        body: `${o.description || ''}${o.display ? `\n\nGoogle estimates: ${o.display}.` : ''}`.trim(),
+        // Google writes these descriptions in markdown and the card renders
+        // plain text, so a doc link arrives as literal "[label](url)" brackets.
+        // The label alone reads as a sentence; "How do I do this?" is the way
+        // through to detail from here.
+        body: `${(o.description || '').replace(/\[([^\]]+)\]\(https?:[^)]*\)\.?/g, '$1.')}${o.display ? `\n\nGoogle estimates: ${o.display}.` : ''}`.trim(),
         meta: [o.savingsMs ? `saves ~${Math.round(o.savingsMs)}ms` : null,
                o.savingsBytes ? `${Math.round(o.savingsBytes / 1024)}KB lighter` : null].filter(Boolean).join(' · '),
       })) });
