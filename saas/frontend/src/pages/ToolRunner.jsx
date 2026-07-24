@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { toolById, inputsFor, tabsFor, exampleFor, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS, NORMALIZERS } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
-import { runToolToCompletion } from '../lib/jobRun.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
@@ -13,7 +12,6 @@ import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
-import NextSteps from '../components/NextSteps.jsx';
 import ConnectPrompt, { connectReasonFor } from '../components/ConnectPrompt.jsx';
 import { useIntegrationGate, IntegrationGate } from '../components/IntegrationGate.jsx';
 import { suppressFault } from '../lib/diagnostics.js';
@@ -406,17 +404,18 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     setJob(null);
     const startedAt = Date.now();
     try {
-      // Async job tools (Content Optimiser, Technical SEO crawler) answer with a
-      // job id, not a result: the run continues server-side, finishing even if
-      // this tab closes. runToolToCompletion polls it through, feeding setJob the
-      // real stage/progress and any partial results, and hands back the finished
-      // payload in the same shape a synchronous tool returns.
-      const res = await runToolToCompletion(
-        tool.id,
-        { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined },
-        tool.slow,
-        setJob,
-      );
+      let res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
+      // Async job tools (content-writer): the first response is just a job id —
+      // the run continues server-side (finishing even if this tab closes). Poll
+      // for REAL stage/agent progress, then adopt the finished payload.
+      if (res?.result?.jobId && res?.result?.status && !res.result.sections && !res.result.html) {
+        setJob({ status: res.result.status });
+        const done = await pollJob(tool.id, res.result.jobId, setJob);
+        res = {
+          result: done.result || {}, runId: done.runId || null,
+          creditsUsed: done.creditsUsed, creditsRemaining: done.creditsRemaining, topupRemaining: done.topupRemaining,
+        };
+      }
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
       // Failed runs are never billed server-side — reassure the user in a toast so
@@ -741,6 +740,28 @@ async function reconcileRun(toolId, sinceMs, { windowMs = 3 * 60 * 1000 } = {}) 
   return null;
 }
 
+// Poll a background job until it finishes. Transient poll failures are ignored
+// (the job keeps running server-side); a hard cap stops a zombie poll loop —
+// the run itself still completes, lands in History and fires a notification.
+async function pollJob(toolId, jobId, onTick) {
+  // Must outlast the server's own deadline (MeteringFn's 900s timeout, minus
+  // the finalizer's 20s self-deadline margin) — otherwise we give up first and
+  // report a failure for a run that was about to report success.
+  const deadline = Date.now() + 16 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3500));
+    let s = null;
+    try { s = (await api.runTool(toolId, { cwAction: 'status', jobId }, true))?.result; }
+    catch { continue; }
+    if (!s) continue;
+    if (s.status === 'done') return s;
+    if (s.status === 'error') throw new Error(s.error || 'The run failed. No credits were charged.');
+    if (s.status === 'unknown') throw new Error('We lost track of this run — check History in a minute; it may still have finished.');
+    onTick?.(s);
+  }
+  throw new Error('This is taking unusually long. The run continues in the background — you’ll get a notification, and the result will be in History.');
+}
+
 // Staged checklist for long runs. Tools with a background job report REAL
 // progress (stage + agents done/total); everything else advances on a schedule
 // scaled to the tool's typical duration (not a fixed 6s — which raced to
@@ -762,9 +783,8 @@ function SlowProgress({ tool, job }) {
     const p = job.progress;
     const pct = p && p.total ? Math.round((p.done / p.total) * 100) : null;
     // Results the server has already finished. The Optimiser produces the
-    // competitor research ~100s in and the draft ~400s in, and the crawler hands
-    // back pages in batches throughout — holding either until the run ends means
-    // minutes of staring at a spinner.
+    // competitor research ~100s in and the draft ~400s in, so holding them back
+    // until the QA agents finish means several minutes of staring at a spinner.
     const partial = Array.isArray(job.partial) ? job.partial : [];
     return (
       <>
@@ -779,7 +799,7 @@ function SlowProgress({ tool, job }) {
               <div className="h-2 overflow-hidden rounded-full bg-sunken">
                 <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all" style={{ width: `${Math.max(3, pct)}%` }} />
               </div>
-              <div className="mt-1.5 text-xs tabular-nums text-muted">{p.done}/{p.total} {p.label || 'QA agents finished'}</div>
+              <div className="mt-1.5 text-xs tabular-nums text-muted">{p.done}/{p.total} QA agents finished</div>
             </div>
           )}
           <p className="mt-4 text-sm text-dim">
@@ -1203,14 +1223,6 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
             Only for real, non-teaser runs (a saved runId to attach it to). */}
         {out.runId && hasContent && !out.teaser && <RunFeedback runId={out.runId} toolName={tool.name} />}
       </div>
-
-      {/* Where to go next. Outside the print card by design: the PDF a user
-          sends a client is the report, not our navigation. A teaser run still
-          gets it — someone looking at a capped preview is exactly who benefits
-          from being shown the rest of the platform. */}
-      {(hasContent || r.summary != null) && (
-        <NextSteps toolId={tool.id} tier={user?.tier} context={recContext} />
-      )}
     </div>
   );
 }

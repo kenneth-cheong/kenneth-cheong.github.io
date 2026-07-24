@@ -7,7 +7,6 @@ import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
-import NextSteps from '../components/NextSteps.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle, Pencil, Check } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
@@ -867,7 +866,6 @@ export default function SocialAudit() {
           {scorecardHtml && <ReportHtml html={scorecardHtml} className="" />}
           {scaHtml && <ReportHtml html={scaHtml} className="" />}
         </div>
-        {(scorecardHtml || scaHtml) && <NextSteps toolId="social-audit" tier={user?.tier} context={{}} />}
       </div>
     </div>
   );

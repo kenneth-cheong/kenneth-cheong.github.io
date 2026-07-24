@@ -8,7 +8,6 @@ import ResultSections from '../components/ResultSections.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
-import NextSteps from '../components/NextSteps.jsx';
 import { toast } from '../lib/ui.js';
 import { startSeoDiagnosticsTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Loader2, ArrowRight, ArrowLeft, Stethoscope, Compass } from 'lucide-react';
@@ -312,9 +311,6 @@ export default function SeoDiagnostics() {
           )}
           {result?.sections && <PrintBrand title="SEO Diagnostics" subtitle={domain} project={active} user={user} />}
           {result?.sections ? <ResultSections sections={result.sections} context={{ toolName: 'SEO Diagnostics', domain, target: domain }} /> : <p className="text-dim">No diagnosis yet.</p>}
-          {result?.sections && (
-            <NextSteps toolId="seo-diagnostics" tier={user?.tier} context={{ domain, target: domain, inputs: { input: domain } }} />
-          )}
         </div>
       )}
 
