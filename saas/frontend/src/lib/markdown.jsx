@@ -1,5 +1,6 @@
-// Renders the lightweight Markdown the assistant replies in (## headings,
-// **bold**, numbered/bulleted lists, `code`, links) into React nodes.
+// Renders the Markdown the assistant replies in (## headings, **bold**,
+// numbered/bulleted lists, `code`, links, tables, rules, fenced code and
+// blockquotes) into React nodes.
 //
 // Lives here rather than inside ChatDrawer because assistant output is no
 // longer chat-only: "Do it for me" streams its answer into the tool result in
@@ -57,6 +58,32 @@ function renderInline(text, chipFor, keyBase) {
   return out;
 }
 
+// --- Tables -----------------------------------------------------------------
+// The drafts these answers produce ("Do it for me" on a recommendation) lean on
+// pipe tables and `---` rules constantly. Unrendered, a link-flow audit lands as
+// a wall of `| Page | Purpose |` — technically the content, visibly a mess. So
+// the block grammar below covers what the model actually writes.
+
+const ROW_RE = /^\s*\|.*\|?\s*$/;                       // a pipe row
+const SEP_RE = /^\s*\|?[\s:-]*-[\s:|-]*\|?\s*$/;        // |---|:--:| under the header
+const isSep = (l) => l != null && SEP_RE.test(l) && l.includes('-') && l.includes('|');
+
+// Split a row on unescaped pipes, dropping the optional outer ones.
+function cells(line) {
+  const s = line.trim().replace(/^\|/, '').replace(/\|\s*$/, '');
+  const out = [];
+  let cur = '';
+  for (let j = 0; j < s.length; j++) {
+    if (s[j] === '\\' && s[j + 1] === '|') { cur += '|'; j++; continue; }
+    if (s[j] === '|') { out.push(cur.trim()); cur = ''; continue; }
+    cur += s[j];
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+const alignOf = (spec) => (/^:.*:$/.test(spec) ? 'center' : /:$/.test(spec) ? 'right' : undefined);
+
 export function renderMessage(text, chipFor) {
   const lines = String(text).replace(/\r\n/g, '\n').split('\n');
   const blocks = [];
@@ -70,6 +97,96 @@ export function renderMessage(text, chipFor) {
   };
   while (i < lines.length) {
     const line = lines[i];
+
+    // Fenced code — take it verbatim, including any pipes or #s inside.
+    const fence = /^\s*(```|~~~)(.*)$/.exec(line);
+    if (fence) {
+      flushPara();
+      const close = fence[1];
+      const buf = [];
+      i++;
+      while (i < lines.length && !lines[i].trimStart().startsWith(close)) buf.push(lines[i++]);
+      i++; // past the closing fence (or off the end, on an unterminated block)
+      blocks.push(
+        <pre key={`c${k++}`} className="overflow-x-auto rounded-lg border border-line bg-sunken p-3 text-[0.85em] leading-relaxed">
+          <code>{buf.join('\n')}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    // Table — a pipe row followed by the |---|---| separator.
+    if (ROW_RE.test(line) && line.includes('|') && isSep(lines[i + 1])) {
+      flushPara();
+      const head = cells(line);
+      const aligns = cells(lines[i + 1]).map(alignOf);
+      i += 2;
+      const body = [];
+      while (i < lines.length && ROW_RE.test(lines[i]) && lines[i].includes('|')) body.push(cells(lines[i++]));
+      const key = `tb${k++}`;
+      blocks.push(
+        <div key={key} className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-[0.92em]">
+            <thead>
+              <tr className="border-b border-line">
+                {head.map((c, x) => (
+                  <th key={x} style={{ textAlign: aligns[x] }} className="py-1.5 pr-3 text-xs font-semibold uppercase tracking-wide text-dim">
+                    {renderInline(c, chipFor, `${key}h${x}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((row, y) => (
+                <tr key={y} className="border-b border-line/60 align-top last:border-0">
+                  {head.map((_, x) => (
+                    <td key={x} style={{ textAlign: aligns[x] }} className="py-1.5 pr-3">
+                      {renderInline(row[x] ?? '', chipFor, `${key}r${y}c${x}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+
+    // Thematic break. Bullets need a space after the dash, so `---` can't be one.
+    // Directly under a one-line paragraph it's a Setext heading instead, which is
+    // how the model underlines section titles.
+    const setext = /^\s{0,3}(-{3,}|={3,})\s*$/.exec(line);
+    if (setext && para.length === 1) {
+      const key = `h${k++}`;
+      const heading = para.pop();
+      blocks.push(
+        <div key={key} className={setext[1][0] === '=' ? 'mt-1 text-base font-bold' : 'mt-2 text-sm font-bold'}>
+          {renderInline(heading, chipFor, key)}
+        </div>,
+      );
+      i++; continue;
+    }
+    if (/^\s{0,3}([-*_])\s*(\1\s*){2,}$/.test(line)) {
+      flushPara();
+      blocks.push(<hr key={`hr${k++}`} className="border-line" />);
+      i++; continue;
+    }
+
+    // Blockquote — the model uses it for the copy you're meant to paste.
+    if (/^\s*>\s?/.test(line)) {
+      flushPara();
+      const buf = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>\s?/, ''));
+      const key = `q${k++}`;
+      blocks.push(
+        <blockquote key={key} className="border-l-2 border-brand-300 dark:border-brand-500/40 pl-3 text-dim">
+          <p className="whitespace-pre-wrap">{renderInline(buf.join('\n'), chipFor, key)}</p>
+        </blockquote>,
+      );
+      continue;
+    }
+
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) {
       flushPara();

@@ -820,7 +820,7 @@ export function startToolTour(tool, fields, hooks = {}) {
       description:
         lead(OUTPUT_BLURB[tool.id] || 'A clean, formatted report.') +
         note('This is the <b>real result</b>, exactly as your own runs will look. Spot a term you don’t know? Hover the little <b>ⓘ</b> beside any metric for a plain-English meaning.') +
-        note('The bar above has <b>Explain this</b> (Monty breaks the whole thing down), <b>Copy</b>, <b>CSV</b>, <b>Print</b> (a white-label PDF) and <b>Share</b> (a branded image). Many tools finish with <b>recommendation cards</b> — “How do I do this?”, “Do it for me”, “Add to plan” — so a finding turns into an action.'),
+        note('The bar above has <b>Explain this</b> (Monty breaks the whole thing down), <b>Copy</b>, <b>CSV</b>, <b>Print</b> (a white-label PDF) and <b>Share</b> (a branded image). Many tools finish with <b>recommendation cards</b> — “How do I do this?”, “Do it for me” — so a finding turns into an action.'),
       side: 'top',
       align: 'start',
     },

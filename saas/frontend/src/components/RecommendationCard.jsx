@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ListChecks, Wand2, Target, Check, Sparkles, PenLine } from 'lucide-react';
-import { usePlan } from '../context/PlanContext.jsx';
-import { recStep } from '../lib/planner.js';
-import { toast } from '../lib/ui.js';
+import { ListChecks, Wand2, Sparkles, PenLine } from 'lucide-react';
 import InlineAnswer from './InlineAnswer.jsx';
 
 const OPTIMISER_ID = 'content-writer'; // catalog id of the AI Content Optimiser
@@ -11,11 +8,10 @@ const OPTIMISER_ID = 'content-writer'; // catalog id of the AI Content Optimiser
 // An actionable recommendation. The data tools return prioritised "do this next"
 // cards (see aiRecommendations / competitor_insights in the metering gateway),
 // but a beginner reads "Fix your thin content" and stalls: they don't know HOW,
-// and doing it feels like homework. This card closes that gap with three one-tap
+// and doing it feels like homework. This card closes that gap with two one-tap
 // actions on every recommendation:
 //   • How do I do this?  → the assistant explains it as plain-English steps
 //   • Do it for me       → the assistant drafts the actual fix/output (credits)
-//   • Add to plan        → drops it into the sticky cross-device checklist
 // "How do I do this?" opens Monty via the same `dm:ask` event the right-click
 // "Explain" menu fires, because an explanation is a conversation you follow up
 // on. "Do it for me" does NOT: its output is a deliverable you paste, so it
@@ -140,8 +136,6 @@ export function bulkPrompts(cards, context) {
 // Section-level companion to the per-card actions: does the entire list in a
 // single assistant message (one charge, one answer) instead of N round-trips.
 export function BulkRecActions({ cards, context }) {
-  const plan = usePlan();
-  const [addedAll, setAddedAll] = useState(false);
   const [writing, setWriting] = useState(false);
   const navigate = useNavigate();
   if (!cards || cards.length < 2) return null;
@@ -151,13 +145,6 @@ export function BulkRecActions({ cards, context }) {
   // keyword, market and page are all sitting right here, so don't make the user
   // re-type them into the next tool.
   const handoff = context?.toolId === OPTIMISER_ID ? null : optimiserValues(context);
-
-  const addAllToPlan = () => {
-    if (addedAll || !plan?.addStep) return;
-    cards.forEach((c) => plan.addStep(recStep({ title: c.title, why: c.body, to: context?.route })));
-    setAddedAll(true);
-    toast(`Added ${cards.length} to your plan`, 'success');
-  };
 
   const btn = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors';
 
@@ -181,13 +168,6 @@ export function BulkRecActions({ cards, context }) {
             <PenLine size={14} aria-hidden /> Write it in the Content Optimiser
           </button>
         )}
-        <button
-          onClick={addAllToPlan}
-          disabled={addedAll}
-          className={`${btn} ${addedAll ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-surface'}`}
-        >
-          {addedAll ? <><Check size={14} aria-hidden /> All added</> : <><Target size={14} aria-hidden /> Add all to plan</>}
-        </button>
       </div>
       {writing && <InlineAnswer prompt={doIt} title={`All ${count} — drafted`} onClose={() => setWriting(false)} />}
     </div>
@@ -195,8 +175,6 @@ export function BulkRecActions({ cards, context }) {
 }
 
 export default function RecommendationCard({ card, sectionTitle, context }) {
-  const plan = usePlan();
-  const [added, setAdded] = useState(false);
   const [writing, setWriting] = useState(false);
 
   const title = card.title || 'Recommendation';
@@ -221,13 +199,6 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
     `separated from any explanation, then add one short line on where to paste it.`
   );
 
-  const addToPlan = () => {
-    if (added || !plan?.addStep) return;
-    plan.addStep(recStep({ title, why: body, to: context?.route }));
-    setAdded(true);
-    toast('Added to your plan', 'success');
-  };
-
   const btn = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors';
 
   return (
@@ -245,13 +216,6 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
         </button>
         <button onClick={() => setWriting(true)} disabled={writing} title="Drafts it for you, right here (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60`}>
           <Wand2 size={14} aria-hidden /> Do it for me
-        </button>
-        <button
-          onClick={addToPlan}
-          disabled={added}
-          className={`${btn} ${added ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-sunken'}`}
-        >
-          {added ? <><Check size={14} aria-hidden /> Added to plan</> : <><Target size={14} aria-hidden /> Add to plan</>}
         </button>
       </div>
 
