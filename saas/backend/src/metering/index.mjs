@@ -1147,16 +1147,19 @@ async function onpageRun(body) {
 // able to fetch them) and de-duplicated — a sprite or logo repeated in the
 // header, body and footer is one recommendation, not five.
 function onpageImages(extraction, pageUrl) {
-  let origin = '';
-  try { origin = new URL(pageUrl.startsWith('http') ? pageUrl : `https://${pageUrl}`).origin; } catch { /* leave relative srcs out */ }
+  // Resolved against the FULL page URL, not just its origin: `img/team.jpg` on
+  // /blog/post/ is /blog/post/img/team.jpg, and origin-only resolution pointed
+  // it at /img/team.jpg — a URL that 404s, which now shows as a dead thumbnail.
+  let base = '';
+  try { base = new URL(pageUrl.startsWith('http') ? pageUrl : `https://${pageUrl}`).href; } catch { /* leave relative srcs out */ }
   const seen = new Set();
   const out = [];
   for (const it of extraction.image_data || []) {
     let src = it && Object.keys(it)[0];
     if (!src || src.startsWith('data:')) continue;
     if (!/^https?:/i.test(src)) {
-      if (!origin) continue;
-      try { src = new URL(src, origin).href; } catch { continue; }
+      if (!base) continue;
+      try { src = new URL(src, base).href; } catch { continue; }
     }
     if (seen.has(src)) continue;
     seen.add(src);
@@ -1282,6 +1285,11 @@ function sectionsOnpage(url, recs, extraction, contentRows, images = [], altBySr
     const rows = images.map((x) => {
       const proposed = altBySrc.get(x.src) || '';
       return {
+        // The absolute src, rendered as a thumbnail by the report's table: a
+        // filename alone doesn't tell you whether "MediaOne Logo Square" is the
+        // right description for the picture, which is the whole judgement call
+        // this table is asking the reader to make.
+        Preview: x.src,
         Image: x.src.split('/').pop().split('?')[0].slice(0, 70) || x.src,
         'Current alt': x.alt || '(missing)',
         'Proposed alt': proposed || '—',
@@ -1291,7 +1299,7 @@ function sectionsOnpage(url, recs, extraction, contentRows, images = [], altBySr
     out.push({
       type: 'table',
       title: `Images — alt text (${images.length})`,
-      columns: ['Image', 'Current alt', 'Proposed alt', 'Why'],
+      columns: ['Preview', 'Image', 'Current alt', 'Proposed alt', 'Why'],
       rows,
     });
     if (images.length > ALT_MAX) {

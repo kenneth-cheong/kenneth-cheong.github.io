@@ -33,6 +33,11 @@ describe('onpageImages', () => {
     ]);
     expect(imgs[1].alt).toBe('');
   });
+
+  it('resolves a path-relative src against the page path, not the bare origin', () => {
+    const imgs = onpageImages({ image_data: [{ 'img/rel.jpg': '' }, { '//cdn.x.com/p.png': '' }] }, 'https://x.com/blog/post/');
+    expect(imgs.map((i) => i.src)).toEqual(['https://x.com/blog/post/img/rel.jpg', 'https://cdn.x.com/p.png']);
+  });
 });
 
 describe('sectionsOnpage', () => {
@@ -58,6 +63,10 @@ describe('sectionsOnpage', () => {
     const t = out.find((s) => s.title?.startsWith('Images'));
     expect(t.columns).toContain('Proposed alt');
     expect(t.rows).toHaveLength(images.length); // no 30-row slice under a count of 52
+    // The thumbnail column carries the absolute src as a plain string, so CSV
+    // export and copy-to-clipboard stay readable.
+    expect(t.columns[0]).toBe('Preview');
+    expect(t.rows[1].Preview).toBe('https://mediaonemarketing.com.sg/img/team.jpg');
     expect(t.rows[1]['Proposed alt']).toBe('The MediaOne team in their Singapore office');
     expect(t.rows[1]['Current alt']).toBe('(missing)');
   });
