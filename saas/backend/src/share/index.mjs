@@ -75,6 +75,44 @@ const pngResponse = (png, origin, cacheable) => ({
 
 const safeJson = (s) => { try { return JSON.parse(s || '{}') || {}; } catch { return {}; } };
 
+// Curated, display-safe view of a run's inputs for the public "report settings"
+// strip. STRICT ALLOW-LIST (default-deny): only these keys ever surface — so a
+// tool's free-text/content/pasted/connected-account fields (which live under
+// other keys) can never leak onto a public page, even for tools written later.
+// run.inputs is already stripped of `_`-prefixed keys + projectId at save time
+// (publicInputs); this is the second, tighter gate. Values are capped and arrays
+// joined; duplicate labels (country/countryCode) collapse to the first seen.
+const SAFE_INPUT_LABELS = new Map([
+  ['url', 'URL'], ['domain', 'Domain'], ['website', 'Website'], ['page', 'Page'],
+  ['competitor', 'Competitor'], ['competitors', 'Competitors'],
+  ['competitorUrl', 'Competitor URL'], ['competitorDomain', 'Competitor'],
+  ['keyword', 'Keyword'], ['keywords', 'Keywords'], ['query', 'Query'],
+  ['topic', 'Topic'], ['brand', 'Brand'], ['niche', 'Niche'], ['industry', 'Industry'],
+  ['maxPages', 'Max pages'], ['maxDepth', 'Max depth'], ['depth', 'Depth'],
+  ['limit', 'Limit'], ['count', 'Count'], ['device', 'Device'], ['strategy', 'Strategy'],
+  ['country', 'Country'], ['countryCode', 'Country'], ['location', 'Location'],
+  ['region', 'Region'], ['market', 'Market'], ['language', 'Language'], ['lang', 'Language'],
+  ['period', 'Period'], ['range', 'Range'], ['dateRange', 'Date range'],
+  ['breakdown', 'Breakdown'], ['mode', 'Mode'], ['engine', 'Engine'], ['searchEngine', 'Search engine'],
+]);
+
+function curateInputs(inputs) {
+  if (!inputs || typeof inputs !== 'object') return [];
+  const out = [];
+  const seenLabels = new Set();
+  for (const [key, label] of SAFE_INPUT_LABELS) {
+    if (out.length >= 8) break;
+    if (!(key in inputs) || seenLabels.has(label)) continue;
+    let v = inputs[key];
+    if (Array.isArray(v)) v = v.filter((x) => x != null && x !== '').join(', ');
+    v = String(v ?? '').trim();
+    if (!v) continue;
+    seenLabels.add(label);
+    out.push({ label, value: v.slice(0, 120) });
+  }
+  return out;
+}
+
 // Dashboard tools (Social/Site Audit, Performance, Tracking) have no saved run,
 // so their Share button posts a compact stats "snapshot" that we persist on the
 // share record itself. Accept ONLY a small stats-sections summary — strip
@@ -201,6 +239,9 @@ export async function handler(event) {
               // Plain-English summary, if the owner viewed the result before
               // sharing (persisted at mint time). Snapshot shares carry it inline.
               tldr: run.tldr || null,
+              // Curated, allow-listed inputs for the "report settings" strip.
+              // Raw `inputs` is NEVER returned — only this vetted subset.
+              settings: curateInputs(run.inputs),
               result: run.result || {},
             },
           }),

@@ -30,7 +30,7 @@ beforeEach(() => {
   run = {
     userId: 'u1', runId: 'r1', tool: 'onpage', toolName: 'On-Page SEO',
     target: 'example.com', ts: '2026-07-24T00:00:00.000Z',
-    inputs: { url: 'https://example.com', _apiKey: 'secret', projectId: 'p9' },
+    inputs: { url: 'https://example.com', maxPages: 25, maxDepth: 4, pastedContent: 'my secret draft', apiToken: 'tok_123' },
     result: { html: '<h1>Report</h1>', sections: [{ type: 'stats', items: [] }] },
     tldr: 'Looking good: fast site. Do this next: add H1 tags.',
   };
@@ -59,11 +59,26 @@ describe('GET /s/{shareId}/run.json', () => {
     expect(out.tldr).toBeNull();
   });
 
-  it('NEVER exposes the original inputs (API keys, project ids)', async () => {
+  it('NEVER exposes raw inputs — only the curated allow-listed settings', async () => {
     const out = bodyOf(await call('s1')).run;
     expect(out).not.toHaveProperty('inputs');
-    expect(JSON.stringify(out)).not.toContain('secret');
-    expect(JSON.stringify(out)).not.toContain('_apiKey');
+    // Allow-listed knobs surface as labelled settings…
+    const labels = out.settings.map((s) => s.label);
+    expect(labels).toContain('URL');
+    expect(labels).toContain('Max pages');
+    expect(out.settings.find((s) => s.label === 'Max pages').value).toBe('25');
+    // …but free-text / token fields (not on the allow-list) never do.
+    const blob = JSON.stringify(out);
+    expect(blob).not.toContain('my secret draft');
+    expect(blob).not.toContain('tok_123');
+    expect(blob).not.toContain('pastedContent');
+    expect(blob).not.toContain('apiToken');
+  });
+
+  it('settings is empty when a run has no allow-listed inputs', async () => {
+    run.inputs = { pastedContent: 'x', apiToken: 'y' };
+    const out = bodyOf(await call('s1')).run;
+    expect(out.settings).toEqual([]);
   });
 
   it('is CORS-open and cacheable', async () => {

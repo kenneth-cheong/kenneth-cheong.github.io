@@ -125,6 +125,17 @@ export default function PublicRun() {
       <div className="mb-4">
         <h1 className="text-xl font-bold text-heading">{run.toolName}</h1>
         {run.target && <p className="mt-0.5 text-sm text-dim">{run.target}</p>}
+        {run.settings?.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+            <span className="font-semibold uppercase tracking-wide text-faint">Report settings</span>
+            {run.settings.map((s, i) => (
+              <span key={i} className="inline-flex items-center gap-1">
+                <span className="text-faint">{s.label}:</span>
+                <span className="font-medium text-dim">{s.value}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {run.tldr && (
