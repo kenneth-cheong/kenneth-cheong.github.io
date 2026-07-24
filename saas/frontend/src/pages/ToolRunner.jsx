@@ -13,6 +13,7 @@ import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
+import NextSteps from '../components/NextSteps.jsx';
 import ConnectPrompt, { connectReasonFor } from '../components/ConnectPrompt.jsx';
 import { useIntegrationGate, IntegrationGate } from '../components/IntegrationGate.jsx';
 import { suppressFault } from '../lib/diagnostics.js';
@@ -1261,6 +1262,14 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry, onFollow
             Only for real, non-teaser runs (a saved runId to attach it to). */}
         {out.runId && hasContent && !out.teaser && <RunFeedback runId={out.runId} toolName={tool.name} />}
       </div>
+
+      {/* Where to go next. Outside the print card by design: the PDF a user
+          sends a client is the report, not our navigation. A teaser run still
+          gets it — someone looking at a capped preview is exactly who benefits
+          from being shown the rest of the platform. */}
+      {(hasContent || r.summary != null) && (
+        <NextSteps toolId={tool.id} tier={user?.tier} context={recContext} />
+      )}
     </div>
   );
 }

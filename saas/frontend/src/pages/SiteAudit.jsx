@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
+import NextSteps from '../components/NextSteps.jsx';
 import * as auditRun from '../lib/siteAuditRun.js';
 import { startSiteAuditTour, SITE_AUDIT_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
 import { Check, Loader2, AlertTriangle, ChevronRight, Compass } from 'lucide-react';
@@ -171,6 +172,16 @@ export default function SiteAudit() {
           <PrintBrand title="Site Audit" project={active} user={user} />
           <Report report={report} />
         </div>
+      )}
+      {/* Outside `reportRef` on purpose — the PDF is the report, not the app
+          chrome around it. (`dm-no-print` covers the browser print path too.) */}
+      {report && (
+        <NextSteps
+          toolId="site-audit"
+          tier={user?.tier}
+          context={{ domain: url || projectUrl(), target: url || projectUrl(), inputs: { input: url || projectUrl() } }}
+          exclude={AUDIT_TOOLS.map((t) => t.id)}
+        />
       )}
     </div>
   );
